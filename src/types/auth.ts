@@ -1,33 +1,5 @@
 import type { Role } from "../utils/role";
 
-export interface CompanyOption {
-  id: number;
-  nombre: string;
-}
-
-export interface CompanySummary extends CompanyOption {
-  ruc?: string | null;
-}
-
-export interface CompanyBank {
-  id: number;
-  bancoNombre: string;
-  tipoCuenta: string;
-  moneda: string;
-  numeroCuenta: string;
-  titular?: string | null;
-  sucursal?: string | null;
-  activo: boolean;
-}
-
-export interface Company extends CompanySummary {
-  email?: string | null;
-  telefono?: string | null;
-  direccion?: string | null;
-  activo: boolean;
-  bancos: CompanyBank[];
-}
-
 export interface AuthUser {
   id?: number | string;
   usrNombre?: string | null;
@@ -40,7 +12,6 @@ export interface AuthUser {
   activo?: boolean | null;
   isAdmin?: boolean | null;
   isSuperAdmin?: boolean | null;
-  empresa?: CompanySummary | null;
 }
 
 export interface LoginPayload {
@@ -56,7 +27,6 @@ export interface RegisterPayload {
   usrLogin: string;
   usrLegajo: string;
   password: string;
-  empresaId: number;
 }
 
 export interface LoginResponse {

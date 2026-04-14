@@ -10,7 +10,6 @@ export interface CreateUserForm {
   usrLogin: string;
   usrLegajo: string;
   password: string;
-  empresaId: number;
   role: Role;
   activo: boolean;
 }

@@ -78,6 +78,7 @@ function isExpiredToken(payload: ApiPayload | null): boolean {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", data, auth = true, headers = {}, showBackdrop = true } = options;
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
 
   if (showBackdrop) onRequestStart();
 
@@ -86,11 +87,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const response = await fetch(`${API_URL}${path}`, {
       method,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers
       },
-      body: data !== undefined ? JSON.stringify(data) : undefined
+      body:
+        data !== undefined ? (isFormData ? data : JSON.stringify(data)) : undefined
     });
 
     const raw = await response.text();

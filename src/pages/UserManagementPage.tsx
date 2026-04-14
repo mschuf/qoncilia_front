@@ -1,4 +1,4 @@
-﻿import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiKey, FiPlus, FiRefreshCw, FiUserCheck, FiUserX } from "react-icons/fi";
 import AppModal from "@/AppModal";
@@ -6,7 +6,6 @@ import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import type { CompanyOption } from "../types/auth";
 import type {
   CreateUserForm,
   ErrorLike,
@@ -24,7 +23,6 @@ const formInitialState: CreateUserForm = {
   usrLogin: "",
   usrLegajo: "",
   password: "",
-  empresaId: 0,
   role: ROLE_VALUES.gestor,
   activo: true
 };
@@ -50,7 +48,6 @@ export default function UserManagementPage() {
   const { role } = useAuth();
   const toast = useToast();
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateUserForm>(formInitialState);
   const [temporaryPassword, setTemporaryPassword] = useState("");
@@ -91,28 +88,13 @@ export default function UserManagementPage() {
     }
   }, [notifyError]);
 
-  const loadCompanyOptions = useCallback(async () => {
-    try {
-      const response = await apiClient.get<CompanyOption[]>("/companies/options");
-      setCompanyOptions(response ?? []);
-      setCreateForm((prev) => ({
-        ...prev,
-        empresaId: prev.empresaId > 0 ? prev.empresaId : (response?.[0]?.id ?? 0)
-      }));
-    } catch (error) {
-      notifyError(error, "No se pudieron cargar empresas activas.");
-    }
-  }, [notifyError]);
-
   useEffect(() => {
     void loadUsers();
-    void loadCompanyOptions();
-  }, [loadUsers, loadCompanyOptions]);
+  }, [loadUsers]);
 
   const openCreateModal = () => {
     setCreateForm({
       ...formInitialState,
-      empresaId: companyOptions[0]?.id ?? 0,
       role: allowedRoles[0] ?? ROLE_VALUES.gestor,
       activo: true
     });
@@ -122,12 +104,9 @@ export default function UserManagementPage() {
   const onCreateFieldChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const key = event.target.name as keyof CreateUserForm;
 
-    let value: string | boolean | number = event.target.value;
+    let value: string | boolean = event.target.value;
     if (event.target instanceof HTMLInputElement && event.target.type === "checkbox") {
       value = event.target.checked;
-    }
-    if (key === "empresaId") {
-      value = Number(event.target.value);
     }
 
     setCreateForm((prev) => ({ ...prev, [key]: value }) as CreateUserForm);
@@ -139,11 +118,6 @@ export default function UserManagementPage() {
 
   const createUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (!createForm.empresaId || createForm.empresaId <= 0) {
-      toast.error("Debes seleccionar una empresa.");
-      return;
-    }
 
     if (createForm.usrCelular && !isValidPhoneNumber(createForm.usrCelular)) {
       toast.error("El numero de celular ingresado no es valido.");
@@ -163,7 +137,6 @@ export default function UserManagementPage() {
         usrLogin: createForm.usrLogin,
         usrLegajo: createForm.usrLegajo,
         password: createForm.password,
-        empresaId: createForm.empresaId,
         activo: createForm.activo,
         ...roleToFlags(safeRole)
       });
@@ -202,40 +175,61 @@ export default function UserManagementPage() {
     }
   };
 
+  const stats = useMemo(
+    () => ({
+      total: users.length,
+      active: users.filter((item) => item.activo).length,
+      admins: users.filter((item) => item.isAdmin && item.activo).length,
+      superadmins: users.filter((item) => item.isSuperAdmin && item.activo).length
+    }),
+    [users]
+  );
+
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold text-slate-800">ABM de Usuarios</h2>
-          <p className="text-sm text-slate-600">
-            Tu rol actual es <strong>{roleLabel(role)}</strong>. Se aplican permisos automaticos por rol.
+    <section className="space-y-6">
+      <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
+            Seguridad Operativa
+          </p>
+          <h2 className="mt-3 text-3xl font-extrabold text-slate-900">ABM de Usuarios</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+            Crea accesos y controla activaciones. El superadmin define bancos y layouts; los admins
+            quedan enfocados en operar conciliaciones.
           </p>
         </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <StatCard label="Usuarios" value={stats.total} />
+          <StatCard label="Activos" value={stats.active} accent="emerald" />
+          <StatCard label="Admins" value={stats.admins} />
+          <StatCard label="Superadmins" value={stats.superadmins} />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-600">
+          Tu rol actual es <strong>{roleLabel(role)}</strong>. Los permisos se aplican automaticamente
+          por rol.
+        </p>
 
         <button
           type="button"
           onClick={openCreateModal}
-          disabled={companyOptions.length === 0}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
         >
           <FiPlus className="h-4 w-4" /> Nuevo usuario
         </button>
       </div>
 
-      {companyOptions.length === 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          No hay empresas activas. Crea o activa una empresa para poder crear usuarios.
-        </div>
-      )}
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.08em] text-slate-500">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
               <tr>
                 <th className="px-4 py-3">Usuario</th>
                 <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Empresa</th>
+                <th className="px-4 py-3">Contacto</th>
                 <th className="px-4 py-3">Rol</th>
                 <th className="px-4 py-3">Activo</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
@@ -250,9 +244,14 @@ export default function UserManagementPage() {
                   <tr key={targetUser.id} className="border-t border-slate-100 text-slate-700">
                     <td className="px-4 py-3 font-semibold">{targetUser.usrLogin}</td>
                     <td className="px-4 py-3">
-                      {targetUser.usrNombre ? `${targetUser.usrNombre} ${targetUser.usrApellido ?? ""}`.trim() : "-"}
+                      {targetUser.usrNombre
+                        ? `${targetUser.usrNombre} ${targetUser.usrApellido ?? ""}`.trim()
+                        : "-"}
                     </td>
-                    <td className="px-4 py-3">{targetUser.empresa?.nombre ?? "-"}</td>
+                    <td className="px-4 py-3">
+                      <div>{targetUser.usrEmail ?? "-"}</div>
+                      <div className="text-xs text-slate-500">{targetUser.usrCelular ?? "-"}</div>
+                    </td>
                     <td className="px-4 py-3">{roleLabel(rowRole)}</td>
                     <td className="px-4 py-3">
                       <span
@@ -361,23 +360,6 @@ export default function UserManagementPage() {
             </div>
           </label>
 
-          <label className="block space-y-1">
-            <span className="text-sm font-semibold text-slate-700">Empresa</span>
-            <select
-              name="empresaId"
-              value={createForm.empresaId}
-              onChange={onCreateFieldChange}
-              className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm"
-              required
-            >
-              {companyOptions.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
-
           <Field
             label="Usuario (login)"
             name="usrLogin"
@@ -465,5 +447,27 @@ function Field({ label, required = false, ...props }: UserManagementFieldProps) 
         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-800 focus:ring-1 focus:ring-slate-800 transition-all outline-none"
       />
     </label>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  accent = "slate"
+}: {
+  label: string;
+  value: number;
+  accent?: "slate" | "emerald";
+}) {
+  const colorClass =
+    accent === "emerald"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-slate-200 bg-slate-50 text-slate-700";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${colorClass}`}>
+      <p className="text-xs font-bold uppercase tracking-[0.16em]">{label}</p>
+      <p className="mt-2 text-3xl font-extrabold">{value}</p>
+    </div>
   );
 }

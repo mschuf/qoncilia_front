@@ -1,4 +1,4 @@
-import { FiBriefcase, FiHome, FiLogOut, FiShield, FiUser } from "react-icons/fi";
+import { FiActivity, FiHome, FiLogOut, FiSettings, FiShield, FiUser } from "react-icons/fi";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { roleLabel } from "../utils/role";
@@ -46,14 +46,14 @@ export default function AppLayout() {
 
             {(role === "admin" || role === "superadmin") && (
               <NavLink
-                to="/companies"
+                to="/conciliation"
                 className={({ isActive }) =>
                   `rounded-xl px-4 py-2 text-sm font-semibold transition-all ${isActive ? "bg-slate-900 text-white shadow-md" : "text-slate-600 hover:bg-slate-100"
                   }`
                 }
               >
                 <span className="flex items-center gap-2">
-                  <FiBriefcase className="h-4 w-4" /> Empresas
+                  <FiActivity className="h-4 w-4" /> Conciliar
                 </span>
               </NavLink>
             )}
@@ -71,6 +71,20 @@ export default function AppLayout() {
                 </span>
               </NavLink>
             )}
+
+            {role === "superadmin" && (
+              <NavLink
+                to="/layout-management"
+                className={({ isActive }) =>
+                  `rounded-xl px-4 py-2 text-sm font-semibold transition-all ${isActive ? "bg-slate-900 text-white shadow-md" : "text-slate-600 hover:bg-slate-100"
+                  }`
+                }
+              >
+                <span className="flex items-center gap-2">
+                  <FiSettings className="h-4 w-4" /> Layouts
+                </span>
+              </NavLink>
+            )}
           </nav>
 
           <div className="flex items-center gap-3">
@@ -78,12 +92,6 @@ export default function AppLayout() {
               {user?.usrNombre ? `${user.usrNombre} ${user?.usrApellido ?? ""}`.trim() : user?.usrLogin}
               <span className="mx-2 text-slate-300">|</span>
               {roleLabel(role)}
-              {user?.empresa?.nombre ? (
-                <>
-                  <span className="mx-2 text-slate-300">|</span>
-                  {user.empresa.nombre}
-                </>
-              ) : null}
             </div>
             <button
               type="button"

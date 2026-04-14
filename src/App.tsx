@@ -4,12 +4,13 @@ import ProtectedRoute from "@/ProtectedRoute";
 import PublicOnlyRoute from "@/PublicOnlyRoute";
 import { useAuth } from "./context/AuthContext";
 import AppLayout from "./layouts/AppLayout";
+import ConciliationWorkbenchPage from "./pages/ConciliationWorkbenchPage";
 import HomePage from "./pages/HomePage";
+import LayoutManagementPage from "./pages/LayoutManagementPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import ProfilePage from "./pages/ProfilePage";
-import CompanyManagementPage from "./pages/CompanyManagementPage";
 
 export default function App() {
   const { role } = useAuth();
@@ -45,10 +46,10 @@ export default function App() {
           <Route index element={<HomePage />} />
           <Route path="mis-datos" element={<ProfilePage />} />
           <Route
-            path="companies"
+            path="conciliation"
             element={
               <ProtectedRoute roles={["admin", "superadmin"]}>
-                <CompanyManagementPage />
+                <ConciliationWorkbenchPage />
               </ProtectedRoute>
             }
           />
@@ -57,6 +58,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["admin", "superadmin"]}>
                 <UserManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="layout-management"
+            element={
+              <ProtectedRoute roles={["superadmin"]}>
+                <LayoutManagementPage />
               </ProtectedRoute>
             }
           />
