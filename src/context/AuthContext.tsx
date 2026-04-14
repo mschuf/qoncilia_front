@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, configureApiClient } from "../api/apiClient";
 import { useTokenTimer } from "../hooks/useTokenTimer";
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useTokenTimer(expiresAt, handleSessionExpired);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     configureApiClient({
       getTokenFn: () => token,
       onRequestStartFn: startLoading,
