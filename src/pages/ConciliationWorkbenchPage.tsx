@@ -1,10 +1,11 @@
 import type {
   ChangeEvent,
   ComponentType,
+  DragEvent,
   Dispatch,
   SetStateAction,
 } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -25,7 +26,10 @@ import {
   FiBarChart2,
   FiCheckCircle,
   FiDatabase,
+  FiFile,
+  FiRefreshCw,
   FiSave,
+  FiTrash2,
   FiUploadCloud,
   FiXCircle,
 } from "react-icons/fi";
@@ -156,6 +160,16 @@ export default function ConciliationWorkbenchPage() {
     (event: ChangeEvent<HTMLInputElement>) => {
       setter(event.target.files?.[0] ?? null);
     };
+
+  const clearAll = () => {
+    setSystemFile(null);
+    setBankFile(null);
+    setPreview(null);
+    setManualMatches([]);
+    setUnmatchedSystemRows([]);
+    setUnmatchedBankRows([]);
+    setKpis(null);
+  };
 
   const runPreview = async () => {
     if (!selectedBankId || !selectedLayoutId || !systemFile || !bankFile) {
@@ -360,13 +374,21 @@ export default function ConciliationWorkbenchPage() {
             }))}
           />
 
-          <div className="flex items-end">
+          <div className="flex items-end gap-2">
             <button
               type="button"
               onClick={runPreview}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
             >
               <FiUploadCloud className="h-4 w-4" /> Conciliar
+            </button>
+            <button
+              type="button"
+              onClick={clearAll}
+              title="Limpiar todo"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+            >
+              <FiRefreshCw className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -376,11 +398,13 @@ export default function ConciliationWorkbenchPage() {
             title={selectedLayout?.systemLabel ?? "Sistema"}
             file={systemFile}
             onChange={onFileChange(setSystemFile)}
+            onClear={() => setSystemFile(null)}
           />
           <UploadCard
             title={selectedLayout?.bankLabel ?? "Banco"}
             file={bankFile}
             onChange={onFileChange(setBankFile)}
+            onClear={() => setBankFile(null)}
           />
         </div>
       </div>
@@ -418,85 +442,58 @@ export default function ConciliationWorkbenchPage() {
             </button>
           </div>
 
-          <div className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-5">
-            <h3 className="text-lg font-extrabold text-emerald-900">
-              Matches automaticos
-            </h3>
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-[0.12em] text-emerald-700">
-                  <tr>
-                    <th className="px-3 py-2">Sistema</th>
-                    <th className="px-3 py-2">Banco</th>
-                    <th className="px-3 py-2">Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.autoMatches.map((match) => (
-                    <tr
-                      key={`${match.systemRowId}-${match.bankRowId}`}
-                      className="border-t border-emerald-200"
-                    >
-                      <td className="px-3 py-2">
-                        {summarizeRow(
-                          preview.systemRows.find(
-                            (item) => item.rowId === match.systemRowId,
-                          ),
-                          preview.layout.mappings,
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        {summarizeRow(
-                          preview.bankRows.find(
-                            (item) => item.rowId === match.bankRowId,
-                          ),
-                          preview.layout.mappings,
-                        )}
-                      </td>
-                      <td className="px-3 py-2 font-bold">{match.score}</td>
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-6">
+            {/* ── Matches automaticos ── */}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
+              <h3 className="text-lg font-extrabold text-emerald-900">
+                Matches automaticos
+              </h3>
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="text-left text-xs uppercase tracking-[0.12em] text-emerald-700">
+                    <tr>
+                      <th className="px-3 py-2">Sistema</th>
+                      <th className="px-3 py-2">Banco</th>
+                      <th className="px-3 py-2">Score</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-extrabold text-slate-900">
-                  Match manual por arrastre
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Arrastra una fila del sistema hacia una fila del banco para
-                  vincularlas.
-                </p>
+                  </thead>
+                  <tbody>
+                    {preview.autoMatches.map((match) => (
+                      <tr
+                        key={`${match.systemRowId}-${match.bankRowId}`}
+                        className="border-t border-emerald-200"
+                      >
+                        <td className="px-3 py-2">
+                          {summarizeRow(
+                            preview.systemRows.find(
+                              (item) => item.rowId === match.systemRowId,
+                            ),
+                            preview.layout.mappings,
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {summarizeRow(
+                            preview.bankRows.find(
+                              (item) => item.rowId === match.bankRowId,
+                            ),
+                            preview.layout.mappings,
+                          )}
+                        </td>
+                        <td className="px-3 py-2 font-bold">{match.score}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {manualMatches.length} matches manuales
-              </span>
             </div>
 
-            <DndContext onDragEnd={onDragEnd}>
-              <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                <UnmatchedColumn
-                  title={preview.layout.systemLabel}
-                  rows={unmatchedSystemRows}
-                  mappings={preview.layout.mappings}
-                  variant="system"
-                />
-                <UnmatchedColumn
-                  title={preview.layout.bankLabel}
-                  rows={unmatchedBankRows}
-                  mappings={preview.layout.mappings}
-                  variant="bank"
-                />
-              </div>
-            </DndContext>
-
-            <div className="mt-5 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/70">
+            {/* ── Matches manuales (lista) ── */}
+            <div className="overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/70">
               <div className="border-b border-amber-200 px-4 py-3 text-sm font-bold text-amber-900">
                 Matches manuales
+                <span className="ml-2 rounded-full bg-amber-200/60 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                  {manualMatches.length}
+                </span>
               </div>
               <div className="divide-y divide-amber-200">
                 {manualMatches.map((match) => (
@@ -537,6 +534,38 @@ export default function ConciliationWorkbenchPage() {
                   </div>
                 ) : null}
               </div>
+            </div>
+
+            {/* ── Drag & drop para emparejar ── */}
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900">
+                    Emparejar manualmente
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Arrastra una fila del sistema hacia una fila del banco para
+                    vincularlas.
+                  </p>
+                </div>
+              </div>
+
+              <DndContext onDragEnd={onDragEnd}>
+                <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  <UnmatchedColumn
+                    title={preview.layout.systemLabel}
+                    rows={unmatchedSystemRows}
+                    mappings={preview.layout.mappings}
+                    variant="system"
+                  />
+                  <UnmatchedColumn
+                    title={preview.layout.bankLabel}
+                    rows={unmatchedBankRows}
+                    mappings={preview.layout.mappings}
+                    variant="bank"
+                  />
+                </div>
+              </DndContext>
             </div>
           </div>
         </>
@@ -782,24 +811,105 @@ function UploadCard({
   title,
   file,
   onChange,
+  onClear,
 }: {
   title: string;
   file: File | null;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const handleDragLeave = () => setDragging(false);
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragging(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) {
+      const syntheticEvent = {
+        target: { files: e.dataTransfer.files },
+      } as unknown as ChangeEvent<HTMLInputElement>;
+      onChange(syntheticEvent);
+    }
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClear();
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
   return (
-    <label className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5">
-      <span className="text-sm font-semibold text-slate-700">{title}</span>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+      }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`relative flex cursor-pointer flex-col items-center rounded-3xl border-2 border-dashed p-6 transition ${
+        dragging
+          ? "border-brand-400 bg-brand-50/60"
+          : file
+            ? "border-emerald-300 bg-emerald-50/40"
+            : "border-slate-300 bg-slate-50/70 hover:border-brand-300 hover:bg-brand-50/30"
+      }`}
+    >
       <input
+        ref={inputRef}
         type="file"
         accept=".xlsx,.xls"
         onChange={onChange}
-        className="mt-4 block w-full text-sm"
+        className="hidden"
       />
-      <p className="mt-3 text-sm text-slate-500">
-        {file?.name ?? "Todavia no cargaste archivo."}
-      </p>
-    </label>
+
+      {file ? (
+        <>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <FiFile className="h-5 w-5" />
+          </div>
+          <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+            {title}
+          </p>
+          <p className="mt-1 max-w-full truncate text-sm font-semibold text-slate-800">
+            {file.name}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {(file.size / 1024).toFixed(1)} KB
+          </p>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+          >
+            <FiTrash2 className="h-3.5 w-3.5" /> Quitar archivo
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <FiUploadCloud className="h-5 w-5" />
+          </div>
+          <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+            {title}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Arrastra un archivo o <span className="font-semibold text-brand-600">click para elegir</span>
+          </p>
+          <p className="mt-0.5 text-xs text-slate-400">.xlsx, .xls</p>
+        </>
+      )}
+    </div>
   );
 }
 
