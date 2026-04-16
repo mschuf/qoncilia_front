@@ -8,10 +8,15 @@ export interface AuthUser {
   usrCelular?: string | null;
   usrLogin?: string | null;
   usrLegajo?: string | null;
+  roleId?: number | null;
+  roleCode?: Role | string | null;
+  roleName?: string | null;
+  companyId?: number | null;
+  companyCode?: string | null;
+  companyName?: string | null;
+  enabledModules?: string[] | null;
   role?: Role | string | null;
   activo?: boolean | null;
-  isAdmin?: boolean | null;
-  isSuperAdmin?: boolean | null;
 }
 
 export interface LoginPayload {
@@ -27,6 +32,8 @@ export interface RegisterPayload {
   usrLogin: string;
   usrLegajo: string;
   password: string;
+  companyId?: number;
+  roleCode?: Role;
 }
 
 export interface LoginResponse {

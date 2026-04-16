@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { FiActivity, FiKey, FiLayers, FiUsers } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import type { HomeCard } from "../types/pages/home-page.types";
-import { roleLabel } from "../utils/role";
+import { isSuperAdminRole, roleLabel } from "../utils/role";
 
 export default function HomePage() {
   const { user, role } = useAuth();
@@ -21,7 +21,7 @@ export default function HomePage() {
       }
     ];
 
-    if (role === "superadmin") {
+    if (isSuperAdminRole(role)) {
       base.push({
         title: "Control total",
         description: "Ademas de usuarios, puedes asignar bancos y editar layouts por cada usuario.",

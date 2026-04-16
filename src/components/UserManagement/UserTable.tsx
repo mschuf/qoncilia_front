@@ -25,6 +25,7 @@ export default function UserTable({
             <tr>
               <th className="px-4 py-3">Usuario</th>
               <th className="px-4 py-3">Nombre</th>
+              <th className="px-4 py-3">Empresa</th>
               <th className="px-4 py-3">Contacto</th>
               <th className="px-4 py-3">Rol</th>
               <th className="px-4 py-3">Activo</th>
@@ -44,6 +45,7 @@ export default function UserTable({
                       ? `${targetUser.usrNombre} ${targetUser.usrApellido ?? ""}`.trim()
                       : "-"}
                   </td>
+                  <td className="px-4 py-3">{targetUser.companyName ?? "-"}</td>
                   <td className="px-4 py-3">
                     <div>{targetUser.usrEmail ?? "-"}</div>
                     <div className="text-xs text-slate-500">{targetUser.usrCelular ?? "-"}</div>
@@ -94,7 +96,7 @@ export default function UserTable({
 
             {users.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
                   Sin usuarios aun.
                 </td>
               </tr>

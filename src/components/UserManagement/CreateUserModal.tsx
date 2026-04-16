@@ -1,6 +1,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import PhoneInput from "react-phone-number-input";
 import AppModal from "../AppModal";
+import type { PublicCompany } from "../../types/access-control";
 import type { CreateUserForm } from "../../types/pages/user-management-page.types";
 import type { Role } from "../../utils/role";
 import { roleLabel } from "../../utils/role";
@@ -9,6 +10,7 @@ interface CreateUserModalProps {
   open: boolean;
   onClose: () => void;
   form: CreateUserForm;
+  companies: PublicCompany[];
   allowedRoles: Role[];
   onFieldChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onPhoneChange: (value?: string) => void;
@@ -19,6 +21,7 @@ export default function CreateUserModal({
   open,
   onClose,
   form,
+  companies,
   allowedRoles,
   onFieldChange,
   onPhoneChange,
@@ -71,10 +74,28 @@ export default function CreateUserModal({
         <Field label="Contrasena" name="password" type="password" value={form.password} onChange={onFieldChange} required />
 
         <label className="block space-y-1">
+          <span className="text-sm font-semibold text-slate-700">Empresa</span>
+          <select
+            name="companyId"
+            value={form.companyId}
+            onChange={onFieldChange}
+            className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm"
+            required
+          >
+            <option value="">Seleccionar empresa</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name} ({company.code})
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block space-y-1">
           <span className="text-sm font-semibold text-slate-700">Rol</span>
           <select
-            name="role"
-            value={form.role}
+            name="roleCode"
+            value={form.roleCode}
             onChange={onFieldChange}
             className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm"
           >

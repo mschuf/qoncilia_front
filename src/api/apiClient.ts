@@ -21,7 +21,7 @@ interface ApiPayload {
   [key: string]: unknown;
 }
 
-type RequestMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type RequestMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 interface RequestOptions {
   method?: RequestMethod;
@@ -130,6 +130,9 @@ export const apiClient = {
   },
   post<T>(path: string, data?: unknown, options?: Omit<RequestOptions, "method" | "data">): Promise<T> {
     return request<T>(path, { ...options, method: "POST", data });
+  },
+  put<T>(path: string, data?: unknown, options?: Omit<RequestOptions, "method" | "data">): Promise<T> {
+    return request<T>(path, { ...options, method: "PUT", data });
   },
   patch<T>(path: string, data?: unknown, options?: Omit<RequestOptions, "method" | "data">): Promise<T> {
     return request<T>(path, { ...options, method: "PATCH", data });

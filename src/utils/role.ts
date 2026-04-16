@@ -1,43 +1,55 @@
 export const ROLE_VALUES = {
-  gestor: "gestor",
+  gestorCobranza: "gestor_cobranza",
+  gestorPagos: "gestor_pagos",
   admin: "admin",
-  superadmin: "superadmin"
+  isSuperAdmin: "is_super_admin"
 } as const;
 
 export type Role = (typeof ROLE_VALUES)[keyof typeof ROLE_VALUES];
 
 export interface RoleUser {
   role?: string | null;
-  activo?: boolean | null;
-  isAdmin?: boolean | null;
-  isSuperAdmin?: boolean | null;
+  roleCode?: string | null;
+}
+
+export function isSuperAdminRole(role: Role | string | null | undefined): boolean {
+  return role === ROLE_VALUES.isSuperAdmin;
+}
+
+export function isAdminRole(role: Role | string | null | undefined): boolean {
+  return role === ROLE_VALUES.admin || role === ROLE_VALUES.isSuperAdmin;
+}
+
+export function isGestorRole(role: Role | string | null | undefined): boolean {
+  return role === ROLE_VALUES.gestorCobranza || role === ROLE_VALUES.gestorPagos;
+}
+
+function isKnownRole(value: string | null | undefined): value is Role {
+  return Boolean(value) && Object.values(ROLE_VALUES).includes(value as Role);
 }
 
 export function resolveRole(user: RoleUser | null | undefined): Role | null {
   if (!user) return null;
 
-  if (user.role && Object.values(ROLE_VALUES).includes(user.role as Role)) {
-    return user.role as Role;
+  if (isKnownRole(user.roleCode)) {
+    return user.roleCode;
   }
 
-  const isActive = Boolean(user.activo);
-  if (isActive && Boolean(user.isSuperAdmin)) {
-    return ROLE_VALUES.superadmin;
-  }
-  if (isActive && Boolean(user.isAdmin)) {
-    return ROLE_VALUES.admin;
+  if (isKnownRole(user.role)) {
+    return user.role;
   }
 
-  return ROLE_VALUES.gestor;
+  return null;
 }
 
 export function roleLabel(role: Role | null | undefined): string {
   const labels: Record<Role, string> = {
-    gestor: "Gestor",
+    gestor_cobranza: "Gestor Cobranza",
+    gestor_pagos: "Gestor Pagos",
     admin: "Admin",
-    superadmin: "Superadmin"
+    is_super_admin: "Super Admin"
   };
 
-  if (!role) return labels.gestor;
-  return labels[role] ?? labels.gestor;
+  if (!role) return labels.gestor_cobranza;
+  return labels[role] ?? labels.gestor_cobranza;
 }

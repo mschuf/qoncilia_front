@@ -10,6 +10,7 @@ export default function UserManagementPage() {
   const {
     role,
     users,
+    companies,
     isCreateOpen,
     setIsCreateOpen,
     createForm,
@@ -78,6 +79,7 @@ export default function UserManagementPage() {
         open={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         form={createForm}
+        companies={companies}
         allowedRoles={allowedRoles}
         onFieldChange={onCreateFieldChange}
         onPhoneChange={onPhoneChange}

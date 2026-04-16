@@ -4,13 +4,20 @@ import { isValidPhoneNumber } from "react-phone-number-input";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import type { AccessControlReferenceResponse, PublicCompany } from "../types/access-control";
 import type {
   CreateUserForm,
   ErrorLike,
   ManagedUser,
-  ResetPasswordResponse,
+  ResetPasswordResponse
 } from "../types/pages/user-management-page.types";
-import { ROLE_VALUES, type Role } from "../utils/role";
+import {
+  ROLE_VALUES,
+  type Role,
+  isAdminRole,
+  isSuperAdminRole,
+  resolveRole
+} from "../utils/role";
 
 const formInitialState: CreateUserForm = {
   usrNombre: "",
@@ -20,33 +27,45 @@ const formInitialState: CreateUserForm = {
   usrLogin: "",
   usrLegajo: "",
   password: "",
-  role: ROLE_VALUES.gestor,
-  activo: true,
+  companyId: "",
+  roleCode: ROLE_VALUES.gestorCobranza,
+  activo: true
 };
 
-function roleToFlags(role: Role): { isAdmin: boolean; isSuperAdmin: boolean } {
-  if (role === ROLE_VALUES.superadmin) {
-    return { isAdmin: true, isSuperAdmin: true };
-  }
-  if (role === ROLE_VALUES.admin) {
-    return { isAdmin: true, isSuperAdmin: false };
-  }
-  return { isAdmin: false, isSuperAdmin: false };
+export function resolveTargetRole(user: ManagedUser): Role {
+  return resolveRole(user) ?? ROLE_VALUES.gestorCobranza;
 }
 
-export function resolveTargetRole(user: ManagedUser): Role {
-  if (user.isSuperAdmin && user.activo) return ROLE_VALUES.superadmin;
-  if (user.isAdmin && user.activo) return ROLE_VALUES.admin;
-  return ROLE_VALUES.gestor;
+function normalizeSelectableRoles(
+  availableRoleCodes: string[],
+  actorRole: Role | null | undefined
+): Role[] {
+  const knownRoles = Object.values(ROLE_VALUES);
+  const fromApi = availableRoleCodes.filter((item): item is Role =>
+    knownRoles.includes(item as Role)
+  );
+
+  if (isSuperAdminRole(actorRole)) {
+    return fromApi.length > 0 ? fromApi : knownRoles;
+  }
+
+  const gestores = new Set<Role>([ROLE_VALUES.gestorCobranza, ROLE_VALUES.gestorPagos]);
+  if (fromApi.length > 0) {
+    return fromApi.filter((item) => gestores.has(item));
+  }
+
+  return [...gestores];
 }
 
 export default function useUserManagement() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const toast = useToast();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateUserForm>(formInitialState);
   const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [companies, setCompanies] = useState<PublicCompany[]>([]);
+  const [availableRoleCodes, setAvailableRoleCodes] = useState<string[]>([]);
 
   const notifyError = useCallback(
     (error: unknown, fallbackMessage: string) => {
@@ -54,26 +73,23 @@ export default function useUserManagement() {
       if (apiError?.code === "TOKEN_EXPIRED") return;
       toast.error(apiError?.message ?? fallbackMessage);
     },
-    [toast],
+    [toast]
   );
 
   const allowedRoles = useMemo<Role[]>(
-    () =>
-      role === ROLE_VALUES.superadmin
-        ? [ROLE_VALUES.gestor, ROLE_VALUES.admin, ROLE_VALUES.superadmin]
-        : [ROLE_VALUES.gestor],
-    [role],
+    () => normalizeSelectableRoles(availableRoleCodes, role),
+    [availableRoleCodes, role]
   );
 
-  const canManageUser = useCallback(
-    (targetUser: ManagedUser): boolean => {
-      const targetRole = resolveTargetRole(targetUser);
-      if (role === ROLE_VALUES.superadmin) return true;
-      if (role === ROLE_VALUES.admin) return targetRole === ROLE_VALUES.gestor;
-      return false;
-    },
-    [role],
-  );
+  const loadReference = useCallback(async () => {
+    try {
+      const response = await apiClient.get<AccessControlReferenceResponse>("/access-control/reference");
+      setCompanies(response.companies ?? []);
+      setAvailableRoleCodes((response.roles ?? []).map((item) => item.code));
+    } catch (error) {
+      notifyError(error, "No se pudo cargar catalogo de empresas y roles.");
+    }
+  }, [notifyError]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -85,29 +101,55 @@ export default function useUserManagement() {
   }, [notifyError]);
 
   useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    void Promise.all([loadReference(), loadUsers()]);
+  }, [loadReference, loadUsers]);
+
+  const canManageUser = useCallback(
+    (targetUser: ManagedUser): boolean => {
+      const targetRole = resolveTargetRole(targetUser);
+
+      if (isSuperAdminRole(role)) return true;
+
+      if (role === ROLE_VALUES.admin) {
+        const sameCompany = Number(targetUser.companyId ?? 0) === Number(user?.companyId ?? 0);
+        return sameCompany && !isAdminRole(targetRole);
+      }
+
+      return false;
+    },
+    [role, user?.companyId]
+  );
+
+  const resolveDefaultCompanyId = useCallback((): number | "" => {
+    if (role === ROLE_VALUES.admin && user?.companyId) {
+      return Number(user.companyId);
+    }
+
+    return Number(companies[0]?.id ?? 0) || "";
+  }, [companies, role, user?.companyId]);
 
   const openCreateModal = () => {
     setCreateForm({
       ...formInitialState,
-      role: allowedRoles[0] ?? ROLE_VALUES.gestor,
-      activo: true,
+      companyId: resolveDefaultCompanyId(),
+      roleCode: allowedRoles[0] ?? ROLE_VALUES.gestorCobranza,
+      activo: true
     });
     setIsCreateOpen(true);
   };
 
-  const onCreateFieldChange = (
-    event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
+  const onCreateFieldChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const key = event.target.name as keyof CreateUserForm;
-    let value: string | boolean = event.target.value;
-    if (
-      event.target instanceof HTMLInputElement &&
-      event.target.type === "checkbox"
-    ) {
+    let value: string | boolean | number = event.target.value;
+
+    if (event.target instanceof HTMLInputElement && event.target.type === "checkbox") {
       value = event.target.checked;
     }
+
+    if (key === "companyId") {
+      value = value === "" ? "" : Number(value);
+    }
+
     setCreateForm((prev) => ({ ...prev, [key]: value }) as CreateUserForm);
   };
 
@@ -123,10 +165,15 @@ export default function useUserManagement() {
       return;
     }
 
+    if (!createForm.companyId) {
+      toast.error("Debes seleccionar una empresa.");
+      return;
+    }
+
     try {
-      const safeRole: Role = allowedRoles.includes(createForm.role)
-        ? createForm.role
-        : allowedRoles[0] ?? ROLE_VALUES.gestor;
+      const safeRole: Role = allowedRoles.includes(createForm.roleCode)
+        ? createForm.roleCode
+        : allowedRoles[0] ?? ROLE_VALUES.gestorCobranza;
 
       await apiClient.post<unknown>("/users", {
         usrNombre: createForm.usrNombre,
@@ -136,8 +183,9 @@ export default function useUserManagement() {
         usrLogin: createForm.usrLogin,
         usrLegajo: createForm.usrLegajo,
         password: createForm.password,
-        activo: createForm.activo,
-        ...roleToFlags(safeRole),
+        companyId: Number(createForm.companyId),
+        roleCode: safeRole,
+        activo: createForm.activo
       });
 
       toast.success("Usuario creado correctamente.");
@@ -152,7 +200,7 @@ export default function useUserManagement() {
   const toggleActive = async (targetUser: ManagedUser) => {
     try {
       await apiClient.patch<unknown>(`/users/${targetUser.id}`, {
-        activo: !targetUser.activo,
+        activo: !targetUser.activo
       });
       toast.success("Estado actualizado.");
       await loadUsers();
@@ -165,7 +213,7 @@ export default function useUserManagement() {
     try {
       const response = await apiClient.post<ResetPasswordResponse>(
         `/users/${targetUser.id}/reset-password`,
-        {},
+        {}
       );
       setTemporaryPassword(response.temporaryPassword);
       toast.success(`Contrasena reseteada para ${targetUser.usrLogin}.`);
@@ -178,16 +226,25 @@ export default function useUserManagement() {
     () => ({
       total: users.length,
       active: users.filter((item) => item.activo).length,
-      admins: users.filter((item) => item.isAdmin && item.activo).length,
-      superadmins: users.filter((item) => item.isSuperAdmin && item.activo)
-        .length,
+      admins: users.filter((item) => resolveTargetRole(item) === ROLE_VALUES.admin && item.activo).length,
+      superadmins: users.filter((item) => resolveTargetRole(item) === ROLE_VALUES.isSuperAdmin && item.activo)
+        .length
     }),
-    [users],
+    [users]
   );
+
+  const selectableCompanies = useMemo(() => {
+    if (role === ROLE_VALUES.admin && user?.companyId) {
+      return companies.filter((company) => company.id === Number(user.companyId));
+    }
+
+    return companies;
+  }, [companies, role, user?.companyId]);
 
   return {
     role,
     users,
+    companies: selectableCompanies,
     isCreateOpen,
     setIsCreateOpen,
     createForm,
@@ -201,6 +258,6 @@ export default function useUserManagement() {
     createUser,
     toggleActive,
     resetPassword,
-    stats,
+    stats
   };
 }

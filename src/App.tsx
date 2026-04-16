@@ -11,6 +11,9 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import ProfilePage from "./pages/ProfilePage";
+import AccessControlPage from "./pages/AccessControlPage";
+import { APP_MODULE_VALUES } from "./utils/modules";
+import { ROLE_VALUES } from "./utils/role";
 
 export default function App() {
   const { role } = useAuth();
@@ -44,11 +47,18 @@ export default function App() {
           }
         >
           <Route index element={<HomePage />} />
-          <Route path="mis-datos" element={<ProfilePage />} />
+          <Route
+            path="mis-datos"
+            element={
+              <ProtectedRoute requiredModule={APP_MODULE_VALUES.profile}>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="conciliation"
             element={
-              <ProtectedRoute roles={["admin", "superadmin"]}>
+              <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliation}>
                 <ConciliationWorkbenchPage />
               </ProtectedRoute>
             }
@@ -56,7 +66,10 @@ export default function App() {
           <Route
             path="users"
             element={
-              <ProtectedRoute roles={["admin", "superadmin"]}>
+              <ProtectedRoute
+                roles={[ROLE_VALUES.admin, ROLE_VALUES.isSuperAdmin]}
+                requiredModule={APP_MODULE_VALUES.users}
+              >
                 <UserManagementPage />
               </ProtectedRoute>
             }
@@ -64,8 +77,22 @@ export default function App() {
           <Route
             path="layout-management"
             element={
-              <ProtectedRoute roles={["superadmin"]}>
+              <ProtectedRoute
+                roles={[ROLE_VALUES.isSuperAdmin]}
+                requiredModule={APP_MODULE_VALUES.layoutManagement}
+              >
                 <LayoutManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="access-control"
+            element={
+              <ProtectedRoute
+                roles={[ROLE_VALUES.isSuperAdmin]}
+                requiredModule={APP_MODULE_VALUES.accessMatrix}
+              >
+                <AccessControlPage />
               </ProtectedRoute>
             }
           />

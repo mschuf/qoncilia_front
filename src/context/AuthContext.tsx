@@ -8,6 +8,8 @@ import type {
   AuthProviderProps,
   LogoutOptions
 } from "../types/context/auth-context.types";
+import type { AppModuleCode } from "../utils/modules";
+import { normalizeEnabledModules } from "../utils/modules";
 import { resolveRole } from "../utils/role";
 import { useLoading } from "./LoadingContext";
 import { useToast } from "./ToastContext";
@@ -112,20 +114,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const role = resolveRole(user);
+  const enabledModules = useMemo(
+    () => normalizeEnabledModules(user?.enabledModules ?? null, role),
+    [user, role]
+  );
+
+  const hasModule = useCallback(
+    (moduleCode: AppModuleCode) => enabledModules.includes(moduleCode),
+    [enabledModules]
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({
       token,
       user,
       role,
+      enabledModules,
       isAuthenticated: Boolean(token && user),
+      hasModule,
       login,
       logout,
       register,
       clearSession,
       updateUser
     }),
-    [token, user, role, login, logout, register, clearSession, updateUser]
+    [
+      token,
+      user,
+      role,
+      enabledModules,
+      hasModule,
+      login,
+      logout,
+      register,
+      clearSession,
+      updateUser
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

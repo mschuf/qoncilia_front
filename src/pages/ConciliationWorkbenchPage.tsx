@@ -8,6 +8,7 @@ import {
 } from "react-icons/fi";
 import AnalyticsSection from "../components/ConciliationWorkbench/AnalyticsSection";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
+import { isSuperAdminRole } from "../utils/role";
 import {
   KpiCard,
   Metric,
@@ -89,7 +90,7 @@ export default function ConciliationWorkbenchPage() {
       {/* Selectors + file upload */}
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
         <div className="grid gap-3 lg:grid-cols-4">
-          {role === "superadmin" ? (
+          {isSuperAdminRole(role) ? (
             <SelectBlock
               label="Usuario"
               value={selectedUserId}

@@ -10,7 +10,8 @@ export interface CreateUserForm {
   usrLogin: string;
   usrLegajo: string;
   password: string;
-  role: Role;
+  companyId: number | "";
+  roleCode: Role;
   activo: boolean;
 }
 
@@ -18,8 +19,9 @@ export interface ManagedUser extends AuthUser {
   id: number | string;
   usrLogin: string;
   activo: boolean;
-  isAdmin?: boolean;
-  isSuperAdmin?: boolean;
+  companyId?: number | null;
+  companyName?: string | null;
+  roleCode?: Role | string | null;
 }
 
 export interface ErrorLike {

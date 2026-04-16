@@ -9,6 +9,7 @@ import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import type { AuthUser } from "../types/auth";
+import { isSuperAdminRole } from "../utils/role";
 import type {
   ConciliationKpis,
   Layout,
@@ -127,7 +128,7 @@ export default function useConciliationWorkbench() {
   const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
 
   const loadUsers = useCallback(async () => {
-    if (role !== "superadmin") return;
+    if (!isSuperAdminRole(role)) return;
     const response = await apiClient.get<AuthUser[]>("/users");
     setUsers(response ?? []);
     setSelectedUserId((current) => current || Number(response?.[0]?.id ?? 0));
@@ -135,7 +136,7 @@ export default function useConciliationWorkbench() {
 
   const loadCatalog = useCallback(
     async (userId: number) => {
-      const query = role === "superadmin" ? `?userId=${userId}` : "";
+      const query = isSuperAdminRole(role) ? `?userId=${userId}` : "";
       const response = await apiClient.get<UserBankWithLayouts[]>(
         `/conciliation/catalog${query}`,
       );
@@ -152,7 +153,7 @@ export default function useConciliationWorkbench() {
 
   const loadAnalytics = useCallback(
     async (userId: number) => {
-      const query = role === "superadmin" ? `?userId=${userId}` : "";
+      const query = isSuperAdminRole(role) ? `?userId=${userId}` : "";
       const [kpiResponse, historyResponse] = await Promise.all([
         apiClient.get<ConciliationKpis>(`/conciliation/kpis${query}`),
         apiClient.get<Array<Record<string, unknown>>>(
