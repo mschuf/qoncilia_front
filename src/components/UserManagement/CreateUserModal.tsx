@@ -1,5 +1,6 @@
 import type { ChangeEvent, FormEvent } from "react";
 import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 import AppModal from "../AppModal";
 import type { PublicCompany } from "../../types/access-control";
 import type { CreateUserForm } from "../../types/pages/user-management-page.types";

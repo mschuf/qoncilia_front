@@ -4,7 +4,9 @@ import { FiCheck, FiLock, FiUser } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { apiClient } from "../api/apiClient";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { isValidInternationalPhoneNumber } from "../utils/phone";
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -47,7 +49,7 @@ export default function ProfilePage() {
   const updateProfile = async (e: FormEvent) => {
     e.preventDefault();
     
-    if (formData.usrCelular && !isValidPhoneNumber(formData.usrCelular)) {
+    if (formData.usrCelular && !isValidInternationalPhoneNumber(formData.usrCelular)) {
       toast.error("El número de celular ingresado no es válido.");
       return;
     }

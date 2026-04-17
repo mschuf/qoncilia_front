@@ -29,6 +29,7 @@ interface RequestOptions {
   auth?: boolean;
   headers?: HeadersInit;
   showBackdrop?: boolean;
+  timeoutMs?: number;
 }
 
 interface ConfigureApiClientOptions {
@@ -77,8 +78,20 @@ function isExpiredToken(payload: ApiPayload | null): boolean {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", data, auth = true, headers = {}, showBackdrop = true } = options;
+  const {
+    method = "GET",
+    data,
+    auth = true,
+    headers = {},
+    showBackdrop = true,
+    timeoutMs
+  } = options;
   const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
+  const controller =
+    typeof AbortController !== "undefined" && typeof timeoutMs === "number" && timeoutMs > 0
+      ? new AbortController()
+      : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
   if (showBackdrop) onRequestStart();
 
@@ -91,6 +104,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers
       },
+      signal: controller?.signal,
       body:
         data !== undefined ? (isFormData ? data : JSON.stringify(data)) : undefined
     });
@@ -119,7 +133,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
 
     return payload as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("La solicitud esta tardando demasiado. Intenta nuevamente.");
+    }
+
+    throw error;
   } finally {
+    if (timeoutId) clearTimeout(timeoutId);
     if (showBackdrop) onRequestEnd();
   }
 }

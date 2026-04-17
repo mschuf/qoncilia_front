@@ -2,11 +2,14 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useState } from "react";
 import { FiArrowLeft, FiUserPlus } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import type { RegisterPayload } from "../types/auth";
 import type { RegisterPageFieldProps } from "../types/pages/register-page.types";
+import {
+  INTERNATIONAL_PHONE_PLACEHOLDER,
+  isValidInternationalPhoneNumber
+} from "../utils/phone";
 
 const initialState: RegisterPayload = {
   usrNombre: "",
@@ -37,7 +40,7 @@ export default function RegisterPage() {
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (form.usrCelular && !isValidPhoneNumber(form.usrCelular)) {
+    if (form.usrCelular && !isValidInternationalPhoneNumber(form.usrCelular)) {
       toast.error("El numero de celular ingresado no es valido.");
       return;
     }
@@ -97,15 +100,15 @@ export default function RegisterPage() {
               <span className="text-sm font-semibold text-slate-700">
                 Celular
               </span>
-              <div className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition-all bg-white">
-                <PhoneInput
-                  international
-                  defaultCountry="PY"
-                  value={form.usrCelular}
-                  onChange={onPhoneChange}
-                  className="outline-none w-full"
-                />
-              </div>
+              <input
+                type="tel"
+                name="usrCelular"
+                value={form.usrCelular ?? ""}
+                onChange={(event) => onPhoneChange(event.target.value)}
+                placeholder={INTERNATIONAL_PHONE_PLACEHOLDER}
+                autoComplete="tel"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-800 focus:ring-1 focus:ring-slate-800 transition-all outline-none"
+              />
             </label>
 
             <Field
@@ -133,8 +136,9 @@ export default function RegisterPage() {
                 required
               />
               <p className="mt-2 text-xs text-slate-500">
-                La contraseña debe tener al menos 6 caracteres, mayusculas,
-                minusculas, numeros y simbolo.
+                La contrasena debe tener al menos 6 caracteres, mayusculas,
+                minusculas, numeros y simbolo. El celular debe ir en formato
+                internacional, por ejemplo {INTERNATIONAL_PHONE_PLACEHOLDER}.
               </p>
             </div>
 

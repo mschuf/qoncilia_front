@@ -5,7 +5,6 @@ import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
 import { LoadingProvider } from "./context/LoadingContext";
 import { ToastProvider } from "./context/ToastContext";
-import "react-phone-number-input/style.css";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

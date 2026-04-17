@@ -1,6 +1,5 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isValidPhoneNumber } from "react-phone-number-input";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -18,6 +17,7 @@ import {
   isSuperAdminRole,
   resolveRole
 } from "../utils/role";
+import { isValidInternationalPhoneNumber } from "../utils/phone";
 
 const formInitialState: CreateUserForm = {
   usrNombre: "",
@@ -160,7 +160,7 @@ export default function useUserManagement() {
   const createUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (createForm.usrCelular && !isValidPhoneNumber(createForm.usrCelular)) {
+    if (createForm.usrCelular && !isValidInternationalPhoneNumber(createForm.usrCelular)) {
       toast.error("El numero de celular ingresado no es valido.");
       return;
     }

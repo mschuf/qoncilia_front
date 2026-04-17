@@ -89,7 +89,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await apiClient.post<LoginResponse>(
         "/auth/login",
         { identifier, password },
-        { auth: false }
+        { auth: false, timeoutMs: 15000 }
       );
 
       saveSession(response.accessToken, response.expiresIn, response.user);
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const register = useCallback(async (payload: RegisterPayload): Promise<unknown> => {
-    return apiClient.post<unknown>("/auth/register", payload, { auth: false });
+    return apiClient.post<unknown>("/auth/register", payload, { auth: false, timeoutMs: 15000 });
   }, []);
 
   const logout = useCallback(
