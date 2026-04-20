@@ -1,4 +1,9 @@
-import { FiLayers, FiPlus, FiRefreshCcw, FiShield, FiSliders } from "react-icons/fi";
+import { useState } from "react";
+import { FiInfo, FiLayers, FiPlus, FiRefreshCcw, FiShield, FiSliders } from "react-icons/fi";
+import AppModal from "../components/AppModal";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import layoutDocsMarkdown from "../../docs/layouts-creacion-edicion.md?raw";
 import BankListSection from "../components/LayoutManagement/BankListSection";
 import BankModal from "../components/LayoutManagement/BankModal";
 import LayoutListSection from "../components/LayoutManagement/LayoutListSection";
@@ -7,6 +12,7 @@ import { MetricCard } from "../components/LayoutManagement/MetricCards";
 import useLayoutManagement from "../hooks/useLayoutManagement";
 
 export default function LayoutManagementPage() {
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const {
     users,
     selectedUserId,
@@ -45,9 +51,18 @@ export default function LayoutManagementPage() {
       {/* Header + Metrics */}
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
         <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
-            Superadmin Studio
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
+              Superadmin Studio
+            </p>
+            <button
+              onClick={() => setIsDocsModalOpen(true)}
+              className="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 transition hover:bg-brand-100"
+              title="Ver documentación"
+            >
+              <FiInfo className="h-4 w-4" /> INFO
+            </button>
+          </div>
           <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
             Bancos y Layouts por Usuario
           </h2>
@@ -136,6 +151,16 @@ export default function LayoutManagementPage() {
         onResetMappings={resetToSuggestedMappings}
         onSubmit={saveLayout}
       />
+
+      <AppModal
+        open={isDocsModalOpen}
+        onClose={() => setIsDocsModalOpen(false)}
+        title="Documentación: Bancos y Layouts"
+      >
+        <div className="prose prose-slate prose-sm max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{layoutDocsMarkdown}</ReactMarkdown>
+        </div>
+      </AppModal>
     </section>
   );
 }
