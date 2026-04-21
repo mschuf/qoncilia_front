@@ -93,7 +93,7 @@ export default function useUserManagement() {
 
   const loadUsers = useCallback(async () => {
     try {
-      const response = await apiClient.get<ManagedUser[]>("/users");
+      const response = await apiClient.get<ManagedUser[]>("/users/list");
       setUsers(response ?? []);
     } catch (error) {
       notifyError(error, "No se pudo cargar usuarios.");
@@ -175,7 +175,7 @@ export default function useUserManagement() {
         ? createForm.roleCode
         : allowedRoles[0] ?? ROLE_VALUES.gestorCobranza;
 
-      await apiClient.post<unknown>("/users", {
+      await apiClient.post<unknown>("/users/create", {
         usrNombre: createForm.usrNombre,
         usrApellido: createForm.usrApellido,
         usrEmail: createForm.usrEmail,
@@ -199,7 +199,7 @@ export default function useUserManagement() {
 
   const toggleActive = async (targetUser: ManagedUser) => {
     try {
-      await apiClient.patch<unknown>(`/users/${targetUser.id}`, {
+      await apiClient.patch<unknown>(`/users/update/${targetUser.id}`, {
         activo: !targetUser.activo
       });
       toast.success("Estado actualizado.");

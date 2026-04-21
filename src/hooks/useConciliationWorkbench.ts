@@ -129,7 +129,7 @@ export default function useConciliationWorkbench() {
 
   const loadUsers = useCallback(async () => {
     if (!isSuperAdminRole(role)) return;
-    const response = await apiClient.get<AuthUser[]>("/users");
+    const response = await apiClient.get<AuthUser[]>("/users/list");
     setUsers(response ?? []);
     setSelectedUserId((current) => current || Number(response?.[0]?.id ?? 0));
   }, [role]);

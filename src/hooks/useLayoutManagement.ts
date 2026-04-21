@@ -102,7 +102,7 @@ export default function useLayoutManagement() {
   const [layoutForm, setLayoutForm] = useState<LayoutFormState>(createDefaultLayoutForm());
 
   const loadUsers = useCallback(async () => {
-    const response = await apiClient.get<AuthUser[]>("/users");
+    const response = await apiClient.get<AuthUser[]>("/users/list");
     const nextUsers = response ?? [];
     setUsers(nextUsers);
     setSelectedUserId((current) => {

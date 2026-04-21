@@ -55,7 +55,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const updatedUser = await apiClient.patch(`/users/${user?.id}`, {
+      const updatedUser = await apiClient.patch(`/users/update/${user?.id}`, {
         usrNombre: formData.usrNombre,
         usrApellido: formData.usrApellido,
         usrCelular: formData.usrCelular
