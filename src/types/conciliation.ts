@@ -43,8 +43,21 @@ export interface LayoutMapping {
 export interface Layout {
   id: number;
   userBankId: number;
+  templateLayoutId: number | null;
   name: string;
   description: string | null;
+  systemLabel: string;
+  bankLabel: string;
+  autoMatchThreshold: number;
+  active: boolean;
+  mappings: LayoutMapping[];
+}
+
+export interface TemplateLayout {
+  id: number;
+  name: string;
+  description: string | null;
+  referenceBankName: string | null;
   systemLabel: string;
   bankLabel: string;
   autoMatchThreshold: number;
@@ -112,6 +125,7 @@ export interface ReconciliationSummary {
   id: number;
   name: string;
   status: string;
+  updateCount: number;
   userId: number;
   userLogin: string;
   userBankId: number;
@@ -132,8 +146,20 @@ export interface ReconciliationSummary {
   updatedAt: string;
 }
 
+export interface ReconciliationSnapshot {
+  userBank: UserBankSummary;
+  layout: Layout;
+  systemRows: PreviewRow[];
+  bankRows: PreviewRow[];
+  autoMatches: PreviewMatch[];
+  manualMatches: PreviewMatch[];
+  unmatchedSystemRows: PreviewRow[];
+  unmatchedBankRows: PreviewRow[];
+  metrics: PreviewMetrics;
+}
+
 export interface ReconciliationDetail extends ReconciliationSummary {
-  summarySnapshot: Record<string, unknown> | null;
+  summarySnapshot: ReconciliationSnapshot | null;
 }
 
 export interface ConciliationKpis {

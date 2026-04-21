@@ -43,6 +43,10 @@ export type LayoutFormState = {
   mappings: MappingFormRow[];
 };
 
+export type TemplateLayoutFormState = LayoutFormState & {
+  referenceBankName: string;
+};
+
 export const compareOperatorOptions: Array<{ value: CompareOperator; label: string }> = [
   { value: "equals", label: "Igual" },
   { value: "contains", label: "Contiene" },

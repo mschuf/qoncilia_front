@@ -1,14 +1,16 @@
 import {
   FiBarChart2,
   FiCheckCircle,
+  FiClock,
   FiDatabase,
   FiRefreshCw,
   FiSave,
   FiUploadCloud,
 } from "react-icons/fi";
+import { Link } from "react-router-dom";
 import AnalyticsSection from "../components/ConciliationWorkbench/AnalyticsSection";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
-import { isSuperAdminRole } from "../utils/role";
+import { isAdminRole } from "../utils/role";
 import {
   KpiCard,
   Metric,
@@ -40,6 +42,9 @@ export default function ConciliationWorkbenchPage() {
     unmatchedBankRows,
     kpis,
     history,
+    availableReconciliationsForUpdate,
+    selectedUpdateReconciliationId,
+    setSelectedUpdateReconciliationId,
     metrics,
     chartData,
     onFileChange,
@@ -52,20 +57,30 @@ export default function ConciliationWorkbenchPage() {
 
   return (
     <section className="space-y-6">
-      {/* Header + KPIs */}
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
         <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
-            Mesa de Conciliacion
-          </p>
-          <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-            Subi dos Excel y comparalos por layout
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            A la izquierda va tu archivo del sistema y a la derecha el extracto
-            del banco. Los matches automaticos se marcan y el resto se puede
-            emparejar manualmente arrastrando.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
+                Mesa de Conciliacion
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
+                Subi dos Excel y comparalos por layout
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                A la izquierda va tu archivo del sistema y a la derecha el extracto
+                del banco. Los matches automaticos se marcan y el resto se puede
+                emparejar manualmente arrastrando.
+              </p>
+            </div>
+
+            <Link
+              to="/conciliation/history"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              <FiClock className="h-4 w-4" /> Ver historial
+            </Link>
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
@@ -87,17 +102,16 @@ export default function ConciliationWorkbenchPage() {
         </div>
       </div>
 
-      {/* Selectors + file upload */}
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-3 lg:grid-cols-4">
-          {isSuperAdminRole(role) ? (
+        <div className="grid gap-3 lg:grid-cols-5">
+          {isAdminRole(role) ? (
             <SelectBlock
               label="Usuario"
               value={selectedUserId}
               onChange={(value) => setSelectedUserId(Number(value))}
               options={users.map((item) => ({
                 value: Number(item.id),
-                label: `${item.usrLogin}${item.usrNombre ? ` · ${item.usrNombre}` : ""}`,
+                label: `${item.usrLogin}${item.usrNombre ? ` - ${item.usrNombre}` : ""}`,
               }))}
             />
           ) : null}
@@ -118,8 +132,21 @@ export default function ConciliationWorkbenchPage() {
             onChange={(value) => setSelectedLayoutId(Number(value))}
             options={layouts.map((item) => ({
               value: item.id,
-              label: `${item.name}${item.active ? " · activo" : ""}`,
+              label: `${item.name}${item.active ? " - activo" : ""}`,
             }))}
+          />
+
+          <SelectBlock
+            label="Actualizar existente"
+            value={selectedUpdateReconciliationId}
+            onChange={(value) => setSelectedUpdateReconciliationId(Number(value))}
+            options={[
+              { value: 0, label: "Crear nueva conciliacion" },
+              ...availableReconciliationsForUpdate.map((item) => ({
+                value: item.id,
+                label: `${item.name} - ${new Date(item.createdAt).toLocaleDateString()}`,
+              })),
+            ]}
           />
 
           <div className="flex items-end gap-2">
@@ -155,9 +182,15 @@ export default function ConciliationWorkbenchPage() {
             onClear={() => setBankFile(null)}
           />
         </div>
+
+        {selectedUpdateReconciliationId > 0 ? (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            La conciliacion seleccionada se actualiza de forma incremental para
+            no duplicar lineas ya guardadas y sumar solo los nuevos movimientos.
+          </div>
+        ) : null}
       </div>
 
-      {/* Preview results */}
       {preview && metrics ? (
         <>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -175,7 +208,10 @@ export default function ConciliationWorkbenchPage() {
               onClick={saveReconciliation}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
             >
-              <FiSave className="h-4 w-4" /> Guardar conciliacion
+              <FiSave className="h-4 w-4" />{" "}
+              {selectedUpdateReconciliationId > 0
+                ? "Actualizar conciliacion"
+                : "Guardar conciliacion"}
             </button>
           </div>
 
@@ -190,7 +226,6 @@ export default function ConciliationWorkbenchPage() {
         </>
       ) : null}
 
-      {/* Analytics */}
       <AnalyticsSection chartData={chartData} history={history} />
     </section>
   );

@@ -1,8 +1,11 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { FiX } from "react-icons/fi";
 import useEscapeKey from "../../hooks/useEscapeKey";
-import type { Layout } from "../../types/conciliation";
-import type { LayoutFormState } from "../../types/pages/layout-management.types";
+import type { Layout, TemplateLayout } from "../../types/conciliation";
+import type {
+  LayoutFormState,
+  TemplateLayoutFormState
+} from "../../types/pages/layout-management.types";
 import {
   compareOperatorOptions,
   dataTypeOptions,
@@ -13,8 +16,8 @@ import SideCard from "./SideCard";
 interface LayoutModalProps {
   open: boolean;
   onClose: () => void;
-  editingLayout: Layout | null;
-  layoutForm: LayoutFormState;
+  editingLayout: Layout | TemplateLayout | null;
+  layoutForm: LayoutFormState | TemplateLayoutFormState;
   onFieldChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onMappingFieldChange: (
     rowId: string,
@@ -24,6 +27,9 @@ interface LayoutModalProps {
   onRemoveMapping: (rowId: string) => void;
   onResetMappings: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  entityLabel?: string;
+  submitLabel?: string;
+  showReferenceBankField?: boolean;
 }
 
 export default function LayoutModal({
@@ -37,6 +43,9 @@ export default function LayoutModal({
   onRemoveMapping,
   onResetMappings,
   onSubmit,
+  entityLabel = "layout",
+  submitLabel = "Guardar layout",
+  showReferenceBankField = false,
 }: LayoutModalProps) {
   useEscapeKey(open, onClose);
 
@@ -54,7 +63,7 @@ export default function LayoutModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 lg:px-8">
           <h3 className="text-lg font-bold text-slate-800">
-            {editingLayout ? "Editar layout" : "Crear layout"}
+            {editingLayout ? `Editar ${entityLabel}` : `Crear ${entityLabel}`}
           </h3>
           <button
             type="button"
@@ -82,6 +91,14 @@ export default function LayoutModal({
                   onChange={onFieldChange}
                   required
                 />
+                {showReferenceBankField && "referenceBankName" in layoutForm ? (
+                  <InputField
+                    label="Banco referencia"
+                    name="referenceBankName"
+                    value={layoutForm.referenceBankName}
+                    onChange={onFieldChange}
+                  />
+                ) : null}
                 <InputField
                   label="Threshold auto-match"
                   name="autoMatchThreshold"
@@ -364,7 +381,7 @@ export default function LayoutModal({
             type="submit"
             className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
           >
-            Guardar layout
+            {submitLabel}
           </button>
         </div>
       </div>

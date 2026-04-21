@@ -1,4 +1,4 @@
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, Dispatch, FormEvent, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/apiClient";
 import { useToast } from "../context/ToastContext";
@@ -8,9 +8,15 @@ import type {
   Layout,
   LayoutDataType,
   LayoutMapping,
+  TemplateLayout,
   UserBankWithLayouts
 } from "../types/conciliation";
-import type { BankFormState, LayoutFormState, MappingFormRow } from "../types/pages/layout-management.types";
+import type {
+  BankFormState,
+  LayoutFormState,
+  MappingFormRow,
+  TemplateLayoutFormState
+} from "../types/pages/layout-management.types";
 import { defaultBankForm } from "../types/pages/layout-management.types";
 
 function createMappingRow(
@@ -64,6 +70,19 @@ function createDefaultLayoutForm(bankName = "Banco"): LayoutFormState {
   };
 }
 
+function createDefaultTemplateLayoutForm(referenceBankName = ""): TemplateLayoutFormState {
+  return {
+    name: "",
+    description: "",
+    referenceBankName,
+    systemLabel: "Sistema / ERP",
+    bankLabel: referenceBankName || "Banco",
+    autoMatchThreshold: "1",
+    active: true,
+    mappings: createDefaultMappings()
+  };
+}
+
 function mappingToForm(mapping: LayoutMapping): MappingFormRow {
   return {
     id: String(mapping.id),
@@ -88,18 +107,37 @@ function mappingToForm(mapping: LayoutMapping): MappingFormRow {
   };
 }
 
+function templateToForm(template: TemplateLayout): TemplateLayoutFormState {
+  return {
+    name: template.name,
+    description: template.description ?? "",
+    referenceBankName: template.referenceBankName ?? "",
+    systemLabel: template.systemLabel,
+    bankLabel: template.bankLabel,
+    autoMatchThreshold: String(template.autoMatchThreshold),
+    active: template.active,
+    mappings: template.mappings.map(mappingToForm)
+  };
+}
+
 export default function useLayoutManagement() {
   const toast = useToast();
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number>(0);
+  const [templates, setTemplates] = useState<TemplateLayout[]>([]);
   const [banks, setBanks] = useState<UserBankWithLayouts[]>([]);
   const [selectedBankId, setSelectedBankId] = useState<number>(0);
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [layoutModalOpen, setLayoutModalOpen] = useState(false);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [editingBank, setEditingBank] = useState<UserBankWithLayouts | null>(null);
   const [editingLayout, setEditingLayout] = useState<Layout | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<TemplateLayout | null>(null);
   const [bankForm, setBankForm] = useState<BankFormState>(defaultBankForm);
   const [layoutForm, setLayoutForm] = useState<LayoutFormState>(createDefaultLayoutForm());
+  const [templateForm, setTemplateForm] = useState<TemplateLayoutFormState>(
+    createDefaultTemplateLayoutForm()
+  );
 
   const loadUsers = useCallback(async () => {
     const response = await apiClient.get<AuthUser[]>("/users/list");
@@ -132,6 +170,11 @@ export default function useLayoutManagement() {
     });
   }, []);
 
+  const loadTemplates = useCallback(async () => {
+    const response = await apiClient.get<TemplateLayout[]>("/conciliation/template-layouts");
+    setTemplates(response ?? []);
+  }, []);
+
   useEffect(() => {
     void loadUsers().catch((error) => {
       toast.error(error instanceof Error ? error.message : "No se pudieron cargar usuarios.");
@@ -143,6 +186,14 @@ export default function useLayoutManagement() {
       toast.error(error instanceof Error ? error.message : "No se pudo cargar el catalogo.");
     });
   }, [loadCatalog, selectedUserId, toast]);
+
+  useEffect(() => {
+    void loadTemplates().catch((error) => {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudieron cargar los template layouts."
+      );
+    });
+  }, [loadTemplates, toast]);
 
   const selectedUser = useMemo(
     () => users.find((item) => Number(item.id) === selectedUserId) ?? null,
@@ -158,6 +209,8 @@ export default function useLayoutManagement() {
     () => banks.reduce((total, bank) => total + bank.layouts.length, 0),
     [banks]
   );
+
+  const templateCount = templates.length;
 
   const openCreateBank = () => {
     setEditingBank(null);
@@ -185,6 +238,12 @@ export default function useLayoutManagement() {
     setLayoutModalOpen(true);
   };
 
+  const openCreateTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateForm(createDefaultTemplateLayoutForm(selectedBank?.bankName ?? ""));
+    setTemplateModalOpen(true);
+  };
+
   const openEditLayout = (bank: UserBankWithLayouts, layout: Layout) => {
     setSelectedBankId(bank.id);
     setEditingLayout(layout);
@@ -198,6 +257,12 @@ export default function useLayoutManagement() {
       mappings: layout.mappings.map(mappingToForm)
     });
     setLayoutModalOpen(true);
+  };
+
+  const openEditTemplate = (template: TemplateLayout) => {
+    setEditingTemplate(template);
+    setTemplateForm(templateToForm(template));
+    setTemplateModalOpen(true);
   };
 
   const onBankFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -214,25 +279,53 @@ export default function useLayoutManagement() {
     setLayoutForm((prev) => ({ ...prev, [key]: value }) as LayoutFormState);
   };
 
+  const onTemplateFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const key = event.target.name as keyof TemplateLayoutFormState;
+    const value =
+      event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    setTemplateForm((prev) => ({ ...prev, [key]: value }) as TemplateLayoutFormState);
+  };
+
+  const updateMappings = useCallback(
+    (
+      setter: Dispatch<SetStateAction<LayoutFormState | TemplateLayoutFormState>>,
+      rowId: string,
+      event: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    ) => {
+      const key = event.target.name as keyof MappingFormRow;
+      const value =
+        event.target instanceof HTMLInputElement && event.target.type === "checkbox"
+          ? event.target.checked
+          : event.target.value;
+      setter((prev) => ({
+        ...prev,
+        mappings: prev.mappings.map((item) =>
+          item.id === rowId ? ({ ...item, [key]: value } as MappingFormRow) : item
+        )
+      }));
+    },
+    []
+  );
+
   const onMappingFieldChange = (
     rowId: string,
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const key = event.target.name as keyof MappingFormRow;
-    const value =
-      event.target instanceof HTMLInputElement && event.target.type === "checkbox"
-        ? event.target.checked
-        : event.target.value;
-    setLayoutForm((prev) => ({
-      ...prev,
-      mappings: prev.mappings.map((item) =>
-        item.id === rowId ? ({ ...item, [key]: value } as MappingFormRow) : item
-      )
-    }));
-  };
+  ) => updateMappings(setLayoutForm, rowId, event);
+
+  const onTemplateMappingFieldChange = (
+    rowId: string,
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => updateMappings(setTemplateForm, rowId, event);
 
   const addMappingRow = () => {
     setLayoutForm((prev) => ({
+      ...prev,
+      mappings: [...prev.mappings, createMappingRow()]
+    }));
+  };
+
+  const addTemplateMappingRow = () => {
+    setTemplateForm((prev) => ({
       ...prev,
       mappings: [...prev.mappings, createMappingRow()]
     }));
@@ -245,8 +338,22 @@ export default function useLayoutManagement() {
     }));
   };
 
+  const resetTemplateToSuggestedMappings = () => {
+    setTemplateForm((prev) => ({
+      ...prev,
+      mappings: createDefaultMappings()
+    }));
+  };
+
   const removeMappingRow = (rowId: string) => {
     setLayoutForm((prev) => ({
+      ...prev,
+      mappings: prev.mappings.filter((item) => item.id !== rowId)
+    }));
+  };
+
+  const removeTemplateMappingRow = (rowId: string) => {
+    setTemplateForm((prev) => ({
       ...prev,
       mappings: prev.mappings.filter((item) => item.id !== rowId)
     }));
@@ -335,11 +442,88 @@ export default function useLayoutManagement() {
     }
   };
 
+  const saveTemplate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (templateForm.mappings.length === 0) {
+      toast.error("Debes cargar al menos un mapping.");
+      return;
+    }
+
+    const payload = {
+      name: templateForm.name,
+      description: templateForm.description,
+      referenceBankName: templateForm.referenceBankName,
+      systemLabel: templateForm.systemLabel,
+      bankLabel: templateForm.bankLabel,
+      autoMatchThreshold: Number(templateForm.autoMatchThreshold),
+      active: templateForm.active,
+      mappings: templateForm.mappings.map((item, index) => ({
+        fieldKey: item.fieldKey,
+        label: item.label,
+        active: item.active,
+        required: item.required,
+        compareOperator: item.compareOperator,
+        weight: Number(item.weight || 0),
+        tolerance: item.tolerance.trim() ? Number(item.tolerance) : undefined,
+        sortOrder: Number(item.sortOrder || index),
+        systemSheet: item.systemSheet || undefined,
+        systemColumn: item.systemColumn || undefined,
+        systemStartRow: item.systemStartRow.trim() ? Number(item.systemStartRow) : undefined,
+        systemEndRow: item.systemEndRow.trim() ? Number(item.systemEndRow) : undefined,
+        systemDataType: item.systemDataType,
+        bankSheet: item.bankSheet || undefined,
+        bankColumn: item.bankColumn || undefined,
+        bankStartRow: item.bankStartRow.trim() ? Number(item.bankStartRow) : undefined,
+        bankEndRow: item.bankEndRow.trim() ? Number(item.bankEndRow) : undefined,
+        bankDataType: item.bankDataType
+      }))
+    };
+
+    try {
+      if (editingTemplate) {
+        await apiClient.patch(`/conciliation/template-layouts/${editingTemplate.id}`, payload);
+        toast.success("Template layout actualizado.");
+      } else {
+        await apiClient.post("/conciliation/template-layouts", payload);
+        toast.success("Template layout creado.");
+      }
+
+      setTemplateModalOpen(false);
+      await loadTemplates();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo guardar el template layout."
+      );
+    }
+  };
+
+  const applyTemplateToSelectedBank = async (template: TemplateLayout) => {
+    if (!selectedUserId || !selectedBankId) {
+      toast.error("Debes seleccionar usuario y banco antes de copiar un template.");
+      return;
+    }
+
+    try {
+      await apiClient.post(
+        `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/template-layouts/${template.id}/apply`,
+        {}
+      );
+      toast.success("Template copiado al banco.");
+      await loadCatalog(selectedUserId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo copiar el template al banco."
+      );
+    }
+  };
+
   return {
     users,
     selectedUserId,
     setSelectedUserId,
     selectedUser,
+    templates,
+    templateCount,
     banks,
     selectedBankId,
     setSelectedBankId,
@@ -349,22 +533,36 @@ export default function useLayoutManagement() {
     setBankModalOpen,
     layoutModalOpen,
     setLayoutModalOpen,
+    templateModalOpen,
+    setTemplateModalOpen,
     editingBank,
     editingLayout,
+    editingTemplate,
     bankForm,
     layoutForm,
+    templateForm,
     loadCatalog,
+    loadTemplates,
     openCreateBank,
     openEditBank,
     openCreateLayout,
     openEditLayout,
+    openCreateTemplate,
+    openEditTemplate,
     onBankFieldChange,
     onLayoutFieldChange,
+    onTemplateFieldChange,
     onMappingFieldChange,
+    onTemplateMappingFieldChange,
     addMappingRow,
+    addTemplateMappingRow,
     resetToSuggestedMappings,
+    resetTemplateToSuggestedMappings,
     removeMappingRow,
+    removeTemplateMappingRow,
     saveBank,
-    saveLayout
+    saveLayout,
+    saveTemplate,
+    applyTemplateToSelectedBank
   };
 }

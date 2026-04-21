@@ -7,10 +7,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { ReconciliationSummary } from "../../types/conciliation";
 
 interface AnalyticsSectionProps {
   chartData: Array<{ name: string; conciliaciones: number; match: number }>;
-  history: Array<Record<string, unknown>>;
+  history: ReconciliationSummary[];
 }
 
 export default function AnalyticsSection({ chartData, history }: AnalyticsSectionProps) {
@@ -58,21 +59,15 @@ export default function AnalyticsSection({ chartData, history }: AnalyticsSectio
               <tbody>
                 {history.slice(0, 12).map((item) => (
                   <tr
-                    key={String(item.id)}
+                    key={item.id}
                     className="border-t border-slate-100 text-slate-700"
                   >
-                    <td className="px-3 py-2 font-semibold">
-                      {String(item.name ?? "-")}
-                    </td>
+                    <td className="px-3 py-2 font-semibold">{item.name}</td>
                     <td className="px-3 py-2">
-                      {String(item.bankAlias ?? item.bankName ?? "-")}
+                      {item.bankAlias ?? item.bankName}
                     </td>
-                    <td className="px-3 py-2">
-                      {String(item.layoutName ?? "-")}
-                    </td>
-                    <td className="px-3 py-2">
-                      {String(item.matchPercentage ?? "-")}
-                    </td>
+                    <td className="px-3 py-2">{item.layoutName}</td>
+                    <td className="px-3 py-2">{item.matchPercentage}</td>
                   </tr>
                 ))}
               </tbody>

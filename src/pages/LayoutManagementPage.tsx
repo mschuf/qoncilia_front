@@ -9,6 +9,7 @@ import BankModal from "../components/LayoutManagement/BankModal";
 import LayoutListSection from "../components/LayoutManagement/LayoutListSection";
 import LayoutModal from "../components/LayoutManagement/LayoutModal";
 import { MetricCard } from "../components/LayoutManagement/MetricCards";
+import TemplateLayoutSection from "../components/LayoutManagement/TemplateLayoutSection";
 import useLayoutManagement from "../hooks/useLayoutManagement";
 
 export default function LayoutManagementPage() {
@@ -18,6 +19,8 @@ export default function LayoutManagementPage() {
     selectedUserId,
     setSelectedUserId,
     selectedUser,
+    templates,
+    templateCount,
     banks,
     selectedBankId,
     setSelectedBankId,
@@ -27,23 +30,36 @@ export default function LayoutManagementPage() {
     setBankModalOpen,
     layoutModalOpen,
     setLayoutModalOpen,
+    templateModalOpen,
+    setTemplateModalOpen,
     editingBank,
     editingLayout,
+    editingTemplate,
     bankForm,
     layoutForm,
+    templateForm,
     loadCatalog,
+    openCreateTemplate,
+    openEditTemplate,
     openCreateBank,
     openEditBank,
     openCreateLayout,
     openEditLayout,
     onBankFieldChange,
     onLayoutFieldChange,
+    onTemplateFieldChange,
     onMappingFieldChange,
+    onTemplateMappingFieldChange,
     addMappingRow,
+    addTemplateMappingRow,
     resetToSuggestedMappings,
+    resetTemplateToSuggestedMappings,
     removeMappingRow,
+    removeTemplateMappingRow,
     saveBank,
-    saveLayout
+    saveLayout,
+    saveTemplate,
+    applyTemplateToSelectedBank
   } = useLayoutManagement();
 
   return (
@@ -74,10 +90,19 @@ export default function LayoutManagementPage() {
 
         <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
           <MetricCard icon={FiShield} label="Usuario" value={selectedUser?.usrLogin ?? "-"} />
+          <MetricCard icon={FiLayers} label="Templates" value={String(templateCount)} />
           <MetricCard icon={FiLayers} label="Bancos" value={String(banks.length)} />
           <MetricCard icon={FiSliders} label="Layouts" value={String(layoutCount)} />
         </div>
       </div>
+
+      <TemplateLayoutSection
+        templates={templates}
+        selectedBank={selectedBank}
+        onCreateTemplate={openCreateTemplate}
+        onEditTemplate={openEditTemplate}
+        onApplyTemplate={applyTemplateToSelectedBank}
+      />
 
       {/* User selector toolbar */}
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -150,6 +175,21 @@ export default function LayoutManagementPage() {
         onRemoveMapping={removeMappingRow}
         onResetMappings={resetToSuggestedMappings}
         onSubmit={saveLayout}
+      />
+      <LayoutModal
+        open={templateModalOpen}
+        onClose={() => setTemplateModalOpen(false)}
+        editingLayout={editingTemplate}
+        layoutForm={templateForm}
+        onFieldChange={onTemplateFieldChange}
+        onMappingFieldChange={onTemplateMappingFieldChange}
+        onAddMapping={addTemplateMappingRow}
+        onRemoveMapping={removeTemplateMappingRow}
+        onResetMappings={resetTemplateToSuggestedMappings}
+        onSubmit={saveTemplate}
+        entityLabel="template layout"
+        submitLabel="Guardar template"
+        showReferenceBankField
       />
 
       <AppModal

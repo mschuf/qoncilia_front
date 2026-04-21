@@ -9,7 +9,7 @@ import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import type { AuthUser } from "../types/auth";
-import { isSuperAdminRole } from "../utils/role";
+import { isAdminRole } from "../utils/role";
 import type {
   ConciliationKpis,
   Layout,
@@ -17,6 +17,7 @@ import type {
   PreviewMatch,
   PreviewResponse,
   PreviewRow,
+  ReconciliationSummary,
   UserBankWithLayouts,
 } from "../types/conciliation";
 
@@ -125,10 +126,12 @@ export default function useConciliationWorkbench() {
   );
   const [unmatchedBankRows, setUnmatchedBankRows] = useState<PreviewRow[]>([]);
   const [kpis, setKpis] = useState<ConciliationKpis | null>(null);
-  const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [history, setHistory] = useState<ReconciliationSummary[]>([]);
+  const [selectedUpdateReconciliationId, setSelectedUpdateReconciliationId] =
+    useState<number>(0);
 
   const loadUsers = useCallback(async () => {
-    if (!isSuperAdminRole(role)) return;
+    if (!isAdminRole(role)) return;
     const response = await apiClient.get<AuthUser[]>("/users/list");
     setUsers(response ?? []);
     setSelectedUserId((current) => current || Number(response?.[0]?.id ?? 0));
@@ -136,7 +139,7 @@ export default function useConciliationWorkbench() {
 
   const loadCatalog = useCallback(
     async (userId: number) => {
-      const query = isSuperAdminRole(role) ? `?userId=${userId}` : "";
+      const query = isAdminRole(role) && userId ? `?userId=${userId}` : "";
       const response = await apiClient.get<UserBankWithLayouts[]>(
         `/conciliation/catalog${query}`,
       );
@@ -153,10 +156,10 @@ export default function useConciliationWorkbench() {
 
   const loadAnalytics = useCallback(
     async (userId: number) => {
-      const query = isSuperAdminRole(role) ? `?userId=${userId}` : "";
+      const query = isAdminRole(role) && userId ? `?userId=${userId}` : "";
       const [kpiResponse, historyResponse] = await Promise.all([
         apiClient.get<ConciliationKpis>(`/conciliation/kpis${query}`),
-        apiClient.get<Array<Record<string, unknown>>>(
+        apiClient.get<ReconciliationSummary[]>(
           `/conciliation/reconciliations${query}`,
         ),
       ]);
@@ -213,6 +216,28 @@ export default function useConciliationWorkbench() {
       setSelectedLayoutId(selectedLayout.id);
     }
   }, [selectedLayout]);
+
+  const availableReconciliationsForUpdate = useMemo(
+    () =>
+      history.filter(
+        (item) =>
+          item.userBankId === selectedBankId &&
+          item.layoutId === selectedLayoutId,
+      ),
+    [history, selectedBankId, selectedLayoutId],
+  );
+
+  useEffect(() => {
+    setSelectedUpdateReconciliationId((current) => {
+      if (
+        current > 0 &&
+        availableReconciliationsForUpdate.some((item) => item.id === current)
+      ) {
+        return current;
+      }
+      return 0;
+    });
+  }, [availableReconciliationsForUpdate]);
 
   const onFileChange =
     (setter: Dispatch<SetStateAction<File | null>>) =>
@@ -332,11 +357,22 @@ export default function useConciliationWorkbench() {
       return;
     }
 
+    const selectedReconciliationForUpdate =
+      availableReconciliationsForUpdate.find(
+        (item) => item.id === selectedUpdateReconciliationId,
+      ) ?? null;
+
     try {
       await apiClient.post("/conciliation/reconciliations", {
+        reconciliationId:
+          selectedUpdateReconciliationId > 0
+            ? selectedUpdateReconciliationId
+            : undefined,
         userBankId: preview.userBank.id,
         layoutId: selectedLayout.id,
-        name: `Conciliacion ${preview.userBank.alias ?? preview.userBank.bankName}`,
+        name:
+          selectedReconciliationForUpdate?.name ??
+          `Conciliacion ${preview.userBank.alias ?? preview.userBank.bankName}`,
         systemFileName: preview.systemFileName,
         bankFileName: preview.bankFileName,
         systemRows: preview.systemRows,
@@ -345,7 +381,11 @@ export default function useConciliationWorkbench() {
         manualMatches,
       });
 
-      toast.success("Conciliacion guardada.");
+      toast.success(
+        selectedUpdateReconciliationId > 0
+          ? "Conciliacion actualizada sin duplicar lineas previas."
+          : "Conciliacion guardada.",
+      );
       await loadAnalytics(selectedUserId);
     } catch (error) {
       toast.error(
@@ -385,6 +425,9 @@ export default function useConciliationWorkbench() {
     unmatchedBankRows,
     kpis,
     history,
+    availableReconciliationsForUpdate,
+    selectedUpdateReconciliationId,
+    setSelectedUpdateReconciliationId,
     metrics,
     chartData,
     onFileChange,

@@ -8,6 +8,7 @@ import { APP_MODULE_VALUES } from "./utils/modules";
 import { ROLE_VALUES } from "./utils/role";
 
 const AppLayout = lazy(() => import("./layouts/AppLayout"));
+const ConciliationHistoryPage = lazy(() => import("./pages/ConciliationHistoryPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LayoutManagementPage = lazy(() => import("./pages/LayoutManagementPage"));
@@ -63,6 +64,14 @@ export default function App() {
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliation}>
                   <ConciliationWorkbenchPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="conciliation/history"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliation}>
+                  <ConciliationHistoryPage />
                 </ProtectedRoute>
               }
             />
