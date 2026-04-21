@@ -9,7 +9,6 @@ import {
   FiX,
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
-import AnalyticsSection from "../components/ConciliationWorkbench/AnalyticsSection";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import { isAdminRole } from "../utils/role";
 import {
@@ -49,7 +48,6 @@ export default function ConciliationWorkbenchPage() {
     selectedReconciliationForUpdate,
     clearUpdateSelection,
     metrics,
-    chartData,
     onFileChange,
     clearAll,
     runPreview,
@@ -243,8 +241,6 @@ export default function ConciliationWorkbenchPage() {
           />
         </>
       ) : null}
-
-      <AnalyticsSection chartData={chartData} history={history} />
     </section>
   );
 }
