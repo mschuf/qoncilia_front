@@ -4,6 +4,7 @@ import type {
   SetStateAction,
 } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
@@ -127,8 +128,11 @@ export default function useConciliationWorkbench() {
   const [unmatchedBankRows, setUnmatchedBankRows] = useState<PreviewRow[]>([]);
   const [kpis, setKpis] = useState<ConciliationKpis | null>(null);
   const [history, setHistory] = useState<ReconciliationSummary[]>([]);
+  const [searchParams] = useSearchParams();
+  const updateIdParam = searchParams.get("updateId");
+  
   const [selectedUpdateReconciliationId, setSelectedUpdateReconciliationId] =
-    useState<number>(0);
+    useState<number>(updateIdParam ? Number(updateIdParam) : 0);
 
   const loadUsers = useCallback(async () => {
     if (!isAdminRole(role)) return;
@@ -228,16 +232,10 @@ export default function useConciliationWorkbench() {
   );
 
   useEffect(() => {
-    setSelectedUpdateReconciliationId((current) => {
-      if (
-        current > 0 &&
-        availableReconciliationsForUpdate.some((item) => item.id === current)
-      ) {
-        return current;
-      }
-      return 0;
-    });
-  }, [availableReconciliationsForUpdate]);
+    if (updateIdParam) {
+      setSelectedUpdateReconciliationId(Number(updateIdParam));
+    }
+  }, [updateIdParam]);
 
   const onFileChange =
     (setter: Dispatch<SetStateAction<File | null>>) =>

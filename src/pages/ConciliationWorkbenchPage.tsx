@@ -103,7 +103,7 @@ export default function ConciliationWorkbenchPage() {
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-3 lg:grid-cols-5">
+        <div className="grid gap-3 lg:grid-cols-4">
           {isAdminRole(role) ? (
             <SelectBlock
               label="Usuario"
@@ -136,18 +136,7 @@ export default function ConciliationWorkbenchPage() {
             }))}
           />
 
-          <SelectBlock
-            label="Actualizar existente"
-            value={selectedUpdateReconciliationId}
-            onChange={(value) => setSelectedUpdateReconciliationId(Number(value))}
-            options={[
-              { value: 0, label: "Crear nueva conciliacion" },
-              ...availableReconciliationsForUpdate.map((item) => ({
-                value: item.id,
-                label: `${item.name} - ${new Date(item.createdAt).toLocaleDateString()}`,
-              })),
-            ]}
-          />
+
 
           <div className="flex items-end gap-2">
             <button

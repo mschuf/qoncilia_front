@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiArrowLeft, FiCalendar, FiFilter, FiList } from "react-icons/fi";
+import { FiArrowLeft, FiCalendar, FiExternalLink, FiFilter, FiList } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
@@ -54,21 +54,18 @@ function buildSnapshotRows(snapshot: ReconciliationSnapshot) {
       snapshot.bankRows.find((row) => row.rowId === match.bankRowId),
       snapshot.layout.mappings,
     ),
-    score: String(match.score),
   }));
 
   const unmatchedSystemRows = snapshot.unmatchedSystemRows.map((row) => ({
     key: `system-${row.rowId}`,
     system: summarizeRow(row, snapshot.layout.mappings),
     bank: "-",
-    score: "0",
   }));
 
   const unmatchedBankRows = snapshot.unmatchedBankRows.map((row) => ({
     key: `bank-${row.rowId}`,
     system: "-",
     bank: summarizeRow(row, snapshot.layout.mappings),
-    score: "0",
   }));
 
   return [...matchedRows, ...unmatchedSystemRows, ...unmatchedBankRows];
@@ -173,10 +170,12 @@ export default function ConciliationHistoryPage() {
   }, [loadCatalog, selectedUserId, toast]);
 
   useEffect(() => {
-    void loadReconciliations().catch((error) => {
-      toast.error(error instanceof Error ? error.message : "No se pudo cargar el historial.");
-    });
-  }, [loadReconciliations, toast]);
+    if (!canSearch) {
+      setReconciliations([]);
+      setSelectedReconciliationId(0);
+      setSelectedReconciliation(null);
+    }
+  }, [canSearch]);
 
   useEffect(() => {
     if (!canSearch) {
@@ -248,7 +247,7 @@ export default function ConciliationHistoryPage() {
           <FiFilter className="h-4 w-4" /> Filtros
         </div>
 
-        <div className={`grid gap-3 ${showUserFilter ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
+        <div className={`grid gap-3 ${showUserFilter ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
           {showUserFilter ? (
             <label className="space-y-1.5">
               <span className="text-sm font-semibold text-slate-700">Usuario</span>
@@ -323,6 +322,21 @@ export default function ConciliationHistoryPage() {
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             />
           </label>
+
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={() => {
+                void loadReconciliations().catch((error) => {
+                  toast.error(error instanceof Error ? error.message : "No se pudo cargar el historial.");
+                });
+              }}
+              disabled={!canSearch}
+              className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+            >
+              Buscar
+            </button>
+          </div>
         </div>
       </section>
 
@@ -348,6 +362,7 @@ export default function ConciliationHistoryPage() {
                       <th className="px-3 py-2">Layout</th>
                       <th className="px-3 py-2">Match %</th>
                       <th className="px-3 py-2">Actualizaciones</th>
+                      <th className="px-3 py-2 text-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -358,7 +373,7 @@ export default function ConciliationHistoryPage() {
                           key={item.id}
                           onClick={() => setSelectedReconciliationId(item.id)}
                           className={`cursor-pointer border-t border-slate-100 ${
-                            selected ? "bg-brand-50 text-slate-900" : "text-slate-700"
+                            selected ? "bg-brand-600 text-white font-medium" : "text-slate-700 hover:bg-slate-50"
                           }`}
                         >
                           <td className="px-3 py-2 font-semibold">{formatDateTime(item.createdAt)}</td>
@@ -367,12 +382,25 @@ export default function ConciliationHistoryPage() {
                           <td className="px-3 py-2">{item.layoutName}</td>
                           <td className="px-3 py-2">{item.matchPercentage}</td>
                           <td className="px-3 py-2">{item.updateCount}</td>
+                          <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            <Link
+                              to={`/conciliation?updateId=${item.id}`}
+                              className={`inline-flex rounded-lg p-2 transition ${
+                                selected
+                                  ? "text-white hover:bg-white/20"
+                                  : "text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+                              }`}
+                              title="Cargar en la mesa de conciliación para actualizar"
+                            >
+                              <FiExternalLink className="h-4 w-4" />
+                            </Link>
+                          </td>
                         </tr>
                       );
                     })}
                     {reconciliations.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                        <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
                           No hay conciliaciones para el banco y filtros elegidos.
                         </td>
                       </tr>
@@ -384,76 +412,39 @@ export default function ConciliationHistoryPage() {
           </section>
 
           {selectedReconciliation ? (
-            <>
-              <section className="rounded-3xl border border-slate-200 bg-white p-5">
-                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <FiList className="h-4 w-4" /> Resumen seleccionado
-                </div>
+            <section className="rounded-3xl border border-slate-200 bg-white p-5">
+              <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <FiList className="h-4 w-4" /> Lineas guardadas
+              </div>
 
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Sistema</th>
+                        <th className="px-3 py-2">Banco</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snapshotRows.map((row) => (
+                        <tr key={row.key} className="border-t border-slate-100 text-slate-700">
+                          <td className="px-3 py-2">{row.system}</td>
+                          <td className="px-3 py-2">{row.bank}</td>
+                        </tr>
+                      ))}
+                      {snapshotRows.length === 0 ? (
                         <tr>
-                          <th className="px-3 py-2">Conciliacion</th>
-                          <th className="px-3 py-2">Fecha</th>
-                          <th className="px-3 py-2">Usuario</th>
-                          <th className="px-3 py-2">Layout</th>
-                          <th className="px-3 py-2">Match %</th>
-                          <th className="px-3 py-2">Actualizaciones</th>
+                          <td colSpan={2} className="px-4 py-6 text-center text-sm text-slate-500">
+                            Esta conciliacion no tiene lineas visibles en el snapshot.
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-t border-slate-100 text-slate-700">
-                          <td className="px-3 py-2 font-semibold">{selectedReconciliation.name}</td>
-                          <td className="px-3 py-2">{formatDateTime(selectedReconciliation.createdAt)}</td>
-                          <td className="px-3 py-2">{selectedReconciliation.userLogin}</td>
-                          <td className="px-3 py-2">{selectedReconciliation.layoutName}</td>
-                          <td className="px-3 py-2">{selectedReconciliation.matchPercentage}</td>
-                          <td className="px-3 py-2">{selectedReconciliation.updateCount}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                      ) : null}
+                    </tbody>
+                  </table>
                 </div>
-              </section>
-
-              <section className="rounded-3xl border border-slate-200 bg-white p-5">
-                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <FiList className="h-4 w-4" /> Lineas guardadas
-                </div>
-
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                        <tr>
-                          <th className="px-3 py-2">Sistema</th>
-                          <th className="px-3 py-2">Banco</th>
-                          <th className="px-3 py-2">Score</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {snapshotRows.map((row) => (
-                          <tr key={row.key} className="border-t border-slate-100 text-slate-700">
-                            <td className="px-3 py-2">{row.system}</td>
-                            <td className="px-3 py-2">{row.bank}</td>
-                            <td className="px-3 py-2 font-semibold">{row.score}</td>
-                          </tr>
-                        ))}
-                        {snapshotRows.length === 0 ? (
-                          <tr>
-                            <td colSpan={3} className="px-4 py-6 text-center text-sm text-slate-500">
-                              Esta conciliacion no tiene lineas visibles en el snapshot.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </section>
-            </>
+              </div>
+            </section>
           ) : null}
         </div>
       )}
