@@ -1,4 +1,4 @@
-import { FiEdit3, FiPlus } from "react-icons/fi";
+import { FiEdit3, FiPlus, FiTrash2 } from "react-icons/fi";
 import type { Layout, UserBankWithLayouts } from "../../types/conciliation";
 import { MetricTile } from "./MetricCards";
 
@@ -7,13 +7,15 @@ interface LayoutListSectionProps {
   onEditBank: (bank: UserBankWithLayouts) => void;
   onCreateLayout: (bank: UserBankWithLayouts) => void;
   onEditLayout: (bank: UserBankWithLayouts, layout: Layout) => void;
+  onDeleteLayout: (bank: UserBankWithLayouts, layout: Layout) => void;
 }
 
 export default function LayoutListSection({
   selectedBank,
   onEditBank,
   onCreateLayout,
-  onEditLayout
+  onEditLayout,
+  onDeleteLayout
 }: LayoutListSectionProps) {
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -68,13 +70,22 @@ export default function LayoutListSection({
                 <p className="mt-2 text-sm text-slate-600">{layout.description ?? "Sin descripcion"}</p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => selectedBank && onEditLayout(selectedBank, layout)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white"
-              >
-                <FiEdit3 className="h-4 w-4" /> Editar
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectedBank && onEditLayout(selectedBank, layout)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white"
+                >
+                  <FiEdit3 className="h-4 w-4" /> Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectedBank && onDeleteLayout(selectedBank, layout)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                >
+                  <FiTrash2 className="h-4 w-4" /> Eliminar
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">

@@ -9,13 +9,21 @@ import type { AuthUser } from "../types/auth";
 import type {
   Layout,
   ReconciliationDetail,
+  ReconciliationSnapshot,
   ReconciliationSummary,
   UserBankWithLayouts,
 } from "../types/conciliation";
 import { isAdminRole } from "../utils/role";
 
-function formatDate(value: string) {
+function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
+}
+
+function toInputDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function buildLayouts(banks: UserBankWithLayouts[], selectedBankId: number): Layout[] {
@@ -35,6 +43,37 @@ function buildLayouts(banks: UserBankWithLayouts[], selectedBankId: number): Lay
   return [...byId.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
+function buildSnapshotRows(snapshot: ReconciliationSnapshot) {
+  const matchedRows = [...snapshot.autoMatches, ...snapshot.manualMatches].map((match) => ({
+    key: `${match.systemRowId}-${match.bankRowId}`,
+    system: summarizeRow(
+      snapshot.systemRows.find((row) => row.rowId === match.systemRowId),
+      snapshot.layout.mappings,
+    ),
+    bank: summarizeRow(
+      snapshot.bankRows.find((row) => row.rowId === match.bankRowId),
+      snapshot.layout.mappings,
+    ),
+    score: String(match.score),
+  }));
+
+  const unmatchedSystemRows = snapshot.unmatchedSystemRows.map((row) => ({
+    key: `system-${row.rowId}`,
+    system: summarizeRow(row, snapshot.layout.mappings),
+    bank: "-",
+    score: "0",
+  }));
+
+  const unmatchedBankRows = snapshot.unmatchedBankRows.map((row) => ({
+    key: `bank-${row.rowId}`,
+    system: "-",
+    bank: summarizeRow(row, snapshot.layout.mappings),
+    score: "0",
+  }));
+
+  return [...matchedRows, ...unmatchedSystemRows, ...unmatchedBankRows];
+}
+
 export default function ConciliationHistoryPage() {
   const { role, user } = useAuth();
   const toast = useToast();
@@ -45,22 +84,29 @@ export default function ConciliationHistoryPage() {
   const [banks, setBanks] = useState<UserBankWithLayouts[]>([]);
   const [selectedBankId, setSelectedBankId] = useState<number>(0);
   const [selectedLayoutId, setSelectedLayoutId] = useState<number>(0);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const value = new Date();
+    value.setMonth(value.getMonth() - 1);
+    return toInputDate(value);
+  });
+  const [dateTo, setDateTo] = useState<string>(() => toInputDate(new Date()));
   const [reconciliations, setReconciliations] = useState<ReconciliationSummary[]>([]);
   const [selectedReconciliationId, setSelectedReconciliationId] = useState<number>(0);
   const [selectedReconciliation, setSelectedReconciliation] =
     useState<ReconciliationDetail | null>(null);
 
+  const showUserFilter = isAdminRole(role);
+  const canSearch = selectedBankId > 0;
+
   const loadUsers = useCallback(async () => {
-    if (!isAdminRole(role)) return;
+    if (!showUserFilter) return;
     const response = await apiClient.get<AuthUser[]>("/users/list");
     setUsers(response ?? []);
-  }, [role]);
+  }, [showUserFilter]);
 
   const loadCatalog = useCallback(
     async (userId: number) => {
-      const query = isAdminRole(role) && userId > 0 ? `?userId=${userId}` : "";
+      const query = showUserFilter && userId > 0 ? `?userId=${userId}` : "";
       const response = await apiClient.get<UserBankWithLayouts[]>(
         `/conciliation/catalog${query}`,
       );
@@ -70,17 +116,22 @@ export default function ConciliationHistoryPage() {
         current > 0 && nextBanks.some((bank) => bank.id === current) ? current : 0,
       );
     },
-    [role],
+    [showUserFilter],
   );
 
   const loadReconciliations = useCallback(async () => {
+    if (!canSearch) {
+      setReconciliations([]);
+      setSelectedReconciliationId(0);
+      setSelectedReconciliation(null);
+      return;
+    }
+
     const params = new URLSearchParams();
-    if (isAdminRole(role) && selectedUserId > 0) {
+    if (showUserFilter && selectedUserId > 0) {
       params.set("userId", String(selectedUserId));
     }
-    if (selectedBankId > 0) {
-      params.set("userBankId", String(selectedBankId));
-    }
+    params.set("userBankId", String(selectedBankId));
     if (selectedLayoutId > 0) {
       params.set("layoutId", String(selectedLayoutId));
     }
@@ -91,12 +142,11 @@ export default function ConciliationHistoryPage() {
       params.set("dateTo", dateTo);
     }
 
-    const query = params.toString();
     const response = await apiClient.get<ReconciliationSummary[]>(
-      `/conciliation/reconciliations${query ? `?${query}` : ""}`,
+      `/conciliation/reconciliations?${params.toString()}`,
     );
     setReconciliations(response ?? []);
-  }, [dateFrom, dateTo, role, selectedBankId, selectedLayoutId, selectedUserId]);
+  }, [canSearch, dateFrom, dateTo, selectedBankId, selectedLayoutId, selectedUserId, showUserFilter]);
 
   const loadDetail = useCallback(async (reconciliationId: number) => {
     if (!reconciliationId) {
@@ -124,19 +174,23 @@ export default function ConciliationHistoryPage() {
 
   useEffect(() => {
     void loadReconciliations().catch((error) => {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo cargar el historial.",
-      );
+      toast.error(error instanceof Error ? error.message : "No se pudo cargar el historial.");
     });
   }, [loadReconciliations, toast]);
 
   useEffect(() => {
+    if (!canSearch) {
+      setSelectedReconciliationId(0);
+      setSelectedReconciliation(null);
+      return;
+    }
+
     setSelectedReconciliationId((current) =>
       current > 0 && reconciliations.some((item) => item.id === current)
         ? current
         : (reconciliations[0]?.id ?? 0),
     );
-  }, [reconciliations]);
+  }, [canSearch, reconciliations]);
 
   useEffect(() => {
     void loadDetail(selectedReconciliationId).catch((error) => {
@@ -157,7 +211,10 @@ export default function ConciliationHistoryPage() {
     );
   }, [layouts]);
 
-  const snapshot = selectedReconciliation?.summarySnapshot;
+  const snapshotRows = useMemo(
+    () => (selectedReconciliation?.summarySnapshot ? buildSnapshotRows(selectedReconciliation.summarySnapshot) : []),
+    [selectedReconciliation],
+  );
 
   return (
     <section className="space-y-6">
@@ -168,11 +225,12 @@ export default function ConciliationHistoryPage() {
               Historial de Conciliaciones
             </p>
             <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-              Consulta conciliaciones y matches con filtros
+              Historial compacto y filtrado por banco
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Filtra por fecha, banco, layout y usuario segun tu alcance. A la
-              derecha vas a ver el detalle completo del snapshot guardado.
+              La consulta no carga resultados hasta elegir un banco. Las fechas
+              arrancan por defecto desde un mes atras hasta hoy para ayudarte a
+              revisar rapido el trabajo reciente.
             </p>
           </div>
 
@@ -190,8 +248,8 @@ export default function ConciliationHistoryPage() {
           <FiFilter className="h-4 w-4" /> Filtros
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-5">
-          {isAdminRole(role) ? (
+        <div className={`grid gap-3 ${showUserFilter ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
+          {showUserFilter ? (
             <label className="space-y-1.5">
               <span className="text-sm font-semibold text-slate-700">Usuario</span>
               <select
@@ -199,7 +257,7 @@ export default function ConciliationHistoryPage() {
                 onChange={(event) => setSelectedUserId(Number(event.target.value))}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
               >
-                <option value={0}>Todos los usuarios habilitados</option>
+                <option value={0}>Todos los usuarios visibles</option>
                 {users.map((item) => (
                   <option key={item.id} value={Number(item.id)}>
                     {item.usrLogin}
@@ -217,7 +275,7 @@ export default function ConciliationHistoryPage() {
               onChange={(event) => setSelectedBankId(Number(event.target.value))}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             >
-              <option value={0}>Todos los bancos</option>
+              <option value={0}>Selecciona un banco</option>
               {banks.map((bank) => (
                 <option key={bank.id} value={bank.id}>
                   {bank.userLogin} - {bank.alias ?? bank.bankName}
@@ -233,7 +291,7 @@ export default function ConciliationHistoryPage() {
               onChange={(event) => setSelectedLayoutId(Number(event.target.value))}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             >
-              <option value={0}>Todos los layouts</option>
+              <option value={0}>Todos los layouts del banco</option>
               {layouts.map((layout) => (
                 <option key={layout.id} value={layout.id}>
                   {layout.name}
@@ -268,186 +326,137 @@ export default function ConciliationHistoryPage() {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <FiList className="h-4 w-4" /> Conciliaciones
-          </div>
-
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                  <tr>
-                    <th className="px-3 py-2">Fecha</th>
-                    <th className="px-3 py-2">Usuario</th>
-                    <th className="px-3 py-2">Banco</th>
-                    <th className="px-3 py-2">Layout</th>
-                    <th className="px-3 py-2">Match %</th>
-                    <th className="px-3 py-2">Act.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reconciliations.map((item) => {
-                    const selected = item.id === selectedReconciliationId;
-                    return (
-                      <tr
-                        key={item.id}
-                        onClick={() => setSelectedReconciliationId(item.id)}
-                        className={`cursor-pointer border-t border-slate-100 ${
-                          selected ? "bg-brand-50 text-slate-900" : "text-slate-700"
-                        }`}
-                      >
-                        <td className="px-3 py-2 font-semibold">{formatDate(item.createdAt)}</td>
-                        <td className="px-3 py-2">{item.userLogin}</td>
-                        <td className="px-3 py-2">{item.bankAlias ?? item.bankName}</td>
-                        <td className="px-3 py-2">{item.layoutName}</td>
-                        <td className="px-3 py-2">{item.matchPercentage}</td>
-                        <td className="px-3 py-2">{item.updateCount}</td>
-                      </tr>
-                    );
-                  })}
-                  {reconciliations.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-4 py-6 text-center text-sm text-slate-500"
-                      >
-                        No hay conciliaciones para los filtros aplicados.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      {!canSearch ? (
+        <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+          Selecciona un banco para cargar el historial. El layout sigue siendo opcional.
         </section>
+      ) : (
+        <div className="space-y-6">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <FiList className="h-4 w-4" /> Conciliaciones
+            </div>
 
-        <section className="space-y-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <h3 className="text-lg font-extrabold text-slate-900">
-              {selectedReconciliation?.name ?? "Detalle de conciliacion"}
-            </h3>
-            {selectedReconciliation ? (
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <Metric label="Banco" value={selectedReconciliation.bankAlias ?? selectedReconciliation.bankName} />
-                <Metric label="Layout" value={selectedReconciliation.layoutName} />
-                <Metric label="Estado" value={selectedReconciliation.status} />
-                <Metric label="Auto" value={String(selectedReconciliation.autoMatches)} />
-                <Metric label="Manual" value={String(selectedReconciliation.manualMatches)} />
-                <Metric label="Actualizaciones" value={String(selectedReconciliation.updateCount)} />
+            <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Usuario</th>
+                      <th className="px-3 py-2">Banco</th>
+                      <th className="px-3 py-2">Layout</th>
+                      <th className="px-3 py-2">Match %</th>
+                      <th className="px-3 py-2">Actualizaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reconciliations.map((item) => {
+                      const selected = item.id === selectedReconciliationId;
+                      return (
+                        <tr
+                          key={item.id}
+                          onClick={() => setSelectedReconciliationId(item.id)}
+                          className={`cursor-pointer border-t border-slate-100 ${
+                            selected ? "bg-brand-50 text-slate-900" : "text-slate-700"
+                          }`}
+                        >
+                          <td className="px-3 py-2 font-semibold">{formatDateTime(item.createdAt)}</td>
+                          <td className="px-3 py-2">{item.userLogin}</td>
+                          <td className="px-3 py-2">{item.bankAlias ?? item.bankName}</td>
+                          <td className="px-3 py-2">{item.layoutName}</td>
+                          <td className="px-3 py-2">{item.matchPercentage}</td>
+                          <td className="px-3 py-2">{item.updateCount}</td>
+                        </tr>
+                      );
+                    })}
+                    {reconciliations.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                          No hay conciliaciones para el banco y filtros elegidos.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              <p className="mt-3 text-sm text-slate-500">
-                Selecciona una conciliacion para ver su detalle.
-              </p>
-            )}
-          </div>
+            </div>
+          </section>
 
-          {snapshot ? (
+          {selectedReconciliation ? (
             <>
-              <SnapshotTable
-                title="Matches automaticos"
-                rows={snapshot.autoMatches.map((match) => ({
-                  left: summarizeRow(
-                    snapshot.systemRows.find((row) => row.rowId === match.systemRowId),
-                    snapshot.layout.mappings,
-                  ),
-                  right: summarizeRow(
-                    snapshot.bankRows.find((row) => row.rowId === match.bankRowId),
-                    snapshot.layout.mappings,
-                  ),
-                  score: String(match.score),
-                }))}
-              />
-              <SnapshotTable
-                title="Matches manuales"
-                rows={snapshot.manualMatches.map((match) => ({
-                  left: summarizeRow(
-                    snapshot.systemRows.find((row) => row.rowId === match.systemRowId),
-                    snapshot.layout.mappings,
-                  ),
-                  right: summarizeRow(
-                    snapshot.bankRows.find((row) => row.rowId === match.bankRowId),
-                    snapshot.layout.mappings,
-                  ),
-                  score: String(match.score),
-                }))}
-              />
-              <SnapshotTable
-                title={`Pendientes ${snapshot.layout.systemLabel}`}
-                rows={snapshot.unmatchedSystemRows.map((row) => ({
-                  left: summarizeRow(row, snapshot.layout.mappings),
-                  right: "-",
-                  score: "0",
-                }))}
-              />
-              <SnapshotTable
-                title={`Pendientes ${snapshot.layout.bankLabel}`}
-                rows={snapshot.unmatchedBankRows.map((row) => ({
-                  left: summarizeRow(row, snapshot.layout.mappings),
-                  right: "-",
-                  score: "0",
-                }))}
-              />
+              <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <FiList className="h-4 w-4" /> Resumen seleccionado
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2">Conciliacion</th>
+                          <th className="px-3 py-2">Fecha</th>
+                          <th className="px-3 py-2">Usuario</th>
+                          <th className="px-3 py-2">Layout</th>
+                          <th className="px-3 py-2">Match %</th>
+                          <th className="px-3 py-2">Actualizaciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t border-slate-100 text-slate-700">
+                          <td className="px-3 py-2 font-semibold">{selectedReconciliation.name}</td>
+                          <td className="px-3 py-2">{formatDateTime(selectedReconciliation.createdAt)}</td>
+                          <td className="px-3 py-2">{selectedReconciliation.userLogin}</td>
+                          <td className="px-3 py-2">{selectedReconciliation.layoutName}</td>
+                          <td className="px-3 py-2">{selectedReconciliation.matchPercentage}</td>
+                          <td className="px-3 py-2">{selectedReconciliation.updateCount}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <FiList className="h-4 w-4" /> Lineas guardadas
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2">Sistema</th>
+                          <th className="px-3 py-2">Banco</th>
+                          <th className="px-3 py-2">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {snapshotRows.map((row) => (
+                          <tr key={row.key} className="border-t border-slate-100 text-slate-700">
+                            <td className="px-3 py-2">{row.system}</td>
+                            <td className="px-3 py-2">{row.bank}</td>
+                            <td className="px-3 py-2 font-semibold">{row.score}</td>
+                          </tr>
+                        ))}
+                        {snapshotRows.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-6 text-center text-sm text-slate-500">
+                              Esta conciliacion no tiene lineas visibles en el snapshot.
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
             </>
           ) : null}
-        </section>
-      </div>
-    </section>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-        {label}
-      </p>
-      <p className="mt-2 font-semibold text-slate-700">{value}</p>
-    </div>
-  );
-}
-
-function SnapshotTable({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: Array<{ left: string; right: string; score: string }>;
-}) {
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5">
-      <h3 className="text-base font-extrabold text-slate-900">{title}</h3>
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Sistema</th>
-                <th className="px-3 py-2">Banco</th>
-                <th className="px-3 py-2">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={`${title}-${index}`} className="border-t border-slate-100 text-slate-700">
-                  <td className="px-3 py-2">{row.left}</td>
-                  <td className="px-3 py-2">{row.right}</td>
-                  <td className="px-3 py-2 font-semibold">{row.score}</td>
-                </tr>
-              ))}
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-4 py-5 text-center text-sm text-slate-500">
-                    Sin registros para esta seccion.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
         </div>
-      </div>
+      )}
     </section>
   );
 }

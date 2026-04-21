@@ -517,6 +517,36 @@ export default function useLayoutManagement() {
     }
   };
 
+  const deleteLayout = async (layout: Layout) => {
+    if (!selectedUserId || !selectedBankId) {
+      toast.error("Debes seleccionar usuario y banco.");
+      return;
+    }
+
+    try {
+      await apiClient.delete(
+        `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/layouts/${layout.id}`
+      );
+      toast.success("Layout eliminado.");
+      await loadCatalog(selectedUserId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar el layout.");
+    }
+  };
+
+  const deleteTemplate = async (template: TemplateLayout) => {
+    try {
+      await apiClient.delete(`/conciliation/template-layouts/${template.id}`);
+      toast.success("Template layout eliminado.");
+      await loadTemplates();
+      await loadCatalog(selectedUserId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo eliminar el template layout."
+      );
+    }
+  };
+
   return {
     users,
     selectedUserId,
@@ -563,6 +593,8 @@ export default function useLayoutManagement() {
     saveBank,
     saveLayout,
     saveTemplate,
-    applyTemplateToSelectedBank
+    applyTemplateToSelectedBank,
+    deleteLayout,
+    deleteTemplate
   };
 }

@@ -1,4 +1,4 @@
-import { FiCopy, FiEdit3, FiPlus } from "react-icons/fi";
+import { FiCopy, FiEdit3, FiPlus, FiTrash2 } from "react-icons/fi";
 import type { TemplateLayout, UserBankWithLayouts } from "../../types/conciliation";
 import { MetricTile } from "./MetricCards";
 
@@ -8,6 +8,7 @@ interface TemplateLayoutSectionProps {
   onCreateTemplate: () => void;
   onEditTemplate: (template: TemplateLayout) => void;
   onApplyTemplate: (template: TemplateLayout) => void;
+  onDeleteTemplate: (template: TemplateLayout) => void;
 }
 
 export default function TemplateLayoutSection({
@@ -15,7 +16,8 @@ export default function TemplateLayoutSection({
   selectedBank,
   onCreateTemplate,
   onEditTemplate,
-  onApplyTemplate
+  onApplyTemplate,
+  onDeleteTemplate
 }: TemplateLayoutSectionProps) {
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -77,6 +79,13 @@ export default function TemplateLayoutSection({
                 >
                   <FiCopy className="h-4 w-4" />
                   {selectedBank ? `Copiar a ${selectedBank.alias ?? selectedBank.bankName}` : "Selecciona un banco"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteTemplate(template)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                >
+                  <FiTrash2 className="h-4 w-4" /> Eliminar
                 </button>
               </div>
             </div>
