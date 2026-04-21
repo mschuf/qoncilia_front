@@ -13,7 +13,6 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AppModal from "../components/AppModal";
-import BankListSection from "../components/LayoutManagement/BankListSection";
 import BankModal from "../components/LayoutManagement/BankModal";
 import LayoutListSection from "../components/LayoutManagement/LayoutListSection";
 import LayoutModal from "../components/LayoutManagement/LayoutModal";
@@ -173,6 +172,58 @@ export default function LayoutManagementPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-6">
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="min-w-[200px] flex-1 space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700">Usuario</span>
+                <select
+                  value={selectedUserId}
+                  onChange={(event) => setSelectedUserId(Number(event.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                >
+                  {users.map((user) => (
+                    <option key={user.id} value={Number(user.id)}>
+                      {user.usrLogin}
+                      {user.usrNombre ? ` - ${user.usrNombre}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="min-w-[200px] flex-1 space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700">Banco</span>
+                <select
+                  value={selectedBankId}
+                  onChange={(event) => setSelectedBankId(Number(event.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                >
+                  <option value={0}>Selecciona un banco</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.alias ?? bank.bankName} - {bank.currency}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => void loadCatalog(selectedUserId)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                <FiRefreshCcw className="h-4 w-4" /> Recargar
+              </button>
+
+              <button
+                type="button"
+                onClick={openCreateBank}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
+              >
+                <FiPlus className="h-4 w-4" /> Asignar banco
+              </button>
+            </div>
+          </div>
+
           <WorkspaceTabs
             workspace={workspace}
             onChange={setWorkspace}
@@ -189,60 +240,15 @@ export default function LayoutManagementPage() {
               className="space-y-6"
             >
               {workspace === "banks" ? (
-                <>
-                  <div className="rounded-[2rem] border border-slate-200 bg-white p-5">
-                    <div className="flex flex-wrap items-end gap-3">
-                      <label className="min-w-[280px] flex-1 space-y-1.5">
-                        <span className="text-sm font-semibold text-slate-700">Usuario</span>
-                        <select
-                          value={selectedUserId}
-                          onChange={(event) => setSelectedUserId(Number(event.target.value))}
-                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-                        >
-                          {users.map((user) => (
-                            <option key={user.id} value={Number(user.id)}>
-                              {user.usrLogin}
-                              {user.usrNombre ? ` - ${user.usrNombre}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => void loadCatalog(selectedUserId)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                      >
-                        <FiRefreshCcw className="h-4 w-4" /> Recargar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={openCreateBank}
-                        className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
-                      >
-                        <FiPlus className="h-4 w-4" /> Asignar banco
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                    <BankListSection
-                      banks={banks}
-                      selectedBankId={selectedBankId}
-                      onSelectBank={setSelectedBankId}
-                    />
-                    <LayoutListSection
-                      selectedBank={selectedBank}
-                      onEditBank={openEditBank}
-                      onCreateLayout={openCreateLayout}
-                      onEditLayout={openEditLayout}
-                      onDeleteLayout={(_bank, layout) =>
-                        handleDeleteLayout(layout.name, () => deleteLayout(layout))
-                      }
-                    />
-                  </div>
-                </>
+                <LayoutListSection
+                  selectedBank={selectedBank}
+                  onEditBank={openEditBank}
+                  onCreateLayout={openCreateLayout}
+                  onEditLayout={openEditLayout}
+                  onDeleteLayout={(_bank, layout) =>
+                    handleDeleteLayout(layout.name, () => deleteLayout(layout))
+                  }
+                />
               ) : (
                 <TemplateLayoutSection
                   templates={templates}
