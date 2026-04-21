@@ -6,6 +6,7 @@ import {
   FiRefreshCw,
   FiSave,
   FiUploadCloud,
+  FiX,
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import AnalyticsSection from "../components/ConciliationWorkbench/AnalyticsSection";
@@ -45,6 +46,8 @@ export default function ConciliationWorkbenchPage() {
     availableReconciliationsForUpdate,
     selectedUpdateReconciliationId,
     setSelectedUpdateReconciliationId,
+    selectedReconciliationForUpdate,
+    clearUpdateSelection,
     metrics,
     chartData,
     onFileChange,
@@ -172,10 +175,36 @@ export default function ConciliationWorkbenchPage() {
           />
         </div>
 
-        {selectedUpdateReconciliationId > 0 ? (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            La conciliacion seleccionada se actualiza de forma incremental para
-            no duplicar lineas ya guardadas y sumar solo los nuevos movimientos.
+        {selectedReconciliationForUpdate ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div>
+              <p className="font-bold">
+                Actualizando: {selectedReconciliationForUpdate.name}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-90">
+                <span>
+                  <strong>Fecha:</strong>{" "}
+                  {new Date(selectedReconciliationForUpdate.createdAt).toLocaleString()}
+                </span>
+                <span>
+                  <strong>Layout:</strong> {selectedReconciliationForUpdate.layoutName}
+                </span>
+                <span>
+                  <strong>Match actual:</strong> {selectedReconciliationForUpdate.matchPercentage}%
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed opacity-75">
+                La conciliacion se actualizara de forma incremental para no
+                duplicar lineas ya guardadas y sumar solo los nuevos movimientos.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={clearUpdateSelection}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-200"
+            >
+              <FiX className="h-4 w-4" /> Cancelar actualizacion
+            </button>
           </div>
         ) : null}
       </div>

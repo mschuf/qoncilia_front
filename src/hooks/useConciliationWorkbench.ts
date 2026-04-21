@@ -128,7 +128,7 @@ export default function useConciliationWorkbench() {
   const [unmatchedBankRows, setUnmatchedBankRows] = useState<PreviewRow[]>([]);
   const [kpis, setKpis] = useState<ConciliationKpis | null>(null);
   const [history, setHistory] = useState<ReconciliationSummary[]>([]);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const updateIdParam = searchParams.get("updateId");
   
   const [selectedUpdateReconciliationId, setSelectedUpdateReconciliationId] =
@@ -236,6 +236,22 @@ export default function useConciliationWorkbench() {
       setSelectedUpdateReconciliationId(Number(updateIdParam));
     }
   }, [updateIdParam]);
+
+  const selectedReconciliationForUpdate = useMemo(
+    () =>
+      availableReconciliationsForUpdate.find(
+        (item) => item.id === selectedUpdateReconciliationId,
+      ) ?? null,
+    [availableReconciliationsForUpdate, selectedUpdateReconciliationId],
+  );
+
+  const clearUpdateSelection = useCallback(() => {
+    setSelectedUpdateReconciliationId(0);
+    if (searchParams.has("updateId")) {
+      searchParams.delete("updateId");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const onFileChange =
     (setter: Dispatch<SetStateAction<File | null>>) =>
@@ -355,11 +371,6 @@ export default function useConciliationWorkbench() {
       return;
     }
 
-    const selectedReconciliationForUpdate =
-      availableReconciliationsForUpdate.find(
-        (item) => item.id === selectedUpdateReconciliationId,
-      ) ?? null;
-
     try {
       await apiClient.post("/conciliation/reconciliations", {
         reconciliationId:
@@ -426,6 +437,8 @@ export default function useConciliationWorkbench() {
     availableReconciliationsForUpdate,
     selectedUpdateReconciliationId,
     setSelectedUpdateReconciliationId,
+    selectedReconciliationForUpdate,
+    clearUpdateSelection,
     metrics,
     chartData,
     onFileChange,
