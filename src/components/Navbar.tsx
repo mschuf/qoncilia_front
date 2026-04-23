@@ -8,6 +8,7 @@ import {
   FiMenu,
   FiSettings,
   FiShield,
+  FiServer,
   FiUser,
   FiX,
 } from "react-icons/fi";
@@ -67,6 +68,12 @@ export default function Navbar() {
       icon: <FiGrid className="h-4 w-4" />,
       label: "Accesos",
       show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.accessMatrix),
+    },
+    {
+      to: "/erp-management",
+      icon: <FiServer className="h-4 w-4" />,
+      label: "ERP",
+      show: hasModule(APP_MODULE_VALUES.erpManagement),
     },
   ];
 

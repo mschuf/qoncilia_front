@@ -17,6 +17,7 @@ const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const UserManagementPage = lazy(() => import("./pages/UserManagementPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AccessControlPage = lazy(() => import("./pages/AccessControlPage"));
+const ErpManagementPage = lazy(() => import("./pages/ErpManagementPage"));
 
 export default function App() {
   const { role } = useAuth();
@@ -105,6 +106,17 @@ export default function App() {
                   requiredModule={APP_MODULE_VALUES.accessMatrix}
                 >
                   <AccessControlPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="erp-management"
+              element={
+                <ProtectedRoute
+                  roles={[ROLE_VALUES.admin, ROLE_VALUES.isSuperAdmin]}
+                  requiredModule={APP_MODULE_VALUES.erpManagement}
+                >
+                  <ErpManagementPage />
                 </ProtectedRoute>
               }
             />

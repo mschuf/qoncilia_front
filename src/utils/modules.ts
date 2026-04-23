@@ -7,7 +7,8 @@ export const APP_MODULE_VALUES = {
   conciliation: "conciliation",
   users: "users",
   layoutManagement: "layout_management",
-  accessMatrix: "access_matrix"
+  accessMatrix: "access_matrix",
+  erpManagement: "erp_management"
 } as const;
 
 export type AppModuleCode = (typeof APP_MODULE_VALUES)[keyof typeof APP_MODULE_VALUES];
@@ -20,7 +21,8 @@ export function fallbackModulesForRole(role: Role | null | undefined): AppModule
       APP_MODULE_VALUES.conciliation,
       APP_MODULE_VALUES.users,
       APP_MODULE_VALUES.layoutManagement,
-      APP_MODULE_VALUES.accessMatrix
+      APP_MODULE_VALUES.accessMatrix,
+      APP_MODULE_VALUES.erpManagement
     ];
   }
 
@@ -29,7 +31,8 @@ export function fallbackModulesForRole(role: Role | null | undefined): AppModule
       APP_MODULE_VALUES.home,
       APP_MODULE_VALUES.profile,
       APP_MODULE_VALUES.conciliation,
-      APP_MODULE_VALUES.users
+      APP_MODULE_VALUES.users,
+      APP_MODULE_VALUES.erpManagement
     ];
   }
 
