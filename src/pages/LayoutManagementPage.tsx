@@ -29,6 +29,13 @@ import { isSuperAdminRole } from "../utils/role";
 
 type WorkspaceKey = "banks" | "templates" | "accounts" | "users";
 
+type PendingDelete = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<void>;
+} | null;
+
 const workspaceOptions: Array<{
   key: WorkspaceKey;
   label: string;
