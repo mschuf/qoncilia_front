@@ -53,7 +53,7 @@ export const compareOperatorOptions: Array<{ value: CompareOperator; label: stri
   { value: "starts_with", label: "Empieza con" },
   { value: "ends_with", label: "Termina con" },
   { value: "numeric_equals", label: "Numero igual" },
-  { value: "date_equals", label: "Fecha igual" }
+  { value: "date_equals", label: "Fecha igual (+/- dias)" }
 ];
 
 export const dataTypeOptions: Array<{ value: LayoutDataType; label: string }> = [

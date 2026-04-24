@@ -18,8 +18,11 @@ import LayoutListSection from "../components/LayoutManagement/LayoutListSection"
 import LayoutModal from "../components/LayoutManagement/LayoutModal";
 import { MetricCard } from "../components/LayoutManagement/MetricCards";
 import TemplateLayoutSection from "../components/LayoutManagement/TemplateLayoutSection";
+import { useAuth } from "../context/AuthContext";
 import useLayoutManagement from "../hooks/useLayoutManagement";
+import AdminBankingPage from "./AdminBankingPage";
 import layoutDocsMarkdown from "../../docs/layouts-creacion-edicion.md?raw";
+import { isSuperAdminRole } from "../utils/role";
 
 type WorkspaceKey = "banks" | "templates";
 
@@ -51,6 +54,7 @@ const workspaceOptions: Array<{
 ];
 
 export default function LayoutManagementPage() {
+  const { role } = useAuth();
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceKey>("banks");
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
@@ -103,6 +107,10 @@ export default function LayoutManagementPage() {
     deleteLayout,
     deleteTemplate,
   } = useLayoutManagement();
+
+  if (!isSuperAdminRole(role)) {
+    return <AdminBankingPage />;
+  }
 
   const handleDeleteLayout = (layoutName: string, onConfirm: () => Promise<void>) => {
     setPendingDelete({

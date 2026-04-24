@@ -58,9 +58,9 @@ export default function HomePage() {
             {roleLabel(role)}
           </div>
           <p className="mt-3 max-w-2xl text-sm text-slate-600">
-            Qoncilia ahora trabaja con el modelo <strong>usuario + banco + layout</strong>. Desde
-            <strong> Conciliar</strong> operas la mesa y desde <strong>Layouts</strong> el superadmin
-            define la lectura de ambos Excel.
+            Qoncilia ahora trabaja con el modelo <strong>empresa + usuarios + bancos + layouts</strong>.
+            Desde <strong>Conciliar</strong> operas la mesa, desde <strong>Bancos</strong> administras
+            catalogos y cuentas, y desde <strong>Empresas</strong> gestionas la ficha de la compania.
           </p>
         </div>
       </div>

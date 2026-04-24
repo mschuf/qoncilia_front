@@ -30,7 +30,7 @@ export interface RegisterPayload {
   usrEmail?: string;
   usrCelular?: string;
   usrLogin: string;
-  usrLegajo: string;
+  usrLegajo?: string;
   password: string;
   companyId?: number;
   roleCode?: Role;

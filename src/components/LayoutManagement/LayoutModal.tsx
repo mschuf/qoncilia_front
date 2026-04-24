@@ -236,6 +236,7 @@ export default function LayoutModal({
                         onChange={(event) =>
                           onMappingFieldChange(mapping.id, event)
                         }
+                        hint="Para fechas se interpreta en dias. Ej: 1 o 3"
                       />
                       <InputField
                         label="Orden"

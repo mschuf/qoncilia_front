@@ -72,3 +72,13 @@ export interface ErpShipmentResult {
   createdAt: string
   updatedAt: string
 }
+
+export interface CompanyProfileFormState {
+  name: string
+  fiscalId: string
+  active: boolean
+  webserviceErp: string
+  schemeErp: string
+  tlsVersionErp: string
+  cardsId: string
+}

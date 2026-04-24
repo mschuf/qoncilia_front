@@ -3,77 +3,44 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { apiClient } from "../api/apiClient"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
-import type {
-  CompanyErpConfig,
-  CompanyErpConfigFormState,
-  ErpReferenceResponse
-} from "../types/erp"
+import type { PublicCompany } from "../types/access-control"
+import type { CompanyProfileFormState } from "../types/erp"
 import { isSuperAdminRole } from "../utils/role"
 
-const initialForm: CompanyErpConfigFormState = {
-  companyId: 0,
-  code: "",
+const initialForm: CompanyProfileFormState = {
   name: "",
-  erpType: "sap_b1",
-  description: "",
+  fiscalId: "",
   active: true,
-  isDefault: false,
-  sapUsername: "",
-  dbName: "",
-  cmpName: "",
-  serverNode: "",
-  dbUser: "",
-  password: "",
-  serviceLayerUrl: "",
-  tlsVersion: "1.2",
-  allowSelfSigned: false
+  webserviceErp: "",
+  schemeErp: "",
+  tlsVersionErp: "1.2",
+  cardsId: ""
 }
 
-function buildFormState(
-  companyId: number,
-  config?: CompanyErpConfig | null,
-  tlsVersion = "1.2"
-): CompanyErpConfigFormState {
-  if (!config) {
-    return {
-      ...initialForm,
-      companyId,
-      tlsVersion
-    }
+function companyToForm(company?: PublicCompany | null): CompanyProfileFormState {
+  if (!company) {
+    return initialForm
   }
 
   return {
-    companyId: config.companyId,
-    code: config.code,
-    name: config.name,
-    erpType: config.erpType,
-    description: config.description ?? "",
-    active: config.active,
-    isDefault: config.isDefault,
-    sapUsername: config.sapUsername ?? "",
-    dbName: config.dbName ?? "",
-    cmpName: config.cmpName ?? "",
-    serverNode: config.serverNode ?? "",
-    dbUser: config.dbUser ?? "",
-    password: "",
-    serviceLayerUrl: config.serviceLayerUrl ?? "",
-    tlsVersion: config.tlsVersion ?? tlsVersion,
-    allowSelfSigned: config.allowSelfSigned
+    name: company.name ?? "",
+    fiscalId: company.fiscalId ?? company.code ?? "",
+    active: company.active ?? true,
+    webserviceErp: company.webserviceErp ?? "",
+    schemeErp: company.schemeErp ?? "",
+    tlsVersionErp: company.tlsVersionErp ?? "1.2",
+    cardsId: company.cardsId ?? ""
   }
 }
 
 export default function useErpManagement() {
-  const { role, user } = useAuth()
+  const { role } = useAuth()
   const toast = useToast()
-  const canManage = isSuperAdminRole(role)
-  const [reference, setReference] = useState<ErpReferenceResponse | null>(null)
-  const [selectedCompanyId, setSelectedCompanyId] = useState<number>(Number(user?.companyId ?? 0))
-  const [configs, setConfigs] = useState<CompanyErpConfig[]>([])
-  const [editingConfigId, setEditingConfigId] = useState<number | null>(null)
-  const [form, setForm] = useState<CompanyErpConfigFormState>({
-    ...initialForm,
-    companyId: Number(user?.companyId ?? 0)
-  })
+  const isSuperAdmin = isSuperAdminRole(role)
+  const [companies, setCompanies] = useState<PublicCompany[]>([])
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number>(0)
+  const [form, setForm] = useState<CompanyProfileFormState>(initialForm)
+  const [isCreating, setIsCreating] = useState(false)
 
   const notifyError = useCallback(
     (error: unknown, fallbackMessage: string) => {
@@ -82,70 +49,55 @@ export default function useErpManagement() {
     [toast]
   )
 
-  const defaultTlsVersion = useMemo(
-    () => reference?.tlsVersions.find((item) => item === "1.2") ?? reference?.tlsVersions[0] ?? "1.2",
-    [reference?.tlsVersions]
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === selectedCompanyId) ?? null,
+    [companies, selectedCompanyId]
   )
 
-  const loadReference = useCallback(async () => {
+  const syncSelection = useCallback((nextCompanies: PublicCompany[]) => {
+    setCompanies(nextCompanies)
+    setSelectedCompanyId((current) => {
+      if (current > 0 && nextCompanies.some((company) => company.id === current)) {
+        return current
+      }
+
+      return nextCompanies[0]?.id ?? 0
+    })
+  }, [])
+
+  const loadSuperAdminCompanies = useCallback(async () => {
     try {
-      const response = await apiClient.get<ErpReferenceResponse>("/erp/reference")
-      setReference(response)
-      setSelectedCompanyId((current) => current || Number(response.companies[0]?.id ?? user?.companyId ?? 0))
+      const response = await apiClient.get<{ companies: PublicCompany[] }>("/access-control/reference")
+      syncSelection(response.companies ?? [])
     } catch (error) {
-      notifyError(error, "No se pudo cargar la referencia ERP.")
+      notifyError(error, "No se pudieron cargar las empresas.")
     }
-  }, [notifyError, user?.companyId])
+  }, [notifyError, syncSelection])
 
-  const loadConfigs = useCallback(
-    async (companyId: number) => {
-      if (!companyId) {
-        setConfigs([])
-        return
-      }
-
-      try {
-        const query = new URLSearchParams({ companyId: String(companyId) })
-        const response = await apiClient.get<CompanyErpConfig[]>(`/erp/configs?${query.toString()}`)
-        setConfigs(response ?? [])
-      } catch (error) {
-        notifyError(error, "No se pudieron cargar las configuraciones ERP.")
-      }
-    },
-    [notifyError]
-  )
+  const loadOwnCompany = useCallback(async () => {
+    try {
+      const response = await apiClient.get<PublicCompany>("/access-control/company-profile")
+      setCompanies([response])
+      setSelectedCompanyId(response.id)
+      setForm(companyToForm(response))
+    } catch (error) {
+      notifyError(error, "No se pudo cargar la empresa.")
+    }
+  }, [notifyError])
 
   useEffect(() => {
-    void loadReference()
-  }, [loadReference])
-
-  useEffect(() => {
-    if (!selectedCompanyId) return
-    setForm((current) =>
-      current.companyId === selectedCompanyId ? current : { ...current, companyId: selectedCompanyId }
-    )
-    void loadConfigs(selectedCompanyId)
-  }, [loadConfigs, selectedCompanyId])
-
-  useEffect(() => {
-    if (!editingConfigId) {
-      setForm((current) =>
-        current.companyId === selectedCompanyId && current.tlsVersion
-          ? current
-          : buildFormState(selectedCompanyId, null, defaultTlsVersion)
-      )
+    if (isSuperAdmin) {
+      void loadSuperAdminCompanies()
       return
     }
 
-    const editingConfig = configs.find((config) => config.id === editingConfigId)
-    if (!editingConfig) {
-      setEditingConfigId(null)
-      setForm(buildFormState(selectedCompanyId, null, defaultTlsVersion))
-    }
-  }, [configs, defaultTlsVersion, editingConfigId, selectedCompanyId])
+    void loadOwnCompany()
+  }, [isSuperAdmin, loadOwnCompany, loadSuperAdminCompanies])
 
-  const selectedCompany =
-    reference?.companies.find((company) => company.id === selectedCompanyId) ?? null
+  useEffect(() => {
+    if (!isSuperAdmin || isCreating) return
+    setForm(companyToForm(selectedCompany))
+  }, [isCreating, isSuperAdmin, selectedCompany])
 
   const onFormFieldChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -160,68 +112,85 @@ export default function useErpManagement() {
     }))
   }
 
-  const startCreate = useCallback(() => {
-    setEditingConfigId(null)
-    setForm(buildFormState(selectedCompanyId, null, defaultTlsVersion))
-  }, [defaultTlsVersion, selectedCompanyId])
+  const startCreate = () => {
+    setIsCreating(true)
+    setForm(initialForm)
+  }
 
-  const startEdit = useCallback(
-    (config: CompanyErpConfig) => {
-      setEditingConfigId(config.id)
-      setForm(buildFormState(selectedCompanyId, config, defaultTlsVersion))
-    },
-    [defaultTlsVersion, selectedCompanyId]
-  )
+  const cancelCreate = () => {
+    setIsCreating(false)
+    setForm(companyToForm(selectedCompany))
+  }
 
-  const saveConfig = async (event: FormEvent<HTMLFormElement>) => {
+  const saveCompany = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!canManage) return
-
-    const payload = {
-      ...form,
-      description: form.description.trim(),
-      password: form.password.trim()
-    }
 
     try {
-      if (editingConfigId) {
-        await apiClient.patch<CompanyErpConfig>(`/erp/configs/${editingConfigId}`, payload)
-        toast.success("Configuracion ERP actualizada.")
-      } else {
-        await apiClient.post<CompanyErpConfig>("/erp/configs", payload)
-        toast.success("Configuracion ERP creada.")
+      if (isSuperAdmin) {
+        const payload = {
+          name: form.name,
+          fiscalId: form.fiscalId,
+          active: form.active,
+          webserviceErp: form.webserviceErp,
+          schemeErp: form.schemeErp,
+          tlsVersionErp: form.tlsVersionErp,
+          cardsId: form.cardsId
+        }
+
+        if (isCreating || !selectedCompanyId) {
+          const created = await apiClient.post<PublicCompany>("/access-control/companies", payload)
+          toast.success("Empresa creada correctamente.")
+          await loadSuperAdminCompanies()
+          setSelectedCompanyId(created.id)
+          setIsCreating(false)
+          return
+        }
+
+        const updated = await apiClient.patch<PublicCompany>(
+          `/access-control/companies/${selectedCompanyId}`,
+          payload
+        )
+        toast.success("Empresa actualizada correctamente.")
+        await loadSuperAdminCompanies()
+        setSelectedCompanyId(updated.id)
+        return
       }
 
-      await loadConfigs(selectedCompanyId)
-      startCreate()
+      const updated = await apiClient.put<PublicCompany>("/access-control/company-profile", {
+        name: form.name,
+        fiscalId: form.fiscalId
+      })
+      setCompanies([updated])
+      setSelectedCompanyId(updated.id)
+      setForm(companyToForm(updated))
+      toast.success("Empresa actualizada correctamente.")
     } catch (error) {
-      notifyError(error, "No se pudo guardar la configuracion ERP.")
+      notifyError(error, "No se pudo guardar la empresa.")
     }
   }
 
   const metrics = useMemo(
     () => ({
-      total: configs.length,
-      active: configs.filter((config) => config.active).length,
-      defaults: configs.filter((config) => config.isDefault).length
+      total: companies.length,
+      active: companies.filter((company) => company.active).length,
+      withErp: companies.filter((company) => company.webserviceErp || company.schemeErp || company.cardsId).length
     }),
-    [configs]
+    [companies]
   )
 
   return {
-    canManage,
-    reference,
+    isSuperAdmin,
+    companies,
     selectedCompanyId,
     setSelectedCompanyId,
     selectedCompany,
-    configs,
-    metrics,
-    editingConfigId,
     form,
     onFormFieldChange,
-    saveConfig,
+    saveCompany,
     startCreate,
-    startEdit,
-    reloadConfigs: () => loadConfigs(selectedCompanyId)
+    cancelCreate,
+    isCreating,
+    metrics,
+    reload: isSuperAdmin ? loadSuperAdminCompanies : loadOwnCompany
   }
 }

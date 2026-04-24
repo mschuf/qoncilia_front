@@ -32,6 +32,7 @@ export function fallbackModulesForRole(role: Role | null | undefined): AppModule
       APP_MODULE_VALUES.profile,
       APP_MODULE_VALUES.conciliation,
       APP_MODULE_VALUES.users,
+      APP_MODULE_VALUES.layoutManagement,
       APP_MODULE_VALUES.erpManagement
     ];
   }

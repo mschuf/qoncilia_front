@@ -60,8 +60,8 @@ export default function Navbar() {
     {
       to: "/layout-management",
       icon: <FiSettings className="h-4 w-4" />,
-      label: "Layouts",
-      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
+      label: isSuperAdminRole(role) ? "Layouts" : "Bancos",
+      show: hasModule(APP_MODULE_VALUES.layoutManagement),
     },
     {
       to: "/access-control",
@@ -72,7 +72,7 @@ export default function Navbar() {
     {
       to: "/erp-management",
       icon: <FiServer className="h-4 w-4" />,
-      label: "ERP",
+      label: isSuperAdminRole(role) ? "Empresas" : "Mi Empresa",
       show: hasModule(APP_MODULE_VALUES.erpManagement),
     },
   ];

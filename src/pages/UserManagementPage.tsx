@@ -37,8 +37,8 @@ export default function UserManagementPage() {
           </p>
           <h2 className="mt-3 text-3xl font-extrabold text-slate-900">ABM de Usuarios</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Crea accesos y controla activaciones. El superadmin define bancos y layouts; los admins
-            quedan enfocados en operar conciliaciones.
+            Crea accesos y controla activaciones. El admin de empresa gestiona sus usuarios y el
+            superadmin mantiene la vista global del sistema.
           </p>
         </div>
 

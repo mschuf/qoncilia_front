@@ -95,11 +95,27 @@ function compareValues(
     case "numeric_equals":
       return Math.abs(Number(left) - Number(right)) <= (mapping.tolerance ?? 0)
     case "date_equals":
-      return textLeft === textRight
+      return compareDatesWithTolerance(textLeft, textRight, mapping.tolerance ?? 0)
     case "equals":
     default:
       return textLeft === textRight
   }
+}
+
+function compareDatesWithTolerance(left: string, right: string, toleranceDays: number) {
+  const leftDay = parseDateDayNumber(left)
+  const rightDay = parseDateDayNumber(right)
+  if (leftDay === null || rightDay === null) {
+    return left === right
+  }
+
+  return Math.abs(leftDay - rightDay) <= Math.abs(toleranceDays)
+}
+
+function parseDateDayNumber(value: string) {
+  const parsed = Date.parse(`${value}T00:00:00Z`)
+  if (Number.isNaN(parsed)) return null
+  return Math.floor(parsed / 86400000)
 }
 
 function sortRows(rows: PreviewRow[]) {
