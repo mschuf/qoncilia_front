@@ -131,7 +131,10 @@ function SuperadminLayoutManagementPage() {
     deleteTemplate,
   } = useLayoutManagement();
 
-  const handleDeleteLayout = (layoutName: string, onConfirm: () => Promise<void>) => {
+  const handleDeleteLayout = (
+    layoutName: string,
+    onConfirm: () => Promise<void>,
+  ) => {
     setPendingDelete({
       title: "Eliminar layout",
       description: `Vas a eliminar el layout "${layoutName}". Si ya tiene conciliaciones guardadas, el sistema no lo va a permitir.`,
@@ -185,15 +188,32 @@ function SuperadminLayoutManagementPage() {
           <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600">
             Organiza el trabajo por usuario, banco y layout, y usa templates
             como base para copiar configuraciones repetidas. La vista cambia con
-            animacion para que sea mas clara en desktop y mucho mas comoda en mobile.
+            animacion para que sea mas clara en desktop y mucho mas comoda en
+            mobile.
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-          <MetricCard icon={FiShield} label="Usuario" value={selectedUser?.usrLogin ?? "-"} />
-          <MetricCard icon={FiLayers} label="Templates" value={String(templateCount)} />
-          <MetricCard icon={FiSettings} label="Bancos" value={String(banks.length)} />
-          <MetricCard icon={FiSliders} label="Layouts" value={String(layoutCount)} />
+          <MetricCard
+            icon={FiShield}
+            label="Usuario"
+            value={selectedUser?.usrLogin ?? "-"}
+          />
+          <MetricCard
+            icon={FiLayers}
+            label="Templates"
+            value={String(templateCount)}
+          />
+          <MetricCard
+            icon={FiSettings}
+            label="Bancos"
+            value={String(banks.length)}
+          />
+          <MetricCard
+            icon={FiSliders}
+            label="Layouts"
+            value={String(layoutCount)}
+          />
         </div>
       </div>
 
@@ -202,10 +222,14 @@ function SuperadminLayoutManagementPage() {
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-end gap-3">
               <label className="min-w-[200px] flex-1 space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">Usuario</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  Usuario
+                </span>
                 <select
                   value={selectedUserId}
-                  onChange={(event) => setSelectedUserId(Number(event.target.value))}
+                  onChange={(event) =>
+                    setSelectedUserId(Number(event.target.value))
+                  }
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 >
                   {users.map((user) => (
@@ -218,16 +242,21 @@ function SuperadminLayoutManagementPage() {
               </label>
 
               <label className="min-w-[200px] flex-1 space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">Banco</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  Banco
+                </span>
                 <select
                   value={selectedBankId}
-                  onChange={(event) => setSelectedBankId(Number(event.target.value))}
+                  onChange={(event) =>
+                    setSelectedBankId(Number(event.target.value))
+                  }
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 >
                   <option value={0}>Selecciona un banco</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>
-                      {bank.alias ?? bank.bankName} - {bank.currency}
+                      {bank.alias ?? bank.bankName}
+                      {bank.branch ? ` - ${bank.branch}` : ""}
                     </option>
                   ))}
                 </select>
@@ -251,18 +280,18 @@ function SuperadminLayoutManagementPage() {
             </div>
           </div>
 
-          <WorkspaceTabs
-            workspace={workspace}
-            onChange={setWorkspace}
-            compact={false}
-          />
-
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={workspace}
-              initial={{ opacity: 0, x: workspace === "banks" || workspace === "users" ? -28 : 28 }}
+              initial={{
+                opacity: 0,
+                x: workspace === "banks" || workspace === "users" ? -28 : 28,
+              }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: workspace === "banks" || workspace === "users" ? 28 : -28 }}
+              exit={{
+                opacity: 0,
+                x: workspace === "banks" || workspace === "users" ? 28 : -28,
+              }}
               transition={{ duration: 0.22, ease: "easeOut" }}
               className="space-y-6"
             >
@@ -276,7 +305,9 @@ function SuperadminLayoutManagementPage() {
                   onCreateLayout={prepareCreateLayout}
                   onEditLayout={prepareEditLayout}
                   onDeleteLayout={(userId, bankId, layout) =>
-                    handleDeleteLayout(layout.name, () => deleteLayout(layout, userId, bankId))
+                    handleDeleteLayout(layout.name, () =>
+                      deleteLayout(layout, userId, bankId),
+                    )
                   }
                 />
               ) : workspace === "banks" ? (
@@ -297,7 +328,9 @@ function SuperadminLayoutManagementPage() {
                   onEditTemplate={openEditTemplate}
                   onApplyTemplate={applyTemplateToSelectedBank}
                   onDeleteTemplate={(template) =>
-                    handleDeleteTemplate(template.name, () => deleteTemplate(template))
+                    handleDeleteTemplate(template.name, () =>
+                      deleteTemplate(template),
+                    )
                   }
                 />
               ) : (
@@ -309,7 +342,11 @@ function SuperadminLayoutManagementPage() {
 
         <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
           <div className="hidden xl:block">
-            <WorkspaceTabs workspace={workspace} onChange={setWorkspace} compact />
+            <WorkspaceTabs
+              workspace={workspace}
+              onChange={setWorkspace}
+              compact
+            />
           </div>
 
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5">
@@ -321,11 +358,15 @@ function SuperadminLayoutManagementPage() {
               <ContextTile
                 label="Usuario"
                 value={selectedUser?.usrLogin ?? "Sin usuario"}
-                helper={selectedUser?.usrNombre ?? "Selecciona a quien administrar"}
+                helper={
+                  selectedUser?.usrNombre ?? "Selecciona a quien administrar"
+                }
               />
               <ContextTile
                 label="Banco"
-                value={selectedBank?.alias ?? selectedBank?.bankName ?? "Sin banco"}
+                value={
+                  selectedBank?.alias ?? selectedBank?.bankName ?? "Sin banco"
+                }
                 helper={
                   selectedBank
                     ? `${selectedBank.layouts.length} layout(s) disponibles`
@@ -417,7 +458,9 @@ function SuperadminLayoutManagementPage() {
           </div>
         }
       >
-        <p className="text-sm leading-6 text-slate-600">{pendingDelete?.description}</p>
+        <p className="text-sm leading-6 text-slate-600">
+          {pendingDelete?.description}
+        </p>
       </AppModal>
 
       <AppModal
@@ -426,7 +469,9 @@ function SuperadminLayoutManagementPage() {
         title="Documentacion: Bancos y Layouts"
       >
         <div className="prose prose-slate prose-sm max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{layoutDocsMarkdown}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {layoutDocsMarkdown}
+          </ReactMarkdown>
         </div>
       </AppModal>
     </section>
@@ -448,11 +493,7 @@ function WorkspaceTabs({
         compact ? "space-y-2" : ""
       }`}
     >
-      <div
-        className={
-          compact ? "space-y-2" : "grid gap-3 md:grid-cols-2"
-        }
-      >
+      <div className={compact ? "space-y-2" : "grid gap-3 md:grid-cols-2"}>
         {workspaceOptions.map((option) => {
           const Icon = option.icon;
           const active = option.key === workspace;
@@ -471,7 +512,9 @@ function WorkspaceTabs({
               <div className="flex items-start gap-3">
                 <div
                   className={`rounded-xl p-2 ${
-                    active ? "bg-white/15 text-white" : "bg-brand-50 text-brand-700"
+                    active
+                      ? "bg-white/15 text-white"
+                      : "bg-brand-50 text-brand-700"
                   }`}
                 >
                   <Icon className="h-5 w-5" />

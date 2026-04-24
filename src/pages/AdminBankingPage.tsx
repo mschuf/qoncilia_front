@@ -16,6 +16,7 @@ export default function AdminBankingPage() {
     selectedCompany,
     selectedCompanyId,
     companies,
+    availableUsers,
     changeCompany,
     banks,
     selectedBankId,
@@ -50,8 +51,8 @@ export default function AdminBankingPage() {
             Bancos y cuentas bancarias
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            Crea bancos, define su sucursal una sola vez y administra las cuentas de tu empresa
-            dentro de cada banco desde un flujo mas claro.
+            Crea bancos vinculados a un usuario responsable, define su sucursal una sola vez
+            y administra las cuentas de tu empresa dentro de cada banco desde un flujo mas claro.
           </p>
         </div>
 
@@ -139,7 +140,11 @@ export default function AdminBankingPage() {
                       >
                         <p className="text-sm font-bold">{bank.name}</p>
                         <p className={`mt-1 text-xs ${isSelected ? "text-white/75" : "text-slate-500"}`}>
-                          {bank.branch ? `Sucursal ${bank.branch}` : "Sin sucursal definida"}
+                          {bank.alias ?? `Responsable ${bank.userLogin}`}
+                        </p>
+                        <p className={`mt-1 text-xs ${isSelected ? "text-white/60" : "text-slate-400"}`}>
+                          {bank.userLogin}
+                          {bank.branch ? ` | Sucursal ${bank.branch}` : ""}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
                           <span className={`rounded-full px-3 py-1 ${isSelected ? "bg-white/15 text-white" : "bg-white text-slate-600"}`}>
@@ -198,6 +203,25 @@ export default function AdminBankingPage() {
             </div>
 
             <div className="mt-6 space-y-4">
+              <label className="space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700">Usuario responsable</span>
+                <select
+                  name="userId"
+                  value={bankForm.userId}
+                  onChange={onBankFieldChange}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                  required
+                >
+                  <option value="">Selecciona un usuario</option>
+                  {availableUsers.map((item) => (
+                    <option key={item.id} value={Number(item.id)}>
+                      {item.usrLogin}
+                      {item.usrNombre ? ` - ${item.usrNombre}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <Field
                 label="Nombre del banco"
                 name="name"
@@ -208,11 +232,27 @@ export default function AdminBankingPage() {
               />
 
               <Field
+                label="Alias"
+                name="alias"
+                value={bankForm.alias}
+                onChange={onBankFieldChange}
+                placeholder="Familiar GS"
+              />
+
+              <Field
                 label="Sucursal"
                 name="branch"
                 value={bankForm.branch}
                 onChange={onBankFieldChange}
                 placeholder="Casa matriz"
+              />
+
+              <Field
+                label="Descripcion"
+                name="description"
+                value={bankForm.description}
+                onChange={onBankFieldChange}
+                placeholder="Banco principal para layouts y cuentas"
               />
 
               <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
@@ -256,9 +296,17 @@ export default function AdminBankingPage() {
                     </p>
                     <h4 className="mt-2 text-2xl font-extrabold text-slate-900">{selectedBank.name}</h4>
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                      {selectedBank.alias ? (
+                        <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">
+                          Alias {selectedBank.alias}
+                        </span>
+                      ) : null}
                       <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">
                         <FiMapPin className="h-4 w-4" />
                         {selectedBank.branch ?? "Sin sucursal"}
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">
+                        Responsable {selectedBank.userLogin}
                       </span>
                       <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${
                         selectedBank.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
@@ -303,7 +351,7 @@ export default function AdminBankingPage() {
                     <div>
                       <p className="text-sm font-bold text-slate-900">{account.name}</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        Cuenta {account.accountNumber}
+                        Cuenta {account.accountNumber} | {account.currency}
                         {account.bankBranch ? ` | Sucursal ${account.bankBranch}` : ""}
                       </p>
                       <p className="mt-2 text-xs leading-5 text-slate-500">
@@ -360,7 +408,8 @@ export default function AdminBankingPage() {
                   <option value="">Selecciona un banco</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>
-                      {bank.name}{bank.branch ? ` - ${bank.branch}` : ""}
+                      {bank.alias ?? bank.name} - {bank.userLogin}
+                      {bank.branch ? ` - ${bank.branch}` : ""}
                     </option>
                   ))}
                 </select>
@@ -374,6 +423,16 @@ export default function AdminBankingPage() {
                   onChange={onAccountFieldChange}
                   required
                 />
+                <Field
+                  label="Moneda"
+                  name="currency"
+                  value={accountForm.currency}
+                  onChange={onAccountFieldChange}
+                  required
+                />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
                 <Field
                   label="Numero de cuenta"
                   name="accountNumber"

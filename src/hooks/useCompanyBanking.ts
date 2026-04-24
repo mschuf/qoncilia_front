@@ -2,6 +2,7 @@ import type { ChangeEvent, FormEvent } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { apiClient } from "../api/apiClient"
 import { useToast } from "../context/ToastContext"
+import type { AuthUser } from "../types/auth"
 import type {
   BankFormState,
   CompanyBankAccountFormState,
@@ -11,7 +12,10 @@ import type {
 } from "../types/banking"
 
 const initialBankForm: BankFormState = {
+  userId: "",
   name: "",
+  alias: "",
+  description: "",
   branch: "",
   active: true
 }
@@ -19,6 +23,7 @@ const initialBankForm: BankFormState = {
 const initialAccountForm: CompanyBankAccountFormState = {
   bankId: "",
   name: "",
+  currency: "GS",
   accountNumber: "",
   bankErpId: "",
   majorAccountNumber: "",
@@ -29,12 +34,18 @@ const initialAccountForm: CompanyBankAccountFormState = {
 export default function useCompanyBanking() {
   const toast = useToast()
   const [reference, setReference] = useState<CompanyBankingReferenceResponse | null>(null)
+  const [users, setUsers] = useState<AuthUser[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<number>(0)
   const [selectedBankId, setSelectedBankId] = useState<number>(0)
   const [bankForm, setBankForm] = useState<BankFormState>(initialBankForm)
   const [accountForm, setAccountForm] = useState<CompanyBankAccountFormState>(initialAccountForm)
   const [editingBankId, setEditingBankId] = useState<number | null>(null)
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null)
+
+  const loadUsers = useCallback(async () => {
+    const response = await apiClient.get<AuthUser[]>("/users/list")
+    setUsers(response ?? [])
+  }, [])
 
   const loadReference = useCallback(async (companyId?: number) => {
     const params = companyId ? `?companyId=${companyId}` : ""
@@ -56,10 +67,10 @@ export default function useCompanyBanking() {
   }, [])
 
   useEffect(() => {
-    void loadReference().catch((error) => {
+    void Promise.all([loadReference(), loadUsers()]).catch((error) => {
       toast.error(error instanceof Error ? error.message : "No se pudo cargar el catalogo bancario.")
     })
-  }, [loadReference, toast])
+  }, [loadReference, loadUsers, toast])
 
   const changeCompany = useCallback((companyId: number) => {
     void loadReference(companyId).catch((error) => {
@@ -71,6 +82,11 @@ export default function useCompanyBanking() {
   const banks = reference?.banks ?? []
   const accounts = reference?.accounts ?? []
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId) ?? companies[0] ?? null
+
+  const availableUsers = useMemo(
+    () => users.filter((item) => Number(item.companyId ?? 0) === selectedCompanyId),
+    [selectedCompanyId, users]
+  )
 
   const selectedBank = useMemo(
     () => banks.find((bank) => bank.id === selectedBankId) ?? null,
@@ -92,6 +108,19 @@ export default function useCompanyBanking() {
   }, [accounts])
 
   useEffect(() => {
+    if (editingBankId) return
+
+    setBankForm((current) => ({
+      ...current,
+      userId:
+        Number(current.userId || 0) > 0 &&
+        availableUsers.some((item) => Number(item.id) === Number(current.userId))
+          ? current.userId
+          : (Number(availableUsers[0]?.id ?? 0) || "")
+    }))
+  }, [availableUsers, editingBankId])
+
+  useEffect(() => {
     if (!editingAccountId && selectedBankId > 0) {
       setAccountForm((current) => ({
         ...current,
@@ -111,10 +140,14 @@ export default function useCompanyBanking() {
     }
   }
 
-  const onBankFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const onBankFieldChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = event.target
     const nextValue =
-      type === "checkbox" && "checked" in event.target ? event.target.checked : value
+      type === "checkbox" && "checked" in event.target
+        ? event.target.checked
+        : name === "userId"
+          ? (value ? Number(value) : "")
+          : value
 
     setBankForm((current) => ({
       ...current,
@@ -141,14 +174,20 @@ export default function useCompanyBanking() {
 
   const resetBankForm = () => {
     setEditingBankId(null)
-    setBankForm(initialBankForm)
+    setBankForm({
+      ...initialBankForm,
+      userId: Number(availableUsers[0]?.id ?? 0) || ""
+    })
   }
 
   const startEditBank = (bank: PublicBank) => {
     setSelectedBankId(bank.id)
     setEditingBankId(bank.id)
     setBankForm({
+      userId: bank.userId,
       name: bank.name,
+      alias: bank.alias ?? "",
+      description: bank.description ?? "",
       branch: bank.branch ?? "",
       active: bank.active
     })
@@ -157,20 +196,35 @@ export default function useCompanyBanking() {
   const saveBank = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    if (!bankForm.userId) {
+      toast.error("Debes seleccionar un usuario responsable.")
+      return
+    }
+
+    const payload = {
+      companyId: selectedCompanyId || undefined,
+      userId: Number(bankForm.userId),
+      name: bankForm.name,
+      alias: bankForm.alias,
+      description: bankForm.description,
+      branch: bankForm.branch,
+      active: bankForm.active
+    }
+
     try {
       if (editingBankId) {
-        const updated = await apiClient.patch<PublicBank>(`/company-banking/banks/${editingBankId}`, bankForm)
+        const updated = await apiClient.patch<PublicBank>(`/company-banking/banks/${editingBankId}`, payload)
         toast.success("Banco actualizado.")
         resetBankForm()
-        await loadReference()
+        await loadReference(selectedCompanyId)
         setSelectedBankId(updated.id)
         return
       }
 
-      const created = await apiClient.post<PublicBank>("/company-banking/banks", bankForm)
+      const created = await apiClient.post<PublicBank>("/company-banking/banks", payload)
       toast.success("Banco creado.")
       resetBankForm()
-      await loadReference()
+      await loadReference(selectedCompanyId)
       setSelectedBankId(created.id)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar el banco.")
@@ -191,6 +245,7 @@ export default function useCompanyBanking() {
     setAccountForm({
       bankId: account.bankId,
       name: account.name,
+      currency: account.currency,
       accountNumber: account.accountNumber,
       bankErpId: account.bankErpId,
       majorAccountNumber: account.majorAccountNumber,
@@ -208,8 +263,10 @@ export default function useCompanyBanking() {
     }
 
     const payload = {
+      companyId: selectedCompanyId || undefined,
       bankId: Number(accountForm.bankId),
       name: accountForm.name,
+      currency: accountForm.currency,
       accountNumber: accountForm.accountNumber,
       bankErpId: accountForm.bankErpId,
       majorAccountNumber: accountForm.majorAccountNumber,
@@ -227,7 +284,7 @@ export default function useCompanyBanking() {
       }
 
       resetAccountForm()
-      await loadReference()
+      await loadReference(selectedCompanyId)
       setSelectedBankId(payload.bankId)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar la cuenta bancaria.")
@@ -248,6 +305,7 @@ export default function useCompanyBanking() {
     selectedCompany,
     selectedCompanyId,
     companies,
+    availableUsers,
     changeCompany,
     banks,
     selectedBankId,

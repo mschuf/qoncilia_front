@@ -199,10 +199,9 @@ export default function useLayoutManagement() {
     setSelectedUserId(userId);
     setEditingBank(bank);
     setBankForm({
-      bankName: bank.bankName,
+      name: bank.bankName,
       alias: bank.alias ?? "",
-      currency: bank.currency,
-      accountNumber: bank.accountNumber ?? "",
+      branch: bank.branch ?? "",
       description: bank.description ?? "",
       active: bank.active
     });
@@ -284,10 +283,9 @@ export default function useLayoutManagement() {
   const openEditBank = (bank: UserBankWithLayouts) => {
     setEditingBank(bank);
     setBankForm({
-      bankName: bank.bankName,
+      name: bank.bankName,
       alias: bank.alias ?? "",
-      currency: bank.currency,
-      accountNumber: bank.accountNumber ?? "",
+      branch: bank.branch ?? "",
       description: bank.description ?? "",
       active: bank.active
     });

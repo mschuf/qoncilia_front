@@ -30,10 +30,9 @@ export default function BankModal({
       footer={<ModalActions formId="bank-layout-form" label="Guardar banco" onCancel={onClose} />}
     >
       <form id="bank-layout-form" onSubmit={onSubmit} className="grid gap-3 md:grid-cols-2">
-        <InputField label="Banco" name="bankName" value={bankForm.bankName} onChange={onFieldChange} required />
+        <InputField label="Banco" name="name" value={bankForm.name} onChange={onFieldChange} required />
         <InputField label="Alias" name="alias" value={bankForm.alias} onChange={onFieldChange} />
-        <InputField label="Moneda" name="currency" value={bankForm.currency} onChange={onFieldChange} required />
-        <InputField label="Numero de cuenta" name="accountNumber" value={bankForm.accountNumber} onChange={onFieldChange} />
+        <InputField label="Sucursal" name="branch" value={bankForm.branch} onChange={onFieldChange} />
         <label className="md:col-span-2 space-y-1.5">
           <span className="text-sm font-semibold text-slate-700">Descripcion</span>
           <input name="description" value={bankForm.description} onChange={onFieldChange} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none" />

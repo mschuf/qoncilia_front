@@ -130,7 +130,9 @@ export default function UserBanksSection({
                                 <span className="text-sm font-bold text-slate-900">
                                   {bank.alias ?? bank.bankName}
                                 </span>
-                                <span className="text-xs text-slate-500">{bank.currency}</span>
+                                {bank.branch ? (
+                                  <span className="text-xs text-slate-500">Sucursal {bank.branch}</span>
+                                ) : null}
                                 {bank.active ? (
                                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                                     Activo

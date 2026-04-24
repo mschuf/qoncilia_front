@@ -25,10 +25,9 @@ export type MappingFormRow = {
 };
 
 export type BankFormState = {
-  bankName: string;
+  name: string;
   alias: string;
-  currency: string;
-  accountNumber: string;
+  branch: string;
   description: string;
   active: boolean;
 };
@@ -64,10 +63,9 @@ export const dataTypeOptions: Array<{ value: LayoutDataType; label: string }> = 
 ];
 
 export const defaultBankForm: BankFormState = {
-  bankName: "",
+  name: "",
   alias: "",
-  currency: "GS",
-  accountNumber: "",
+  branch: "",
   description: "",
   active: true
 };
