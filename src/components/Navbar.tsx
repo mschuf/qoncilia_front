@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   FiActivity,
+  FiBriefcase,
   FiChevronDown,
   FiGrid,
   FiHome,
@@ -139,7 +140,15 @@ export default function Navbar() {
                     {roleLabel(role)}
                   </p>
                   {user?.companyName ? (
-                    <p className="mt-2 text-xs text-slate-500">{user.companyName}</p>
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                        Mi empresa
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-800">{user.companyName}</p>
+                      {user.companyCode ? (
+                        <p className="mt-1 text-xs text-slate-500">ID fiscal: {user.companyCode}</p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
 
@@ -156,6 +165,23 @@ export default function Navbar() {
                     }
                   >
                     <FiUser className="h-4 w-4" /> Mis Datos
+                  </NavLink>
+                ) : null}
+
+                {hasModule(APP_MODULE_VALUES.erpManagement) ? (
+                  <NavLink
+                    to="/erp-management"
+                    onClick={() => setIsProfileMenuOpen(false)}
+                    className={({ isActive }) =>
+                      `mt-2 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                        isActive
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`
+                    }
+                  >
+                    <FiBriefcase className="h-4 w-4" />
+                    {isSuperAdminRole(role) ? "Empresas" : "Mi Empresa"}
                   </NavLink>
                 ) : null}
 

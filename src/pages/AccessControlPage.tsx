@@ -55,10 +55,10 @@ export default function AccessControlPage() {
             Nueva Empresa
           </p>
           <input
-            name="code"
-            value={companyForm.code}
+            name="fiscalId"
+            value={companyForm.fiscalId}
             onChange={onCompanyFieldChange}
-            placeholder="Codigo (ej: ACME)"
+            placeholder="ID fiscal (ej: 80012345-6)"
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
             required
           />
@@ -90,7 +90,7 @@ export default function AccessControlPage() {
             >
               {(reference?.companies ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
-                  {company.name} ({company.code})
+                  {company.name} ({company.fiscalId})
                 </option>
               ))}
             </select>

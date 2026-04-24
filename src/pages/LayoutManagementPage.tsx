@@ -55,6 +55,15 @@ const workspaceOptions: Array<{
 
 export default function LayoutManagementPage() {
   const { role } = useAuth();
+
+  if (!isSuperAdminRole(role)) {
+    return <AdminBankingPage />;
+  }
+
+  return <SuperadminLayoutManagementPage />;
+}
+
+function SuperadminLayoutManagementPage() {
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceKey>("banks");
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
@@ -107,10 +116,6 @@ export default function LayoutManagementPage() {
     deleteLayout,
     deleteTemplate,
   } = useLayoutManagement();
-
-  if (!isSuperAdminRole(role)) {
-    return <AdminBankingPage />;
-  }
 
   const handleDeleteLayout = (layoutName: string, onConfirm: () => Promise<void>) => {
     setPendingDelete({

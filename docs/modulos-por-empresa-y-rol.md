@@ -51,7 +51,7 @@ La funcionalidad se apoya en **4 tablas** principales en PostgreSQL:
 | Columna        | Tipo         | Descripcion                |
 | -------------- | ------------ | -------------------------- |
 | `emp_id`       | SERIAL PK    | ID autoincremental         |
-| `emp_codigo`   | VARCHAR(50)  | Codigo unico (ej: `QONCILIA`, `ACME`) |
+| `emp_id_fiscal` | VARCHAR(50)  | ID fiscal unico (ej: `80012345-6`) |
 | `emp_nombre`   | VARCHAR(160) | Nombre de la empresa       |
 | `emp_activa`   | BOOLEAN      | Si la empresa esta activa  |
 
@@ -193,13 +193,13 @@ Todos los endpoints estan bajo el prefijo `/access-control` y protegidos por 3 g
 
 ```json
 {
-  "code": "ACME",
+  "fiscalId": "80012345-6",
   "name": "Acme Corporation",
   "active": true
 }
 ```
 
-- `code` (string, obligatorio, max 50 chars): se normaliza a UPPER_CASE y espacios se reemplazan por `_`.
+- `fiscalId` (string, obligatorio, max 50 chars): se guarda como ID fiscal de la empresa.
 - `name` (string, obligatorio, max 160 chars): nombre visible de la empresa.
 - `active` (boolean, opcional, default `true`): si la empresa esta activa.
 
@@ -208,15 +208,16 @@ Todos los endpoints estan bajo el prefijo `/access-control` y protegidos por 3 g
 ```json
 {
   "id": 2,
-  "code": "ACME",
+  "code": "80012345-6",
+  "fiscalId": "80012345-6",
   "name": "Acme Corporation",
   "active": true
 }
 ```
 
 **Errores**:
-- `409 Conflict`: si ya existe una empresa con ese codigo.
-- `400 Bad Request`: si el codigo o nombre estan vacios.
+- `409 Conflict`: si ya existe una empresa con ese ID fiscal.
+- `400 Bad Request`: si el ID fiscal o nombre estan vacios.
 
 ### 5.3) GET `/access-control/matrix/:companyId`
 
@@ -361,7 +362,7 @@ Al montar la pagina:
 ### 7.4) Crear una nueva empresa
 
 1. En el panel **"Nueva Empresa"** (lado derecho del header):
-   - **Codigo**: ingresar un codigo corto (ej: `ACME`). Se normalizara a mayusculas y sin espacios.
+   - **ID fiscal**: ingresar el identificador fiscal real de la empresa (ej: `80012345-6`).
    - **Nombre**: ingresar el nombre completo de la empresa (ej: "Acme Corporation").
 2. Hacer click en **"Crear empresa"**.
 3. Si es exitoso:
@@ -369,7 +370,7 @@ Al montar la pagina:
    - Se recarga la lista de empresas.
    - La nueva empresa se selecciona automaticamente.
    - La matriz se carga para la nueva empresa (inicialmente sin modulos habilitados).
-4. Si hay error (ej: codigo duplicado):
+4. Si hay error (ej: ID fiscal duplicado):
    - Aparece un toast de error con el mensaje del backend.
 
 ### 7.5) Ver la matriz de acceso

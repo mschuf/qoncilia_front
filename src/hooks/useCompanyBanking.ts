@@ -12,12 +12,12 @@ import type {
 
 const initialBankForm: BankFormState = {
   name: "",
+  branch: "",
   active: true
 }
 
 const initialAccountForm: CompanyBankAccountFormState = {
   bankId: "",
-  branch: "",
   name: "",
   accountNumber: "",
   bankErpId: "",
@@ -29,6 +29,7 @@ const initialAccountForm: CompanyBankAccountFormState = {
 export default function useCompanyBanking() {
   const toast = useToast()
   const [reference, setReference] = useState<CompanyBankingReferenceResponse | null>(null)
+  const [selectedBankId, setSelectedBankId] = useState<number>(0)
   const [bankForm, setBankForm] = useState<BankFormState>(initialBankForm)
   const [accountForm, setAccountForm] = useState<CompanyBankAccountFormState>(initialAccountForm)
   const [editingBankId, setEditingBankId] = useState<number | null>(null)
@@ -37,6 +38,14 @@ export default function useCompanyBanking() {
   const loadReference = useCallback(async () => {
     const response = await apiClient.get<CompanyBankingReferenceResponse>("/company-banking/reference")
     setReference(response)
+    setSelectedBankId((current) => {
+      if (current > 0 && (response.banks ?? []).some((bank) => bank.id === current)) {
+        return current
+      }
+
+      return response.banks?.[0]?.id ?? 0
+    })
+    return response
   }, [])
 
   useEffect(() => {
@@ -49,6 +58,45 @@ export default function useCompanyBanking() {
   const banks = reference?.banks ?? []
   const accounts = reference?.accounts ?? []
   const selectedCompany = companies[0] ?? null
+
+  const selectedBank = useMemo(
+    () => banks.find((bank) => bank.id === selectedBankId) ?? null,
+    [banks, selectedBankId]
+  )
+
+  const visibleAccounts = useMemo(
+    () =>
+      selectedBankId > 0 ? accounts.filter((account) => account.bankId === selectedBankId) : accounts,
+    [accounts, selectedBankId]
+  )
+
+  const accountCountByBank = useMemo(() => {
+    const counts = new Map<number, number>()
+    for (const account of accounts) {
+      counts.set(account.bankId, (counts.get(account.bankId) ?? 0) + 1)
+    }
+    return counts
+  }, [accounts])
+
+  useEffect(() => {
+    if (!editingAccountId && selectedBankId > 0) {
+      setAccountForm((current) => ({
+        ...current,
+        bankId: Number(current.bankId || 0) > 0 ? current.bankId : selectedBankId
+      }))
+    }
+  }, [editingAccountId, selectedBankId])
+
+  const selectBank = (bankId: number) => {
+    setSelectedBankId(bankId)
+
+    if (!editingAccountId) {
+      setAccountForm((current) => ({
+        ...current,
+        bankId
+      }))
+    }
+  }
 
   const onBankFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = event.target
@@ -78,15 +126,17 @@ export default function useCompanyBanking() {
     }))
   }
 
-  const startCreateBank = () => {
+  const resetBankForm = () => {
     setEditingBankId(null)
     setBankForm(initialBankForm)
   }
 
   const startEditBank = (bank: PublicBank) => {
+    setSelectedBankId(bank.id)
     setEditingBankId(bank.id)
     setBankForm({
       name: bank.name,
+      branch: bank.branch ?? "",
       active: bank.active
     })
   }
@@ -96,33 +146,37 @@ export default function useCompanyBanking() {
 
     try {
       if (editingBankId) {
-        await apiClient.patch(`/company-banking/banks/${editingBankId}`, bankForm)
+        const updated = await apiClient.patch<PublicBank>(`/company-banking/banks/${editingBankId}`, bankForm)
         toast.success("Banco actualizado.")
-      } else {
-        await apiClient.post("/company-banking/banks", bankForm)
-        toast.success("Banco creado.")
+        resetBankForm()
+        await loadReference()
+        setSelectedBankId(updated.id)
+        return
       }
 
-      startCreateBank()
+      const created = await apiClient.post<PublicBank>("/company-banking/banks", bankForm)
+      toast.success("Banco creado.")
+      resetBankForm()
       await loadReference()
+      setSelectedBankId(created.id)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar el banco.")
     }
   }
 
-  const startCreateAccount = () => {
+  const resetAccountForm = () => {
     setEditingAccountId(null)
     setAccountForm({
       ...initialAccountForm,
-      bankId: banks[0]?.id ?? ""
+      bankId: selectedBankId || banks[0]?.id || ""
     })
   }
 
   const startEditAccount = (account: PublicCompanyBankAccount) => {
+    setSelectedBankId(account.bankId)
     setEditingAccountId(account.id)
     setAccountForm({
       bankId: account.bankId,
-      branch: account.branch ?? "",
       name: account.name,
       accountNumber: account.accountNumber,
       bankErpId: account.bankErpId,
@@ -142,7 +196,6 @@ export default function useCompanyBanking() {
 
     const payload = {
       bankId: Number(accountForm.bankId),
-      branch: accountForm.branch,
       name: accountForm.name,
       accountNumber: accountForm.accountNumber,
       bankErpId: accountForm.bankErpId,
@@ -160,8 +213,9 @@ export default function useCompanyBanking() {
         toast.success("Cuenta bancaria creada.")
       }
 
-      startCreateAccount()
+      resetAccountForm()
       await loadReference()
+      setSelectedBankId(payload.bankId)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar la cuenta bancaria.")
     }
@@ -171,7 +225,8 @@ export default function useCompanyBanking() {
     () => ({
       banks: banks.length,
       activeBanks: banks.filter((bank) => bank.active).length,
-      accounts: accounts.length
+      accounts: accounts.length,
+      activeAccounts: accounts.filter((account) => account.active).length
     }),
     [accounts, banks]
   )
@@ -179,19 +234,23 @@ export default function useCompanyBanking() {
   return {
     selectedCompany,
     banks,
-    accounts,
+    selectedBankId,
+    selectedBank,
+    visibleAccounts,
+    accountCountByBank,
     bankForm,
     accountForm,
     editingBankId,
     editingAccountId,
     onBankFieldChange,
     onAccountFieldChange,
-    startCreateBank,
+    selectBank,
     startEditBank,
     saveBank,
-    startCreateAccount,
+    resetBankForm,
     startEditAccount,
     saveAccount,
+    resetAccountForm,
     reload: loadReference,
     stats
   }

@@ -9,13 +9,13 @@ import type {
 } from "../types/access-control";
 
 type CompanyFormState = {
-  code: string;
+  fiscalId: string;
   name: string;
   active: boolean;
 };
 
 const initialCompanyForm: CompanyFormState = {
-  code: "",
+  fiscalId: "",
   name: "",
   active: true
 };

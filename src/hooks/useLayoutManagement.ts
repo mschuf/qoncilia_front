@@ -287,8 +287,8 @@ export default function useLayoutManagement() {
   };
 
   const updateMappings = useCallback(
-    (
-      setter: Dispatch<SetStateAction<LayoutFormState | TemplateLayoutFormState>>,
+    <T extends LayoutFormState | TemplateLayoutFormState>(
+      setter: Dispatch<SetStateAction<T>>,
       rowId: string,
       event: ChangeEvent<HTMLInputElement | HTMLSelectElement>
     ) => {
@@ -297,12 +297,14 @@ export default function useLayoutManagement() {
         event.target instanceof HTMLInputElement && event.target.type === "checkbox"
           ? event.target.checked
           : event.target.value;
-      setter((prev) => ({
-        ...prev,
-        mappings: prev.mappings.map((item) =>
-          item.id === rowId ? ({ ...item, [key]: value } as MappingFormRow) : item
-        )
-      }));
+      setter((prev) =>
+        ({
+          ...prev,
+          mappings: prev.mappings.map((item) =>
+            item.id === rowId ? ({ ...item, [key]: value } as MappingFormRow) : item
+          )
+        }) as T
+      );
     },
     []
   );

@@ -202,15 +202,16 @@ Convierte ambos valores a numero y compara con tolerancia.
 
 Usar para: montos. Es el operador recomendado para campos de tipo `amount` o `number`.
 
-**`date_equals` — Igualdad de fecha normalizada**
+**`date_equals` — Igualdad de fecha normalizada (+/- dias)**
 
-Normaliza ambos valores a formato `YYYY-MM-DD` y compara exacto.
+Normaliza ambos valores a formato `YYYY-MM-DD` y compara la diferencia en dias.
 
 - Sistema `"15/03/2026"` vs Banco `"2026-03-15"` → ✅ pasa (ambos normalizan a `2026-03-15`)
 - Sistema `"15/03/26"` vs Banco `"15-03-2026"` → ✅ pasa
-- Sistema `"15/03/2026"` vs Banco `"16/03/2026"` → ❌ falla (dias distintos)
+- Sistema `"15/03/2026"` vs Banco `"16/03/2026"` con tolerancia `0` → ❌ falla
+- Sistema `"15/03/2026"` vs Banco `"16/03/2026"` con tolerancia `1` → ✅ pasa
 
-Usar para: campos de fecha. La tolerancia **no aplica** a fechas.
+Usar para: campos de fecha. Si cargas `tolerance`, se interpreta en **dias**.
 
 **Tabla resumen de operadores:**
 
@@ -221,7 +222,7 @@ Usar para: campos de fecha. La tolerancia **no aplica** a fechas.
 | `starts_with`    | texto          | no          | si             | Codigos con prefijo comun          |
 | `ends_with`      | texto          | no          | si             | Referencias parciales              |
 | `numeric_equals` | numero/monto   | si          | n/a            | Montos, importes                   |
-| `date_equals`    | fecha          | no          | n/a            | Fechas en cualquier formato        |
+| `date_equals`    | fecha          | si (dias)   | n/a            | Fechas en cualquier formato        |
 
 Detalle importante:
 
@@ -272,11 +273,13 @@ Score = `5 / 6` = `0.83`. El monto domina porque tiene peso 5, asi que aunque re
 
 #### `Tolerancia`
 
-Margen de diferencia permitido en comparaciones numericas. Solo aplica con operadores `numeric_equals` y `equals` cuando ambos valores son numericos.
+Margen de diferencia permitido segun el tipo de comparacion.
 
 - Si la diferencia absoluta entre sistema y banco es **menor o igual** a la tolerancia, la regla pasa.
 - Si tolerancia queda vacio, se usa `0` (igualdad exacta).
-- Para campos de texto o fecha, la tolerancia se ignora.
+- En `numeric_equals` y `equals` numerico, la tolerancia se interpreta como diferencia numerica.
+- En `date_equals`, la tolerancia se interpreta como **dias**.
+- Para texto, la tolerancia se ignora.
 
 **Ejemplo 1 — Redondeos bancarios:**
 
@@ -302,10 +305,13 @@ Sistema: `1234.56`, Banco: `1234.57` (diferencia de 0.01).
 - Tolerancia = `0.01` → ✅ pasa
 - Tolerancia = `0.05` → ✅ pasa
 
-**Ejemplo 4 — Fechas y textos:**
+**Ejemplo 4 — Fechas:**
 
 Sistema: `2026-01-15`, Banco: `2026-01-16`.
-Aunque la tolerancia sea `1`, se ignora porque el tipo es `date`. Para fechas, la comparacion es exacta o no coincide.
+
+- Tolerancia = `0` → ❌ falla
+- Tolerancia = `1` → ✅ pasa
+- Tolerancia = `3` → ✅ pasa
 
 **Guia rapida:**
 
@@ -315,6 +321,7 @@ Aunque la tolerancia sea `1`, se ignora porque el tipo es `date`. Para fechas, l
 | Redondeos de centavos (Gs)    | `1` a `5`           |
 | Redondeos de centavos (USD)   | `0.01` a `0.05`     |
 | Comisiones bancarias incluidas| `100` a `500`       |
+| Fechas con cierre D+1         | `1`                 |
 | Diferencias impositivas       | segun % esperado    |
 
 #### `Orden`
@@ -823,4 +830,3 @@ Con threshold `0.80` y pesos totales = 7 (2+3+1+1):
 1. Nombre de hoja incorrecto (revisar mayusculas, espacios, tildes).
 2. Fila inicio mayor que la ultima fila con datos.
 3. Columna inexistente en el archivo.
-

@@ -120,6 +120,22 @@ export default function useUserManagement() {
     [role, user?.companyId]
   );
 
+  const managedUsers = useMemo(() => {
+    if (role !== ROLE_VALUES.admin) {
+      return users;
+    }
+
+    return users.filter((targetUser) => {
+      const targetRole = resolveTargetRole(targetUser);
+      const sameCompany = Number(targetUser.companyId ?? 0) === Number(user?.companyId ?? 0);
+      const isSelf = Number(targetUser.id ?? 0) === Number(user?.id ?? 0);
+      const isGestor =
+        targetRole === ROLE_VALUES.gestorCobranza || targetRole === ROLE_VALUES.gestorPagos;
+
+      return sameCompany && !isSelf && isGestor;
+    });
+  }, [role, user?.companyId, user?.id, users]);
+
   const resolveDefaultCompanyId = useCallback((): number | "" => {
     if (role === ROLE_VALUES.admin && user?.companyId) {
       return Number(user.companyId);
@@ -224,13 +240,15 @@ export default function useUserManagement() {
 
   const stats = useMemo(
     () => ({
-      total: users.length,
-      active: users.filter((item) => item.activo).length,
-      admins: users.filter((item) => resolveTargetRole(item) === ROLE_VALUES.admin && item.activo).length,
-      superadmins: users.filter((item) => resolveTargetRole(item) === ROLE_VALUES.isSuperAdmin && item.activo)
-        .length
+      total: managedUsers.length,
+      active: managedUsers.filter((item) => item.activo).length,
+      admins: managedUsers.filter((item) => resolveTargetRole(item) === ROLE_VALUES.admin && item.activo)
+        .length,
+      superadmins: managedUsers.filter(
+        (item) => resolveTargetRole(item) === ROLE_VALUES.isSuperAdmin && item.activo
+      ).length
     }),
-    [users]
+    [managedUsers]
   );
 
   const selectableCompanies = useMemo(() => {
@@ -243,7 +261,7 @@ export default function useUserManagement() {
 
   return {
     role,
-    users,
+    users: managedUsers,
     companies: selectableCompanies,
     isCreateOpen,
     setIsCreateOpen,

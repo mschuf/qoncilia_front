@@ -86,7 +86,7 @@ export default function CreateUserModal({
             <option value="">Seleccionar empresa</option>
             {companies.map((company) => (
               <option key={company.id} value={company.id}>
-                {company.name} ({company.code})
+                {company.name} ({company.fiscalId})
               </option>
             ))}
           </select>
