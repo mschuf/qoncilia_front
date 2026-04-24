@@ -66,10 +66,10 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe_0%,_#eff6ff_28%,_#f8fafc_62%,_#ffffff_100%)] px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1fr_1.05fr]">
-        <section className="overflow-hidden rounded-[2rem] border border-slate-200/70 bg-slate-950 p-8 text-white shadow-[0_30px_80px_-40px_rgba(15,23,42,0.95)] sm:p-10">
+        <section className="hidden overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/95 p-8 text-slate-900 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.25)] backdrop-blur-sm lg:block sm:p-10">
           <div className="absolute" />
           <BrandMark size="lg" />
-          <p className="mt-8 max-w-xl text-sm leading-7 text-slate-300">
+          <p className="mt-8 max-w-xl text-sm leading-7 text-slate-500">
             Registra tu empresa en Qoncilia. Se crea un usuario administrador asociado para
             que luego puedas gestionar usuarios, bancos y cuentas bancarias.
           </p>
@@ -175,7 +175,7 @@ export default function RegisterPage() {
 
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white transition hover:bg-slate-900 sm:w-auto"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-700/25 sm:w-auto"
               >
                 <FiUserPlus className="h-4 w-4" /> Registrar empresa
               </button>
@@ -197,12 +197,12 @@ function InfoTile({
   description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-start gap-3">
-        <div className="rounded-xl bg-white/10 p-2 text-cyan-200">{icon}</div>
+        <div className="rounded-xl bg-brand-50 p-2 text-brand-600">{icon}</div>
         <div>
-          <p className="text-sm font-bold text-white">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-300">{description}</p>
+          <p className="text-sm font-bold text-slate-900">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
         </div>
       </div>
     </div>
