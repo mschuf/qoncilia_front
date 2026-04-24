@@ -416,6 +416,102 @@ export default function useConciliationWorkbench() {
     ]
   )
 
+  const saveFileData = useCallback(
+    async (source: "system" | "bank"): Promise<ReconciliationDetail | null> => {
+      if (!selectedBankId || !selectedLayoutId) {
+        toast.error("Selecciona banco y layout antes de guardar.")
+        return null
+      }
+
+      const file = source === "system" ? systemFile : bankFile
+      if (!file) {
+        toast.error(`No hay archivo de ${source === "system" ? "sistema" : "banco"} para guardar.`)
+        return null
+      }
+
+      try {
+        let systemRows: PreviewRow[] = []
+        let bankRows: PreviewRow[] = []
+        let systemFileName: string | undefined
+        let bankFileName: string | undefined
+
+        if (preview) {
+          systemRows = preview.systemRows
+          bankRows = preview.bankRows
+          systemFileName = preview.systemFileName
+          bankFileName = preview.bankFileName
+        } else {
+          const formData = new FormData()
+          formData.append("file", file)
+
+          const params = new URLSearchParams({
+            userBankId: String(selectedBankId),
+            layoutId: String(selectedLayoutId),
+            source
+          })
+
+          const parsed = await apiClient.post<{ rows: PreviewRow[]; fileName: string }>(
+            `/conciliation/parse-file?${params.toString()}`,
+            formData
+          )
+
+          if (source === "system") {
+            systemRows = parsed.rows
+            systemFileName = parsed.fileName
+          } else {
+            bankRows = parsed.rows
+            bankFileName = parsed.fileName
+          }
+        }
+
+        const userBank = preview?.userBank ?? selectedBank
+        const response = await apiClient.post<ReconciliationDetail>("/conciliation/reconciliations", {
+          reconciliationId: selectedUpdateReconciliationId > 0 ? selectedUpdateReconciliationId : undefined,
+          userBankId: selectedBankId,
+          layoutId: selectedLayoutId,
+          name:
+            selectedReconciliationForUpdate?.name ??
+            `Conciliacion ${userBank?.alias ?? userBank?.bankName ?? ""}`,
+          systemFileName,
+          bankFileName,
+          systemRows,
+          bankRows,
+          autoMatches: preview?.autoMatches ?? [],
+          manualMatches: preview ? manualMatches : []
+        })
+
+        applyUpdateSelection(response.id)
+        await loadAnalytics(selectedUserId)
+
+        toast.success(
+          selectedUpdateReconciliationId > 0
+            ? "Conciliacion actualizada sin duplicar lineas previas."
+            : "Registros guardados."
+        )
+
+        return response
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "No se pudieron guardar los registros.")
+        return null
+      }
+    },
+    [
+      applyUpdateSelection,
+      bankFile,
+      loadAnalytics,
+      manualMatches,
+      preview,
+      selectedBank,
+      selectedBankId,
+      selectedLayoutId,
+      selectedReconciliationForUpdate?.name,
+      selectedUpdateReconciliationId,
+      selectedUserId,
+      systemFile,
+      toast
+    ]
+  )
+
   const targetCompanyId = useMemo(() => {
     if (isAdminRole(role)) {
       const selectedUser = users.find((item) => Number(item.id) === Number(selectedUserId))
@@ -572,6 +668,7 @@ export default function useConciliationWorkbench() {
     onDragEnd,
     removeManualMatch,
     saveReconciliation,
+    saveFileData,
     companyErpConfigs,
     selectedCompanyErpConfigId,
     setSelectedCompanyErpConfigId,

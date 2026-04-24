@@ -1,6 +1,6 @@
 import type { ChangeEvent, ComponentType, DragEvent } from "react";
 import { useRef, useState } from "react";
-import { FiFile, FiTrash2, FiUploadCloud } from "react-icons/fi";
+import { FiFile, FiSave, FiTrash2, FiUploadCloud } from "react-icons/fi";
 
 export function KpiCard({
   label,
@@ -87,11 +87,13 @@ export function UploadCard({
   file,
   onChange,
   onClear,
+  onSave,
 }: {
   title: string;
   file: File | null;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
+  onSave?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -162,13 +164,27 @@ export function UploadCard({
           <p className="mt-0.5 text-xs text-slate-400">
             {(file.size / 1024).toFixed(1)} KB
           </p>
-          <button
-            type="button"
-            onClick={handleClear}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
-          >
-            <FiTrash2 className="h-3.5 w-3.5" /> Quitar archivo
-          </button>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+            >
+              <FiTrash2 className="h-3.5 w-3.5" /> Quitar
+            </button>
+            {onSave ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSave();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-600 transition hover:bg-brand-50 hover:text-brand-700"
+              >
+                <FiSave className="h-3.5 w-3.5" /> Guardar
+              </button>
+            ) : null}
+          </div>
         </>
       ) : (
         <>

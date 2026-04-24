@@ -23,27 +23,34 @@ export default function MatchesSection({
 }: MatchesSectionProps) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-6">
-      {/* Auto matches */}
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
-        <h3 className="text-lg font-extrabold text-emerald-900">
-          Matches automaticos
-        </h3>
-        <div className="mt-4 overflow-x-auto">
+      {/* Matches */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h3 className="text-lg font-extrabold text-slate-900">
+            Matches
+            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+              {preview.autoMatches.length + manualMatches.length}
+            </span>
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-[0.12em] text-emerald-700">
+            <thead className="text-left text-xs uppercase tracking-[0.12em] text-slate-500">
               <tr>
-                <th className="px-3 py-2">Sistema</th>
-                <th className="px-3 py-2">Banco</th>
-                <th className="px-3 py-2">Score</th>
+                <th className="px-4 py-3">Sistema</th>
+                <th className="px-4 py-3">Banco</th>
+                <th className="px-4 py-3">Score</th>
+                <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {preview.autoMatches.map((match) => (
                 <tr
-                  key={`${match.systemRowId}-${match.bankRowId}`}
-                  className="border-t border-emerald-200"
+                  key={`auto-${match.systemRowId}-${match.bankRowId}`}
+                  className="border-t border-slate-100"
                 >
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3">
                     {summarizeRow(
                       preview.systemRows.find(
                         (item) => item.rowId === match.systemRowId,
@@ -51,7 +58,7 @@ export default function MatchesSection({
                       preview.layout.mappings,
                     )}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3">
                     {summarizeRow(
                       preview.bankRows.find(
                         (item) => item.rowId === match.bankRowId,
@@ -59,60 +66,62 @@ export default function MatchesSection({
                       preview.layout.mappings,
                     )}
                   </td>
-                  <td className="px-3 py-2 font-bold">{match.score}</td>
+                  <td className="px-4 py-3 font-bold">{match.score}</td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                      Auto
+                    </span>
+                  </td>
+                  <td className="px-4 py-3" />
                 </tr>
               ))}
+              {manualMatches.map((match) => (
+                <tr
+                  key={`manual-${match.systemRowId}-${match.bankRowId}`}
+                  className="border-t border-slate-100"
+                >
+                  <td className="px-4 py-3">
+                    {summarizeRow(
+                      preview.systemRows.find(
+                        (item) => item.rowId === match.systemRowId,
+                      ),
+                      preview.layout.mappings,
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {summarizeRow(
+                      preview.bankRows.find(
+                        (item) => item.rowId === match.bankRowId,
+                      ),
+                      preview.layout.mappings,
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-bold">{match.score}</td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                      Manual
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => onRemoveManualMatch(match)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
+                    >
+                      <FiXCircle className="h-3.5 w-3.5" /> Deshacer
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {preview.autoMatches.length === 0 && manualMatches.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                    No hay matches registrados todavia.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Manual matches list */}
-      <div className="overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/70">
-        <div className="border-b border-amber-200 px-4 py-3 text-sm font-bold text-amber-900">
-          Matches manuales
-          <span className="ml-2 rounded-full bg-amber-200/60 px-2 py-0.5 text-xs font-semibold text-amber-800">
-            {manualMatches.length}
-          </span>
-        </div>
-        <div className="divide-y divide-amber-200">
-          {manualMatches.map((match) => (
-            <div
-              key={`${match.systemRowId}-${match.bankRowId}`}
-              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-800">
-                  {summarizeRow(
-                    preview.systemRows.find(
-                      (item) => item.rowId === match.systemRowId,
-                    ),
-                    preview.layout.mappings,
-                  )}
-                </p>
-                <p className="mt-1 text-slate-500">
-                  {summarizeRow(
-                    preview.bankRows.find(
-                      (item) => item.rowId === match.bankRowId,
-                    ),
-                    preview.layout.mappings,
-                  )}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onRemoveManualMatch(match)}
-                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-white"
-              >
-                <FiXCircle className="h-4 w-4" /> Deshacer
-              </button>
-            </div>
-          ))}
-          {manualMatches.length === 0 ? (
-            <div className="px-4 py-5 text-sm text-slate-500">
-              Todavia no agregaste matches manuales.
-            </div>
-          ) : null}
         </div>
       </div>
 

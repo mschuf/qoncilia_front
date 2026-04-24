@@ -29,15 +29,22 @@ const initialAccountForm: CompanyBankAccountFormState = {
 export default function useCompanyBanking() {
   const toast = useToast()
   const [reference, setReference] = useState<CompanyBankingReferenceResponse | null>(null)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number>(0)
   const [selectedBankId, setSelectedBankId] = useState<number>(0)
   const [bankForm, setBankForm] = useState<BankFormState>(initialBankForm)
   const [accountForm, setAccountForm] = useState<CompanyBankAccountFormState>(initialAccountForm)
   const [editingBankId, setEditingBankId] = useState<number | null>(null)
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null)
 
-  const loadReference = useCallback(async () => {
-    const response = await apiClient.get<CompanyBankingReferenceResponse>("/company-banking/reference")
+  const loadReference = useCallback(async (companyId?: number) => {
+    const params = companyId ? `?companyId=${companyId}` : ""
+    const response = await apiClient.get<CompanyBankingReferenceResponse>(`/company-banking/reference${params}`)
     setReference(response)
+    if (companyId) {
+      setSelectedCompanyId(companyId)
+    } else if (response.companies?.[0]) {
+      setSelectedCompanyId(response.companies[0].id)
+    }
     setSelectedBankId((current) => {
       if (current > 0 && (response.banks ?? []).some((bank) => bank.id === current)) {
         return current
@@ -54,10 +61,16 @@ export default function useCompanyBanking() {
     })
   }, [loadReference, toast])
 
+  const changeCompany = useCallback((companyId: number) => {
+    void loadReference(companyId).catch((error) => {
+      toast.error(error instanceof Error ? error.message : "No se pudo cargar el catalogo bancario.")
+    })
+  }, [loadReference, toast])
+
   const companies = reference?.companies ?? []
   const banks = reference?.banks ?? []
   const accounts = reference?.accounts ?? []
-  const selectedCompany = companies[0] ?? null
+  const selectedCompany = companies.find((c) => c.id === selectedCompanyId) ?? companies[0] ?? null
 
   const selectedBank = useMemo(
     () => banks.find((bank) => bank.id === selectedBankId) ?? null,
@@ -233,6 +246,9 @@ export default function useCompanyBanking() {
 
   return {
     selectedCompany,
+    selectedCompanyId,
+    companies,
+    changeCompany,
     banks,
     selectedBankId,
     selectedBank,

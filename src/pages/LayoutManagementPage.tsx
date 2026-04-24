@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  FiBriefcase,
   FiGrid,
   FiInfo,
   FiLayers,
@@ -24,14 +25,7 @@ import AdminBankingPage from "./AdminBankingPage";
 import layoutDocsMarkdown from "../../docs/layouts-creacion-edicion.md?raw";
 import { isSuperAdminRole } from "../utils/role";
 
-type WorkspaceKey = "banks" | "templates";
-
-type PendingDelete = {
-  title: string;
-  description: string;
-  confirmLabel: string;
-  onConfirm: () => Promise<void>;
-} | null;
+type WorkspaceKey = "banks" | "templates" | "accounts";
 
 const workspaceOptions: Array<{
   key: WorkspaceKey;
@@ -50,6 +44,12 @@ const workspaceOptions: Array<{
     label: "Template Layouts",
     description: "Base reutilizable para copiar layouts a bancos en segundos.",
     icon: FiLayers,
+  },
+  {
+    key: "accounts",
+    label: "Cuentas Bancarias",
+    description: "ABM completo de bancos y cuentas bancarias por empresa.",
+    icon: FiBriefcase,
   },
 ];
 
@@ -262,7 +262,7 @@ function SuperadminLayoutManagementPage() {
                     handleDeleteLayout(layout.name, () => deleteLayout(layout))
                   }
                 />
-              ) : (
+              ) : workspace === "templates" ? (
                 <TemplateLayoutSection
                   templates={templates}
                   selectedBank={selectedBank}
@@ -273,6 +273,8 @@ function SuperadminLayoutManagementPage() {
                     handleDeleteTemplate(template.name, () => deleteTemplate(template))
                   }
                 />
+              ) : (
+                <AdminBankingPage />
               )}
             </motion.div>
           </AnimatePresence>

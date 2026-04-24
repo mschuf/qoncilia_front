@@ -55,6 +55,7 @@ export default function ConciliationWorkbenchPage() {
     onDragEnd,
     removeManualMatch,
     saveReconciliation,
+    saveFileData,
     companyErpConfigs,
     selectedCompanyErpConfigId,
     setSelectedCompanyErpConfigId,
@@ -153,35 +154,40 @@ export default function ConciliationWorkbenchPage() {
             <div className="flex items-end gap-2">
               <button
                 type="button"
-                onClick={runPreview}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
-              >
-                <FiUploadCloud className="h-4 w-4" /> Conciliar
-              </button>
-              <button
-                type="button"
                 onClick={clearAll}
                 title="Limpiar todo"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
               >
-                <FiRefreshCw className="h-4 w-4" />
+                <FiRefreshCw className="h-4 w-4" /> Limpiar
               </button>
             </div>
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <UploadCard
-              title={selectedLayout?.systemLabel ?? "Sistema"}
-              file={systemFile}
-              onChange={onFileChange(setSystemFile)}
-              onClear={() => setSystemFile(null)}
-            />
-            <UploadCard
               title={selectedLayout?.bankLabel ?? "Banco"}
               file={bankFile}
               onChange={onFileChange(setBankFile)}
               onClear={() => setBankFile(null)}
+              onSave={() => void saveFileData("bank")}
             />
+            <UploadCard
+              title={selectedLayout?.systemLabel ?? "Sistema"}
+              file={systemFile}
+              onChange={onFileChange(setSystemFile)}
+              onClear={() => setSystemFile(null)}
+              onSave={() => void saveFileData("system")}
+            />
+          </div>
+
+          <div className="mt-5 flex justify-center">
+            <button
+              type="button"
+              onClick={runPreview}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-700/25"
+            >
+              <FiUploadCloud className="h-4 w-4" /> Comparar
+            </button>
           </div>
 
           {selectedReconciliationForUpdate ? (

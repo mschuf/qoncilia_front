@@ -14,6 +14,9 @@ import useCompanyBanking from "../hooks/useCompanyBanking"
 export default function AdminBankingPage() {
   const {
     selectedCompany,
+    selectedCompanyId,
+    companies,
+    changeCompany,
     banks,
     selectedBankId,
     selectedBank,
@@ -62,19 +65,36 @@ export default function AdminBankingPage() {
 
       <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[280px] flex-1 rounded-2xl bg-slate-50 px-4 py-4">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Mi empresa</p>
-            <p className="mt-2 text-lg font-extrabold text-slate-900">
-              {selectedCompany?.name ?? "Sin empresa"}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              ID fiscal: {selectedCompany?.fiscalId ?? "-"}
-            </p>
-          </div>
+          {companies.length > 1 ? (
+            <label className="min-w-[280px] flex-1 space-y-1.5">
+              <span className="text-sm font-semibold text-slate-700">Empresa</span>
+              <select
+                value={selectedCompanyId}
+                onChange={(e) => changeCompany(Number(e.target.value))}
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+              >
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name} (ID: {company.fiscalId})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="min-w-[280px] flex-1 rounded-2xl bg-slate-50 px-4 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Mi empresa</p>
+              <p className="mt-2 text-lg font-extrabold text-slate-900">
+                {selectedCompany?.name ?? "Sin empresa"}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                ID fiscal: {selectedCompany?.fiscalId ?? "-"}
+              </p>
+            </div>
+          )}
 
           <button
             type="button"
-            onClick={() => void reload()}
+            onClick={() => void reload(selectedCompanyId)}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
           >
             <FiRefreshCcw className="h-4 w-4" /> Recargar
