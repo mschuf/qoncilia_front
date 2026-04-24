@@ -127,6 +127,7 @@ export default function useLayoutManagement() {
   const [templates, setTemplates] = useState<TemplateLayout[]>([]);
   const [banks, setBanks] = useState<UserBankWithLayouts[]>([]);
   const [selectedBankId, setSelectedBankId] = useState<number>(0);
+  const [allUserCatalogs, setAllUserCatalogs] = useState<Map<number, UserBankWithLayouts[]>>(new Map());
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [layoutModalOpen, setLayoutModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -168,6 +169,68 @@ export default function useLayoutManagement() {
       }
       return nextBanks[0]?.id ?? 0;
     });
+  }, []);
+
+  const loadAllCatalogs = useCallback(async () => {
+    const nextMap = new Map<number, UserBankWithLayouts[]>();
+    for (const user of users) {
+      const uid = Number(user.id);
+      if (!uid) continue;
+      try {
+        const response = await apiClient.get<UserBankWithLayouts[]>(
+          `/conciliation/catalog?userId=${uid}`
+        );
+        nextMap.set(uid, response ?? []);
+      } catch {
+        nextMap.set(uid, []);
+      }
+    }
+    setAllUserCatalogs(nextMap);
+  }, [users]);
+
+  const prepareCreateBank = useCallback((userId: number) => {
+    setSelectedUserId(userId);
+    setEditingBank(null);
+    setBankForm(defaultBankForm);
+    setBankModalOpen(true);
+  }, []);
+
+  const prepareEditBank = useCallback((userId: number, bank: UserBankWithLayouts) => {
+    setSelectedUserId(userId);
+    setEditingBank(bank);
+    setBankForm({
+      bankName: bank.bankName,
+      alias: bank.alias ?? "",
+      currency: bank.currency,
+      accountNumber: bank.accountNumber ?? "",
+      description: bank.description ?? "",
+      active: bank.active
+    });
+    setBankModalOpen(true);
+  }, []);
+
+  const prepareCreateLayout = useCallback((userId: number, bank: UserBankWithLayouts) => {
+    setSelectedUserId(userId);
+    setSelectedBankId(bank.id);
+    setEditingLayout(null);
+    setLayoutForm(createDefaultLayoutForm(bank.alias ?? bank.bankName));
+    setLayoutModalOpen(true);
+  }, []);
+
+  const prepareEditLayout = useCallback((userId: number, bank: UserBankWithLayouts, layout: Layout) => {
+    setSelectedUserId(userId);
+    setSelectedBankId(bank.id);
+    setEditingLayout(layout);
+    setLayoutForm({
+      name: layout.name,
+      description: layout.description ?? "",
+      systemLabel: layout.systemLabel,
+      bankLabel: layout.bankLabel,
+      autoMatchThreshold: String(layout.autoMatchThreshold),
+      active: layout.active,
+      mappings: layout.mappings.map(mappingToForm)
+    });
+    setLayoutModalOpen(true);
   }, []);
 
   const loadTemplates = useCallback(async () => {
@@ -519,18 +582,20 @@ export default function useLayoutManagement() {
     }
   };
 
-  const deleteLayout = async (layout: Layout) => {
-    if (!selectedUserId || !selectedBankId) {
+  const deleteLayout = async (layout: Layout, explicitUserId?: number, explicitBankId?: number) => {
+    const uid = explicitUserId ?? selectedUserId;
+    const bid = explicitBankId ?? selectedBankId;
+    if (!uid || !bid) {
       toast.error("Debes seleccionar usuario y banco.");
       return;
     }
 
     try {
       await apiClient.delete(
-        `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/layouts/${layout.id}`
+        `/conciliation/users/${uid}/banks/${bid}/layouts/${layout.id}`
       );
       toast.success("Layout eliminado.");
-      await loadCatalog(selectedUserId);
+      await loadCatalog(uid);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo eliminar el layout.");
     }
@@ -573,7 +638,9 @@ export default function useLayoutManagement() {
     bankForm,
     layoutForm,
     templateForm,
+    allUserCatalogs,
     loadCatalog,
+    loadAllCatalogs,
     loadTemplates,
     openCreateBank,
     openEditBank,
@@ -581,6 +648,10 @@ export default function useLayoutManagement() {
     openEditLayout,
     openCreateTemplate,
     openEditTemplate,
+    prepareCreateBank,
+    prepareEditBank,
+    prepareCreateLayout,
+    prepareEditLayout,
     onBankFieldChange,
     onLayoutFieldChange,
     onTemplateFieldChange,

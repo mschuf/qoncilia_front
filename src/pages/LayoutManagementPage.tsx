@@ -10,6 +10,7 @@ import {
   FiSettings,
   FiShield,
   FiSliders,
+  FiUsers,
 } from "react-icons/fi";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -19,13 +20,14 @@ import LayoutListSection from "../components/LayoutManagement/LayoutListSection"
 import LayoutModal from "../components/LayoutManagement/LayoutModal";
 import { MetricCard } from "../components/LayoutManagement/MetricCards";
 import TemplateLayoutSection from "../components/LayoutManagement/TemplateLayoutSection";
+import UserBanksSection from "../components/LayoutManagement/UserBanksSection";
 import { useAuth } from "../context/AuthContext";
 import useLayoutManagement from "../hooks/useLayoutManagement";
 import AdminBankingPage from "./AdminBankingPage";
 import layoutDocsMarkdown from "../../docs/layouts-creacion-edicion.md?raw";
 import { isSuperAdminRole } from "../utils/role";
 
-type WorkspaceKey = "banks" | "templates" | "accounts";
+type WorkspaceKey = "banks" | "templates" | "accounts" | "users";
 
 const workspaceOptions: Array<{
   key: WorkspaceKey;
@@ -33,6 +35,12 @@ const workspaceOptions: Array<{
   description: string;
   icon: typeof FiGrid;
 }> = [
+  {
+    key: "users",
+    label: "Usuarios y Bancos",
+    description: "Vista global de todos los usuarios con sus bancos y layouts.",
+    icon: FiUsers,
+  },
   {
     key: "banks",
     label: "Bancos y Layouts",
@@ -65,7 +73,7 @@ export default function LayoutManagementPage() {
 
 function SuperadminLayoutManagementPage() {
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
-  const [workspace, setWorkspace] = useState<WorkspaceKey>("banks");
+  const [workspace, setWorkspace] = useState<WorkspaceKey>("users");
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
   const {
     users,
@@ -91,13 +99,19 @@ function SuperadminLayoutManagementPage() {
     bankForm,
     layoutForm,
     templateForm,
+    allUserCatalogs,
     loadCatalog,
+    loadAllCatalogs,
     openCreateTemplate,
     openEditTemplate,
     openCreateBank,
     openEditBank,
     openCreateLayout,
     openEditLayout,
+    prepareCreateBank,
+    prepareEditBank,
+    prepareCreateLayout,
+    prepareEditLayout,
     onBankFieldChange,
     onLayoutFieldChange,
     onTemplateFieldChange,
@@ -246,13 +260,26 @@ function SuperadminLayoutManagementPage() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={workspace}
-              initial={{ opacity: 0, x: workspace === "banks" ? -28 : 28 }}
+              initial={{ opacity: 0, x: workspace === "banks" || workspace === "users" ? -28 : 28 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: workspace === "banks" ? 28 : -28 }}
+              exit={{ opacity: 0, x: workspace === "banks" || workspace === "users" ? 28 : -28 }}
               transition={{ duration: 0.22, ease: "easeOut" }}
               className="space-y-6"
             >
-              {workspace === "banks" ? (
+              {workspace === "users" ? (
+                <UserBanksSection
+                  users={users}
+                  allCatalogs={allUserCatalogs}
+                  onReload={() => void loadAllCatalogs()}
+                  onCreateBank={prepareCreateBank}
+                  onEditBank={prepareEditBank}
+                  onCreateLayout={prepareCreateLayout}
+                  onEditLayout={prepareEditLayout}
+                  onDeleteLayout={(userId, bankId, layout) =>
+                    handleDeleteLayout(layout.name, () => deleteLayout(layout, userId, bankId))
+                  }
+                />
+              ) : workspace === "banks" ? (
                 <LayoutListSection
                   selectedBank={selectedBank}
                   onEditBank={openEditBank}
@@ -307,11 +334,23 @@ function SuperadminLayoutManagementPage() {
               />
               <ContextTile
                 label="Workspace"
-                value={workspace === "banks" ? "Bancos y Layouts" : "Template Layouts"}
+                value={
+                  workspace === "users"
+                    ? "Usuarios y Bancos"
+                    : workspace === "banks"
+                      ? "Bancos y Layouts"
+                      : workspace === "templates"
+                        ? "Template Layouts"
+                        : "Cuentas Bancarias"
+                }
                 helper={
-                  workspace === "banks"
-                    ? "Aqui haces la asignacion operativa por usuario"
-                    : "Aqui defines las bases reutilizables"
+                  workspace === "users"
+                    ? "Vista global de todos los usuarios"
+                    : workspace === "banks"
+                      ? "Aqui haces la asignacion operativa por usuario"
+                      : workspace === "templates"
+                        ? "Aqui defines las bases reutilizables"
+                        : "ABM de bancos y cuentas"
                 }
               />
             </div>
