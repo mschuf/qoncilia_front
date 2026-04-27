@@ -2,14 +2,20 @@ import type { InputHTMLAttributes } from "react"
 import {
   FiBriefcase,
   FiCheckCircle,
+  FiCheckSquare,
   FiCreditCard,
   FiEdit3,
+  FiLayers,
+  FiLink2,
   FiMapPin,
   FiRefreshCcw,
   FiSave,
-  FiShield
+  FiShield,
+  FiSquare,
+  FiUsers
 } from "react-icons/fi"
 import useCompanyBanking from "../hooks/useCompanyBanking"
+import useGestorBankAssignments from "../hooks/useGestorBankAssignments"
 
 export default function AdminBankingPage() {
   const {
@@ -39,6 +45,26 @@ export default function AdminBankingPage() {
     reload,
     stats
   } = useCompanyBanking()
+  const {
+    gestorUsers,
+    sourceBanks,
+    selectedGestorUser,
+    selectedGestorUserId,
+    setSelectedGestorUserId,
+    selectedSourceBank,
+    selectedSourceBankId,
+    setSelectedSourceBankId,
+    selectedLayouts,
+    selectedLayoutIds,
+    mirroredAccounts,
+    allLayoutsSelected,
+    toggleLayout,
+    toggleAllLayouts,
+    syncAssignments,
+    loadCatalog: loadGestorCatalog,
+    lastSyncResult,
+    syncing
+  } = useGestorBankAssignments()
 
   return (
     <section className="space-y-6">
@@ -486,6 +512,282 @@ export default function AdminBankingPage() {
           </form>
         </section>
       </div>
+
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+              Paso 3
+            </p>
+            <h3 className="mt-2 text-xl font-extrabold text-slate-900">
+              Asignacion de bancos y layouts a gestores
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              El admin puede tomar uno de sus bancos, elegir que layouts habilitar y replicar
+              automaticamente ese banco con sus mismas cuentas sobre un usuario gestor.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void loadGestorCatalog()}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            <FiRefreshCcw className="h-4 w-4" /> Recargar asignaciones
+          </button>
+        </div>
+
+        {gestorUsers.length === 0 || sourceBanks.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+            {gestorUsers.length === 0
+              ? "No hay usuarios gestores disponibles para asignar."
+              : "No hay bancos origen disponibles para sincronizar a gestores."}
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+            <section className="space-y-4">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-white p-3 text-slate-700 shadow-sm">
+                    <FiUsers className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                      Gestor destino
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-900">
+                      {selectedGestorUser?.login ?? "Selecciona un gestor"}
+                    </p>
+                  </div>
+                </div>
+
+                <label className="mt-4 block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Usuario gestor</span>
+                  <select
+                    value={selectedGestorUserId}
+                    onChange={(event) => setSelectedGestorUserId(Number(event.target.value))}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                  >
+                    {gestorUsers.map((gestor) => (
+                      <option key={gestor.id} value={gestor.id}>
+                        {gestor.login}
+                        {gestor.fullName ? ` - ${gestor.fullName}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+                  <p className="font-semibold text-slate-900">
+                    {selectedGestorUser?.fullName ?? "Sin nombre completo"}
+                  </p>
+                  <p className="mt-1 text-xs">
+                    {selectedGestorUser?.creatorUserLogin
+                      ? `Creado por ${selectedGestorUser.creatorUserLogin}`
+                      : "Sin admin creador visible"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-white p-3 text-slate-700 shadow-sm">
+                    <FiBriefcase className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                      Banco origen
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-900">
+                      {selectedSourceBank?.alias ?? selectedSourceBank?.bankName ?? "Selecciona un banco"}
+                    </p>
+                  </div>
+                </div>
+
+                <label className="mt-4 block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Banco a replicar</span>
+                  <select
+                    value={selectedSourceBankId}
+                    onChange={(event) => setSelectedSourceBankId(Number(event.target.value))}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                  >
+                    {sourceBanks.map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.alias ?? bank.bankName} - {bank.userLogin}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="mt-4 space-y-2 text-sm text-slate-600">
+                  <p>
+                    <strong>Layouts:</strong> {selectedLayouts.length}
+                  </p>
+                  <p>
+                    <strong>Cuentas a espejar:</strong> {mirroredAccounts.length}
+                  </p>
+                  <p>
+                    <strong>Sucursal:</strong> {selectedSourceBank?.branch ?? "Sin sucursal"}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-[1.5rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-brand-50/30 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                    Layouts habilitados
+                  </p>
+                  <h4 className="mt-2 text-lg font-extrabold text-slate-900">
+                    Elige que layouts hereda el gestor
+                  </h4>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Las cuentas del banco se replican completas. Aqui decides solo los layouts.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleAllLayouts}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  {allLayoutsSelected ? <FiSquare className="h-4 w-4" /> : <FiCheckSquare className="h-4 w-4" />}
+                  {allLayoutsSelected ? "Quitar todos" : "Seleccionar todos"}
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {selectedLayouts.map((layout) => {
+                  const checked = selectedLayoutIds.includes(layout.id)
+
+                  return (
+                    <label
+                      key={layout.id}
+                      className={`cursor-pointer rounded-2xl border p-4 transition ${
+                        checked
+                          ? "border-slate-900 bg-slate-900 text-white shadow-lg"
+                          : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleLayout(layout.id)}
+                          className="mt-1"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold">{layout.name}</p>
+                          <p className={`mt-1 text-xs ${checked ? "text-white/75" : "text-slate-500"}`}>
+                            {layout.systemName} · {layout.bankLabel}
+                          </p>
+                          <p className={`mt-2 text-xs leading-5 ${checked ? "text-white/70" : "text-slate-500"}`}>
+                            {layout.description ?? "Sin descripcion"}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
+                            <span className={`rounded-full px-2.5 py-1 ${checked ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}>
+                              {layout.active ? "Activo" : "Secundario"}
+                            </span>
+                            <span className={`rounded-full px-2.5 py-1 ${checked ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}>
+                              {layout.mappings.length} mapping(s)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+                    <FiLink2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                      Resumen
+                    </p>
+                    <p className="mt-1 text-lg font-extrabold text-slate-900">
+                      Banco del admin hacia gestor
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 space-y-3 text-sm text-slate-600">
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Destino</p>
+                    <p className="mt-2 font-semibold text-slate-900">
+                      {selectedGestorUser?.login ?? "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Banco fuente</p>
+                    <p className="mt-2 font-semibold text-slate-900">
+                      {selectedSourceBank?.alias ?? selectedSourceBank?.bankName ?? "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Layouts elegidos</p>
+                    <p className="mt-2 font-semibold text-slate-900">{selectedLayoutIds.length}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Cuentas a replicar</p>
+                    <p className="mt-2 font-semibold text-slate-900">{mirroredAccounts.length}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void syncAssignments()}
+                  disabled={syncing}
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <FiLayers className="h-4 w-4" />
+                  {syncing ? "Sincronizando..." : "Sincronizar con gestor"}
+                </button>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                  Cuentas que se espejan
+                </p>
+                <div className="mt-4 space-y-3">
+                  {mirroredAccounts.map((account) => (
+                    <div key={account.id} className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      <p className="font-semibold text-slate-900">{account.name}</p>
+                      <p className="mt-1 text-xs">
+                        {account.accountNumber} · {account.currency}
+                      </p>
+                    </div>
+                  ))}
+                  {mirroredAccounts.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                      El banco origen no tiene cuentas cargadas.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {lastSyncResult ? (
+                <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
+                  <p className="font-bold">Ultima sincronizacion completada</p>
+                  <p className="mt-2">
+                    Banco destino #{lastSyncResult.targetBankId}: {lastSyncResult.targetBankName}
+                  </p>
+                  <p className="mt-1">
+                    Layouts sincronizados: {lastSyncResult.syncedLayoutIds.length} · Cuentas
+                    sincronizadas: {lastSyncResult.syncedAccountIds.length}
+                  </p>
+                </div>
+              ) : null}
+            </section>
+          </div>
+        )}
+      </section>
     </section>
   )
 }

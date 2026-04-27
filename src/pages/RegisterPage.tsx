@@ -1,10 +1,10 @@
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useState } from "react";
 import { FiArrowLeft, FiCheckCircle, FiShield, FiUserPlus } from "react-icons/fi";
-import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { Link, useNavigate } from "react-router-dom";
 import BrandMark from "../components/BrandMark";
+import InternationalPhoneField from "../components/forms/InternationalPhoneField";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import type { RegisterPayload } from "../types/auth";
@@ -17,12 +17,6 @@ const initialState: RegisterPayload = {
   usrCelular: "",
   usrLogin: "",
   password: ""
-};
-
-const phoneLabels = {
-  country: "Prefijo pais",
-  phone: "Celular",
-  ZZ: "Elija una opcion"
 };
 
 export default function RegisterPage() {
@@ -128,14 +122,11 @@ export default function RegisterPage() {
             <label className="block space-y-1.5">
               <span className="text-sm font-semibold text-slate-700">Celular</span>
               <div className="rounded-xl border border-slate-200 px-4 py-3 text-sm transition-all focus-within:border-slate-900 focus-within:ring-1 focus-within:ring-slate-900">
-                <PhoneInput
-                  international
+                <InternationalPhoneField
                   value={form.usrCelular ?? ""}
                   onChange={onPhoneChange}
-                  labels={phoneLabels}
-                  countrySelectProps={{
-                    "aria-label": "Prefijo pais"
-                  }}
+                  countrySelectAriaLabel="Pais"
+                  requireCountrySelection
                   className="w-full"
                 />
               </div>
@@ -161,8 +152,8 @@ export default function RegisterPage() {
             />
 
             <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-500">
-              El celular debe ir con prefijo internacional. La contrasena necesita al menos 6
-              caracteres.
+              Selecciona un pais y luego carga el celular. El prefijo internacional se completa
+              automaticamente. La contrasena necesita al menos 6 caracteres.
             </div>
 
             <div className="mt-2 flex flex-col-reverse items-center justify-between gap-4 md:col-span-2 sm:flex-row">

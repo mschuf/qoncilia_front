@@ -33,7 +33,7 @@ import AdminBankingPage from "./AdminBankingPage";
 import layoutDocsMarkdown from "../../docs/layouts-creacion-edicion.md?raw";
 import { isSuperAdminRole } from "../utils/role";
 
-type WorkspaceKey = "banks" | "templates" | "accounts" | "users";
+type WorkspaceKey = "banks" | "templates" | "accounts" | "users" | "systems";
 
 type PendingDelete = {
   title: string;
@@ -72,6 +72,12 @@ const workspaceOptions: Array<{
     icon: FiLayers,
   },
   {
+    key: "systems",
+    label: "Sistemas",
+    description: "ABM de sistemas origen para layouts dinamicos.",
+    icon: FiSettings,
+  },
+  {
     key: "accounts",
     label: "Cuentas Bancarias",
     description: "ABM completo de bancos y cuentas bancarias por empresa.",
@@ -106,6 +112,8 @@ function SuperadminLayoutManagementPage() {
     selectedUserId,
     setSelectedUserId,
     selectedUser,
+    systems,
+    systemCount,
     templates,
     templateCount,
     banks,
@@ -119,21 +127,28 @@ function SuperadminLayoutManagementPage() {
     setLayoutModalOpen,
     templateModalOpen,
     setTemplateModalOpen,
+    systemModalOpen,
+    setSystemModalOpen,
     editingBank,
     editingLayout,
     editingTemplate,
+    editingSystem,
     bankForm,
     layoutForm,
     templateForm,
+    systemForm,
     allUserCatalogs,
     loadCatalog,
     loadAllCatalogs,
+    loadSystems,
     openCreateTemplate,
     openEditTemplate,
     openCreateBank,
     openEditBank,
     openCreateLayout,
     openEditLayout,
+    openCreateSystem,
+    openEditSystem,
     prepareCreateBank,
     prepareEditBank,
     prepareCreateLayout,
@@ -141,6 +156,7 @@ function SuperadminLayoutManagementPage() {
     onBankFieldChange,
     onLayoutFieldChange,
     onTemplateFieldChange,
+    onSystemFieldChange,
     onMappingFieldChange,
     onTemplateMappingFieldChange,
     addMappingRow,
@@ -152,11 +168,13 @@ function SuperadminLayoutManagementPage() {
     saveBank,
     saveLayout,
     saveTemplate,
+    saveSystem,
     applyTemplateToSelectedBank,
     getBankDeletionPreview,
     deleteBank,
     deleteLayout,
     deleteTemplate,
+    deleteSystem,
   } = useLayoutManagement();
 
   const handleDeleteLayout = (
@@ -276,6 +294,11 @@ function SuperadminLayoutManagementPage() {
             icon={FiLayers}
             label="Templates"
             value={String(templateCount)}
+          />
+          <MetricCard
+            icon={FiSettings}
+            label="Sistemas"
+            value={String(systemCount)}
           />
           <MetricCard
             icon={FiSettings}
@@ -412,6 +435,97 @@ function SuperadminLayoutManagementPage() {
                     )
                   }
                 />
+              ) : workspace === "systems" ? (
+                <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                        Sistemas origen
+                      </p>
+                      <h3 className="mt-2 text-xl font-extrabold text-slate-900">
+                        ABM de sistemas dinamicos
+                      </h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                        Cada layout queda asociado a un sistema, por ejemplo SAP, Softland o el
+                        que necesites incorporar luego.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void loadSystems()}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        <FiRefreshCcw className="h-4 w-4" /> Recargar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openCreateSystem}
+                        className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
+                      >
+                        <FiPlus className="h-4 w-4" /> Nuevo sistema
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {systems.map((system) => (
+                      <article
+                        key={system.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-900">{system.name}</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500">
+                              {system.description ?? "Sin descripcion"}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                              system.active
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {system.active ? "Activo" : "Inactivo"}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditSystem(system)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                          >
+                            <FiSettings className="h-4 w-4" /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingDelete({
+                                title: "Eliminar sistema",
+                                description: `Vas a eliminar el sistema "${system.name}". Solo se puede borrar si no tiene layouts ni templates asociados.`,
+                                confirmLabel: "Eliminar sistema",
+                                onConfirm: () => deleteSystem(system),
+                              })
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                          >
+                            <FiTrash2 className="h-4 w-4" /> Eliminar
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+
+                    {systems.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                        Todavia no hay sistemas cargados.
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
               ) : (
                 <AdminBankingPage />
               )}
@@ -461,6 +575,8 @@ function SuperadminLayoutManagementPage() {
                       ? "Bancos y Layouts"
                       : workspace === "templates"
                         ? "Template Layouts"
+                        : workspace === "systems"
+                          ? "Sistemas"
                         : "Cuentas Bancarias"
                 }
                 helper={
@@ -468,9 +584,11 @@ function SuperadminLayoutManagementPage() {
                     ? "Vista global de todos los usuarios"
                     : workspace === "banks"
                       ? "Aqui haces la asignacion operativa por usuario"
-                      : workspace === "templates"
-                        ? "Aqui defines las bases reutilizables"
-                        : "ABM de bancos y cuentas"
+                    : workspace === "templates"
+                      ? "Aqui defines las bases reutilizables"
+                      : workspace === "systems"
+                        ? "Aqui administras los sistemas disponibles"
+                      : "ABM de bancos y cuentas"
                 }
               />
             </div>
@@ -490,6 +608,7 @@ function SuperadminLayoutManagementPage() {
         open={layoutModalOpen}
         onClose={() => setLayoutModalOpen(false)}
         editingLayout={editingLayout}
+        systems={systems}
         layoutForm={layoutForm}
         onFieldChange={onLayoutFieldChange}
         onMappingFieldChange={onMappingFieldChange}
@@ -502,6 +621,7 @@ function SuperadminLayoutManagementPage() {
         open={templateModalOpen}
         onClose={() => setTemplateModalOpen(false)}
         editingLayout={editingTemplate}
+        systems={systems}
         layoutForm={templateForm}
         onFieldChange={onTemplateFieldChange}
         onMappingFieldChange={onTemplateMappingFieldChange}
@@ -513,6 +633,63 @@ function SuperadminLayoutManagementPage() {
         submitLabel="Guardar template"
         showReferenceBankField
       />
+
+      <AppModal
+        open={systemModalOpen}
+        onClose={() => setSystemModalOpen(false)}
+        title={editingSystem ? "Editar sistema" : "Crear sistema"}
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setSystemModalOpen(false)}
+              className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+            <button
+              form="system-form"
+              type="submit"
+              className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
+            >
+              Guardar sistema
+            </button>
+          </div>
+        }
+      >
+        <form id="system-form" onSubmit={saveSystem} className="space-y-4">
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Nombre</span>
+            <input
+              name="name"
+              value={systemForm.name}
+              onChange={onSystemFieldChange}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+              required
+            />
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Descripcion</span>
+            <input
+              name="description"
+              value={systemForm.description}
+              onChange={onSystemFieldChange}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+            />
+          </label>
+
+          <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              name="active"
+              checked={systemForm.active}
+              onChange={onSystemFieldChange}
+            />
+            Sistema activo
+          </label>
+        </form>
+      </AppModal>
 
       <AppModal
         open={Boolean(pendingDelete)}

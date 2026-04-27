@@ -13,6 +13,10 @@ import type {
   ReconciliationSummary,
   UserBankWithLayouts,
 } from "../types/conciliation";
+import {
+  getConciliationDataSummary,
+  getConciliationStatusPresentation,
+} from "../utils/conciliationStatus";
 import { isAdminRole } from "../utils/role";
 
 function formatDateTime(value: string) {
@@ -80,6 +84,7 @@ export default function ConciliationHistoryPage() {
   );
   const [banks, setBanks] = useState<UserBankWithLayouts[]>([]);
   const [selectedBankId, setSelectedBankId] = useState<number>(0);
+  const [selectedCompanyBankAccountId, setSelectedCompanyBankAccountId] = useState<number>(0);
   const [selectedLayoutId, setSelectedLayoutId] = useState<number>(0);
   const [dateFrom, setDateFrom] = useState<string>(() => {
     const value = new Date();
@@ -129,6 +134,9 @@ export default function ConciliationHistoryPage() {
       params.set("userId", String(selectedUserId));
     }
     params.set("userBankId", String(selectedBankId));
+    if (selectedCompanyBankAccountId > 0) {
+      params.set("companyBankAccountId", String(selectedCompanyBankAccountId));
+    }
     if (selectedLayoutId > 0) {
       params.set("layoutId", String(selectedLayoutId));
     }
@@ -143,7 +151,16 @@ export default function ConciliationHistoryPage() {
       `/conciliation/reconciliations?${params.toString()}`,
     );
     setReconciliations(response ?? []);
-  }, [canSearch, dateFrom, dateTo, selectedBankId, selectedLayoutId, selectedUserId, showUserFilter]);
+  }, [
+    canSearch,
+    dateFrom,
+    dateTo,
+    selectedBankId,
+    selectedCompanyBankAccountId,
+    selectedLayoutId,
+    selectedUserId,
+    showUserFilter,
+  ]);
 
   const loadDetail = useCallback(async (reconciliationId: number) => {
     if (!reconciliationId) {
@@ -199,16 +216,28 @@ export default function ConciliationHistoryPage() {
     });
   }, [loadDetail, selectedReconciliationId, toast]);
 
+  const selectedBank = useMemo(
+    () => banks.find((bank) => bank.id === selectedBankId) ?? null,
+    [banks, selectedBankId],
+  );
+
   const layouts = useMemo(
     () => buildLayouts(banks, selectedBankId),
     [banks, selectedBankId],
   );
+  const accounts = selectedBank?.accounts ?? [];
 
   useEffect(() => {
     setSelectedLayoutId((current) =>
       current > 0 && layouts.some((layout) => layout.id === current) ? current : 0,
     );
   }, [layouts]);
+
+  useEffect(() => {
+    setSelectedCompanyBankAccountId((current) =>
+      current > 0 && accounts.some((account) => account.id === current) ? current : 0,
+    );
+  }, [accounts]);
 
   const snapshotRows = useMemo(
     () => (selectedReconciliation?.summarySnapshot ? buildSnapshotRows(selectedReconciliation.summarySnapshot) : []),
@@ -224,12 +253,11 @@ export default function ConciliationHistoryPage() {
               Historial de Conciliaciones
             </p>
             <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-              Historial compacto y filtrado por banco
+              Historial por banco, cuenta y estado
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              La consulta no carga resultados hasta elegir un banco. Las fechas
-              arrancan por defecto desde un mes atras hasta hoy para ayudarte a
-              revisar rapido el trabajo reciente.
+              La consulta no carga resultados hasta elegir un banco. Puedes bajar a una cuenta
+              puntual para revisar conciliaciones parciales, comparadas o ya matcheadas.
             </p>
           </div>
 
@@ -247,7 +275,7 @@ export default function ConciliationHistoryPage() {
           <FiFilter className="h-4 w-4" /> Filtros
         </div>
 
-        <div className={`grid gap-3 ${showUserFilter ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
+        <div className={`grid gap-3 ${showUserFilter ? "xl:grid-cols-7" : "xl:grid-cols-6"}`}>
           {showUserFilter ? (
             <label className="space-y-1.5">
               <span className="text-sm font-semibold text-slate-700">Usuario</span>
@@ -294,6 +322,23 @@ export default function ConciliationHistoryPage() {
               {layouts.map((layout) => (
                 <option key={layout.id} value={layout.id}>
                   {layout.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Cuenta bancaria</span>
+            <select
+              value={selectedCompanyBankAccountId}
+              onChange={(event) => setSelectedCompanyBankAccountId(Number(event.target.value))}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+              disabled={!selectedBank}
+            >
+              <option value={0}>Todas las cuentas del banco</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} - {account.accountNumber} ({account.currency})
                 </option>
               ))}
             </select>
@@ -357,9 +402,14 @@ export default function ConciliationHistoryPage() {
                   <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Estado</th>
+                      <th className="px-3 py-2">Descripcion</th>
                       <th className="px-3 py-2">Usuario</th>
                       <th className="px-3 py-2">Banco</th>
+                      <th className="px-3 py-2">Cuenta</th>
                       <th className="px-3 py-2">Layout</th>
+                      <th className="px-3 py-2">Sistema</th>
+                      <th className="px-3 py-2">Datos</th>
                       <th className="px-3 py-2">Match %</th>
                       <th className="px-3 py-2">Actualizaciones</th>
                       <th className="px-3 py-2 text-center">Acciones</th>
@@ -368,6 +418,7 @@ export default function ConciliationHistoryPage() {
                   <tbody>
                     {reconciliations.map((item) => {
                       const selected = item.id === selectedReconciliationId;
+                      const statusPresentation = getConciliationStatusPresentation(item.status);
                       return (
                         <tr
                           key={item.id}
@@ -377,9 +428,29 @@ export default function ConciliationHistoryPage() {
                           }`}
                         >
                           <td className="px-3 py-2 font-semibold">{formatDateTime(item.createdAt)}</td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusPresentation.badgeClassName}`}
+                            >
+                              {statusPresentation.label}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-semibold">{item.name}</td>
                           <td className="px-3 py-2">{item.userLogin}</td>
                           <td className="px-3 py-2">{item.bankAlias ?? item.bankName}</td>
+                          <td className="px-3 py-2">
+                            <div className="min-w-[190px]">
+                              <p>{item.companyBankAccountName ?? "-"}</p>
+                              <p className={`text-xs ${selected ? "text-white/80" : "text-slate-400"}`}>
+                                {item.companyBankAccountNumber ?? "-"}
+                              </p>
+                            </div>
+                          </td>
                           <td className="px-3 py-2">{item.layoutName}</td>
+                          <td className="px-3 py-2">{item.systemName}</td>
+                          <td className="px-3 py-2">
+                            {getConciliationDataSummary(item.hasSystemData, item.hasBankData)}
+                          </td>
                           <td className="px-3 py-2">{item.matchPercentage}</td>
                           <td className="px-3 py-2">{item.updateCount}</td>
                           <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -400,7 +471,7 @@ export default function ConciliationHistoryPage() {
                     })}
                     {reconciliations.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
+                        <td colSpan={12} className="px-4 py-6 text-center text-sm text-slate-500">
                           No hay conciliaciones para el banco y filtros elegidos.
                         </td>
                       </tr>
@@ -413,8 +484,20 @@ export default function ConciliationHistoryPage() {
 
           {selectedReconciliation ? (
             <section className="rounded-3xl border border-slate-200 bg-white p-5">
-              <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <FiList className="h-4 w-4" /> Lineas guardadas
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <FiList className="h-4 w-4" /> Lineas guardadas
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <p className="font-bold text-slate-900">{selectedReconciliation.name}</p>
+                  <p className="mt-1 text-xs">
+                    {getConciliationStatusPresentation(selectedReconciliation.status).label} ·{" "}
+                    {selectedReconciliation.companyBankAccountName ?? "Sin cuenta"}{" "}
+                    {selectedReconciliation.companyBankAccountNumber
+                      ? `- ${selectedReconciliation.companyBankAccountNumber}`
+                      : ""}
+                  </p>
+                </div>
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-slate-200">

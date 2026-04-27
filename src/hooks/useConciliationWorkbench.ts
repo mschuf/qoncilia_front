@@ -149,7 +149,9 @@ export default function useConciliationWorkbench() {
   const [selectedUserId, setSelectedUserId] = useState<number>(Number(user?.id ?? 0))
   const [banks, setBanks] = useState<UserBankWithLayouts[]>([])
   const [selectedBankId, setSelectedBankId] = useState<number>(0)
+  const [selectedCompanyBankAccountId, setSelectedCompanyBankAccountId] = useState<number>(0)
   const [selectedLayoutId, setSelectedLayoutId] = useState<number>(0)
+  const [reconciliationName, setReconciliationName] = useState("")
   const [systemFile, setSystemFile] = useState<File | null>(null)
   const [bankFile, setBankFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
@@ -188,8 +190,15 @@ export default function useConciliationWorkbench() {
         if (current > 0 && nextBanks.some((item) => item.id === current)) return current
         return nextBanks[0]?.id ?? 0
       })
+      setSelectedCompanyBankAccountId((current) => {
+        const selectedBank =
+          nextBanks.find((item) => item.id === selectedBankId) ?? nextBanks[0] ?? null
+        const accounts = selectedBank?.accounts ?? []
+        if (current > 0 && accounts.some((item) => item.id === current)) return current
+        return accounts[0]?.id ?? 0
+      })
     },
-    [role]
+    [role, selectedBankId]
   )
 
   const loadAnalytics = useCallback(
@@ -226,6 +235,23 @@ export default function useConciliationWorkbench() {
     [banks, selectedBankId]
   )
 
+  const accounts = selectedBank?.accounts ?? []
+
+  useEffect(() => {
+    setSelectedCompanyBankAccountId((current) => {
+      if (current > 0 && accounts.some((item) => item.id === current)) {
+        return current
+      }
+
+      return accounts[0]?.id ?? 0
+    })
+  }, [accounts])
+
+  const selectedCompanyBankAccount = useMemo(
+    () => accounts.find((item) => item.id === selectedCompanyBankAccountId) ?? null,
+    [accounts, selectedCompanyBankAccountId]
+  )
+
   const layouts = selectedBank?.layouts ?? []
   const selectedLayout = useMemo<Layout | null>(
     () => layouts.find((item) => item.id === selectedLayoutId) ?? layouts[0] ?? null,
@@ -241,9 +267,22 @@ export default function useConciliationWorkbench() {
   const availableReconciliationsForUpdate = useMemo(
     () =>
       history.filter(
-        (item) => item.userBankId === selectedBankId && item.layoutId === selectedLayoutId
+        (item) =>
+          item.userBankId === selectedBankId &&
+          item.layoutId === selectedLayoutId &&
+          item.companyBankAccountId === selectedCompanyBankAccountId
       ),
-    [history, selectedBankId, selectedLayoutId]
+    [history, selectedBankId, selectedLayoutId, selectedCompanyBankAccountId]
+  )
+
+  const reconciliationsForSelectedBankAccount = useMemo(
+    () =>
+      history.filter(
+        (item) =>
+          item.userBankId === selectedBankId &&
+          item.companyBankAccountId === selectedCompanyBankAccountId
+      ),
+    [history, selectedBankId, selectedCompanyBankAccountId]
   )
 
   useEffect(() => {
@@ -253,11 +292,8 @@ export default function useConciliationWorkbench() {
   }, [updateIdParam])
 
   const selectedReconciliationForUpdate = useMemo(
-    () =>
-      availableReconciliationsForUpdate.find(
-        (item) => item.id === selectedUpdateReconciliationId
-      ) ?? null,
-    [availableReconciliationsForUpdate, selectedUpdateReconciliationId]
+    () => history.find((item) => item.id === selectedUpdateReconciliationId) ?? null,
+    [history, selectedUpdateReconciliationId]
   )
 
   const applyUpdateSelection = useCallback(
@@ -293,19 +329,99 @@ export default function useConciliationWorkbench() {
     setKpis(null)
     setIsErpModalOpen(false)
     setLastErpShipment(null)
+    if (!selectedUpdateReconciliationId) {
+      setReconciliationName("")
+    }
   }
 
+  const hydrateFromReconciliation = useCallback(async (reconciliationId: number) => {
+    const detail = await apiClient.get<ReconciliationDetail>(
+      `/conciliation/reconciliations/${reconciliationId}`
+    )
+
+    if (detail.summarySnapshot) {
+      setPreview({
+        userBank: detail.summarySnapshot.userBank,
+        companyBankAccount: detail.summarySnapshot.companyBankAccount,
+        layout: detail.summarySnapshot.layout,
+        systemFileName: detail.systemFileName ?? "sistema_guardado",
+        bankFileName: detail.bankFileName ?? "banco_guardado",
+        systemRows: detail.summarySnapshot.systemRows,
+        bankRows: detail.summarySnapshot.bankRows,
+        autoMatches: detail.summarySnapshot.autoMatches,
+        manualMatches: detail.summarySnapshot.manualMatches,
+        unmatchedSystemRows: detail.summarySnapshot.unmatchedSystemRows,
+        unmatchedBankRows: detail.summarySnapshot.unmatchedBankRows,
+        metrics: detail.summarySnapshot.metrics
+      })
+      setManualMatches(detail.summarySnapshot.manualMatches)
+      setUnmatchedSystemRows(detail.summarySnapshot.unmatchedSystemRows)
+      setUnmatchedBankRows(detail.summarySnapshot.unmatchedBankRows)
+    } else {
+      setPreview(null)
+      setManualMatches([])
+      setUnmatchedSystemRows([])
+      setUnmatchedBankRows([])
+    }
+
+    setSystemFile(null)
+    setBankFile(null)
+    setReconciliationName(detail.name)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedReconciliationForUpdate) return
+
+    setSelectedBankId(selectedReconciliationForUpdate.userBankId)
+    setSelectedLayoutId(selectedReconciliationForUpdate.layoutId)
+    setSelectedCompanyBankAccountId(selectedReconciliationForUpdate.companyBankAccountId ?? 0)
+    setReconciliationName(selectedReconciliationForUpdate.name)
+  }, [selectedReconciliationForUpdate])
+
+  useEffect(() => {
+    if (!selectedUpdateReconciliationId) return
+
+    void hydrateFromReconciliation(selectedUpdateReconciliationId).catch((error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar la conciliacion guardada en la mesa."
+      )
+    })
+  }, [hydrateFromReconciliation, selectedUpdateReconciliationId, toast])
+
+  const loadSavedReconciliation = useCallback(
+    async (reconciliationId: number) => {
+      if (selectedUpdateReconciliationId === reconciliationId) {
+        await hydrateFromReconciliation(reconciliationId)
+        return
+      }
+
+      applyUpdateSelection(reconciliationId)
+    },
+    [applyUpdateSelection, hydrateFromReconciliation, selectedUpdateReconciliationId]
+  )
+
   const runPreview = async () => {
-    if (!selectedBankId || !selectedLayoutId || !systemFile || !bankFile) {
-      toast.error("Selecciona banco, layout y ambos archivos Excel.")
+    if (!selectedBankId || !selectedLayoutId || !selectedCompanyBankAccountId) {
+      toast.error("Selecciona banco, cuenta bancaria y layout.")
+      return
+    }
+
+    if (!systemFile && !bankFile) {
+      toast.error("Carga al menos un archivo para comparar o actualizar la mesa.")
       return
     }
 
     const formData = new FormData()
     formData.append("userBankId", String(selectedBankId))
+    formData.append("companyBankAccountId", String(selectedCompanyBankAccountId))
     formData.append("layoutId", String(selectedLayoutId))
-    formData.append("systemFile", systemFile)
-    formData.append("bankFile", bankFile)
+    if (selectedUpdateReconciliationId > 0) {
+      formData.append("reconciliationId", String(selectedUpdateReconciliationId))
+    }
+    if (systemFile) formData.append("systemFile", systemFile)
+    if (bankFile) formData.append("bankFile", bankFile)
 
     try {
       const response = await apiClient.post<PreviewResponse>("/conciliation/preview", formData)
@@ -369,15 +485,23 @@ export default function useConciliationWorkbench() {
         toast.error("Primero genera una conciliacion.")
         return null
       }
+      if (!selectedCompanyBankAccountId) {
+        toast.error("Selecciona una cuenta bancaria.")
+        return null
+      }
+      if (!reconciliationName.trim()) {
+        toast.error("Debes cargar una descripcion o alias para la conciliacion.")
+        return null
+      }
 
       try {
         const response = await apiClient.post<ReconciliationDetail>("/conciliation/reconciliations", {
           reconciliationId: selectedUpdateReconciliationId > 0 ? selectedUpdateReconciliationId : undefined,
           userBankId: preview.userBank.id,
+          companyBankAccountId: selectedCompanyBankAccountId,
           layoutId: selectedLayout.id,
-          name:
-            selectedReconciliationForUpdate?.name ??
-            `Conciliacion ${preview.userBank.alias ?? preview.userBank.bankName}`,
+          name: reconciliationName.trim(),
+          comparisonPerformed: true,
           systemFileName: preview.systemFileName,
           bankFileName: preview.bankFileName,
           systemRows: preview.systemRows,
@@ -408,8 +532,9 @@ export default function useConciliationWorkbench() {
       loadAnalytics,
       manualMatches,
       preview,
+      reconciliationName,
+      selectedCompanyBankAccountId,
       selectedLayout,
-      selectedReconciliationForUpdate?.name,
       selectedUpdateReconciliationId,
       selectedUserId,
       toast
@@ -419,7 +544,17 @@ export default function useConciliationWorkbench() {
   const saveFileData = useCallback(
     async (source: "system" | "bank"): Promise<ReconciliationDetail | null> => {
       if (!selectedBankId || !selectedLayoutId) {
-        toast.error("Selecciona banco y layout antes de guardar.")
+        toast.error("Selecciona banco, cuenta bancaria y layout antes de guardar.")
+        return null
+      }
+
+      if (!selectedCompanyBankAccountId) {
+        toast.error("Selecciona una cuenta bancaria antes de guardar.")
+        return null
+      }
+
+      if (!reconciliationName.trim()) {
+        toast.error("Debes cargar una descripcion o alias para la conciliacion.")
         return null
       }
 
@@ -468,10 +603,10 @@ export default function useConciliationWorkbench() {
         const response = await apiClient.post<ReconciliationDetail>("/conciliation/reconciliations", {
           reconciliationId: selectedUpdateReconciliationId > 0 ? selectedUpdateReconciliationId : undefined,
           userBankId: selectedBankId,
+          companyBankAccountId: selectedCompanyBankAccountId,
           layoutId: selectedLayoutId,
-          name:
-            selectedReconciliationForUpdate?.name ??
-            `Conciliacion ${userBank?.alias ?? userBank?.bankName ?? ""}`,
+          name: reconciliationName.trim(),
+          comparisonPerformed: Boolean(preview && preview.systemRows.length > 0 && preview.bankRows.length > 0),
           systemFileName,
           bankFileName,
           systemRows,
@@ -501,10 +636,11 @@ export default function useConciliationWorkbench() {
       loadAnalytics,
       manualMatches,
       preview,
+      reconciliationName,
       selectedBank,
       selectedBankId,
+      selectedCompanyBankAccountId,
       selectedLayoutId,
-      selectedReconciliationForUpdate?.name,
       selectedUpdateReconciliationId,
       selectedUserId,
       systemFile,
@@ -641,10 +777,16 @@ export default function useConciliationWorkbench() {
     banks,
     selectedBankId,
     setSelectedBankId,
+    accounts,
+    selectedCompanyBankAccount,
+    selectedCompanyBankAccountId,
+    setSelectedCompanyBankAccountId,
     selectedLayoutId,
     setSelectedLayoutId,
     layouts,
     selectedLayout,
+    reconciliationName,
+    setReconciliationName,
     systemFile,
     setSystemFile,
     bankFile,
@@ -656,8 +798,11 @@ export default function useConciliationWorkbench() {
     kpis,
     history,
     availableReconciliationsForUpdate,
+    reconciliationsForSelectedBankAccount,
     selectedUpdateReconciliationId,
     setSelectedUpdateReconciliationId,
+    applyUpdateSelection,
+    loadSavedReconciliation,
     selectedReconciliationForUpdate,
     clearUpdateSelection,
     metrics,

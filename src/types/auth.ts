@@ -17,6 +17,8 @@ export interface AuthUser {
   enabledModules?: string[] | null;
   role?: Role | string | null;
   activo?: boolean | null;
+  creatorUserId?: number | null;
+  creatorUserLogin?: string | null;
 }
 
 export interface LoginPayload {

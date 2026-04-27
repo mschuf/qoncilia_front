@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent } from "react";
-import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import AppModal from "../AppModal";
+import InternationalPhoneField from "../forms/InternationalPhoneField";
 import type { PublicCompany } from "../../types/access-control";
 import type { CreateUserForm } from "../../types/pages/user-management-page.types";
 import type { Role } from "../../utils/role";
@@ -60,11 +60,12 @@ export default function CreateUserModal({
         <label className="block space-y-1.5 focus-within:text-slate-900 text-slate-700 transition-colors">
           <span className="text-sm font-semibold">Celular</span>
           <div className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus-within:border-slate-800 focus-within:ring-1 focus-within:ring-slate-800 transition-all bg-white">
-            <PhoneInput
+            <InternationalPhoneField
               international
               defaultCountry="PY"
               value={form.usrCelular}
               onChange={onPhoneChange}
+              countrySelectAriaLabel="Pais"
               className="outline-none w-full"
             />
           </div>

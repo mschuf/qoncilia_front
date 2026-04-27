@@ -4,8 +4,8 @@ import { FiCheck, FiLock, FiUser } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { apiClient } from "../api/apiClient";
-import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import InternationalPhoneField from "../components/forms/InternationalPhoneField";
 import { isValidInternationalPhoneNumber } from "../utils/phone";
 
 export default function ProfilePage() {
@@ -126,11 +126,12 @@ export default function ProfilePage() {
             <label className="block space-y-1.5">
               <span className="text-sm font-semibold text-slate-700">Celular (con código de país)</span>
               <div className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500 transition-all bg-white">
-                <PhoneInput
+                <InternationalPhoneField
                   international
                   defaultCountry="PY"
                   value={formData.usrCelular}
                   onChange={handlePhoneChange}
+                  countrySelectAriaLabel="Pais"
                   className="outline-none w-full"
                 />
               </div>

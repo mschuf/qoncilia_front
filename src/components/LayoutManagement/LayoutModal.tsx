@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { FiX } from "react-icons/fi";
 import useEscapeKey from "../../hooks/useEscapeKey";
-import type { Layout, TemplateLayout } from "../../types/conciliation";
+import type { ConciliationSystem, Layout, TemplateLayout } from "../../types/conciliation";
 import type {
   LayoutFormState,
   TemplateLayoutFormState
@@ -17,8 +17,9 @@ interface LayoutModalProps {
   open: boolean;
   onClose: () => void;
   editingLayout: Layout | TemplateLayout | null;
+  systems: ConciliationSystem[];
   layoutForm: LayoutFormState | TemplateLayoutFormState;
-  onFieldChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFieldChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onMappingFieldChange: (
     rowId: string,
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -36,6 +37,7 @@ export default function LayoutModal({
   open,
   onClose,
   editingLayout,
+  systems,
   layoutForm,
   onFieldChange,
   onMappingFieldChange,
@@ -106,12 +108,15 @@ export default function LayoutModal({
                   onChange={onFieldChange}
                   required
                 />
-                <InputField
-                  label="Etiqueta sistema"
-                  name="systemLabel"
-                  value={layoutForm.systemLabel}
+                <SelectField
+                  label="Sistema"
+                  name="systemId"
+                  value={String(layoutForm.systemId)}
                   onChange={onFieldChange}
-                  required
+                  options={systems.map((system) => ({
+                    value: String(system.id),
+                    label: system.name
+                  }))}
                 />
                 <InputField
                   label="Etiqueta banco"

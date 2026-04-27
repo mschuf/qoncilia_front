@@ -8,6 +8,24 @@ export type CompareOperator =
 
 export type LayoutDataType = "text" | "number" | "amount" | "date";
 
+export interface ConciliationSystem {
+  id: number;
+  name: string;
+  description: string | null;
+  active: boolean;
+}
+
+export interface CompanyBankAccountSummary {
+  id: number;
+  bankId: number;
+  bankName: string;
+  bankAlias: string | null;
+  name: string;
+  currency: string;
+  accountNumber: string;
+  active: boolean;
+}
+
 export interface UserBankSummary {
   id: number;
   bankName: string;
@@ -43,6 +61,8 @@ export interface Layout {
   id: number;
   userBankId: number;
   templateLayoutId: number | null;
+  systemId: number;
+  systemName: string;
   name: string;
   description: string | null;
   systemLabel: string;
@@ -54,6 +74,8 @@ export interface Layout {
 
 export interface TemplateLayout {
   id: number;
+  systemId: number;
+  systemName: string;
   name: string;
   description: string | null;
   referenceBankName: string | null;
@@ -67,6 +89,7 @@ export interface TemplateLayout {
 export interface UserBankWithLayouts extends UserBankSummary {
   userId: number;
   userLogin: string;
+  accounts: CompanyBankAccountSummary[];
   layouts: Layout[];
 }
 
@@ -145,6 +168,7 @@ export interface PreviewMetrics {
 
 export interface PreviewResponse {
   userBank: UserBankSummary;
+  companyBankAccount: CompanyBankAccountSummary;
   layout: Layout;
   systemFileName: string;
   bankFileName: string;
@@ -167,10 +191,18 @@ export interface ReconciliationSummary {
   userBankId: number;
   bankName: string;
   bankAlias: string | null;
+  companyBankAccountId: number | null;
+  companyBankAccountName: string | null;
+  companyBankAccountNumber: string | null;
+  companyBankAccountCurrency: string | null;
   layoutId: number;
   layoutName: string;
+  systemId: number;
+  systemName: string;
   systemFileName: string | null;
   bankFileName: string | null;
+  hasSystemData: boolean;
+  hasBankData: boolean;
   totalSystemRows: number;
   totalBankRows: number;
   autoMatches: number;
@@ -184,6 +216,7 @@ export interface ReconciliationSummary {
 
 export interface ReconciliationSnapshot {
   userBank: UserBankSummary;
+  companyBankAccount: CompanyBankAccountSummary;
   layout: Layout;
   systemRows: PreviewRow[];
   bankRows: PreviewRow[];
@@ -196,6 +229,26 @@ export interface ReconciliationSnapshot {
 
 export interface ReconciliationDetail extends ReconciliationSummary {
   summarySnapshot: ReconciliationSnapshot | null;
+}
+
+export interface GestorAssignmentCatalog {
+  gestorUsers: Array<{
+    id: number;
+    login: string;
+    fullName: string | null;
+    creatorUserId: number | null;
+    creatorUserLogin: string | null;
+  }>;
+  sourceBanks: UserBankWithLayouts[];
+}
+
+export interface SyncGestorBankAssignmentResponse {
+  gestorUserId: number;
+  sourceBankId: number;
+  targetBankId: number;
+  targetBankName: string;
+  syncedLayoutIds: number[];
+  syncedAccountIds: number[];
 }
 
 export interface ConciliationKpis {
@@ -217,7 +270,10 @@ export interface ConciliationKpis {
     name: string;
     bankName: string;
     alias: string | null;
+    companyBankAccountName: string | null;
+    companyBankAccountNumber: string | null;
     layoutName: string;
+    systemName: string;
     matchPercentage: number;
     autoMatches: number;
     manualMatches: number;
