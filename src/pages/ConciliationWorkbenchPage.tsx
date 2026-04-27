@@ -8,19 +8,19 @@ import {
   FiSend,
   FiServer,
   FiUploadCloud,
-  FiX
-} from "react-icons/fi"
-import { Link } from "react-router-dom"
-import MatchesSection from "../components/ConciliationWorkbench/MatchesSection"
+  FiX,
+} from "react-icons/fi";
+import { Link } from "react-router-dom";
+import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
   KpiCard,
   Metric,
   SelectBlock,
-  UploadCard
-} from "../components/ConciliationWorkbench/WorkbenchControls"
-import AppModal from "../components/AppModal"
-import useConciliationWorkbench from "../hooks/useConciliationWorkbench"
-import { isAdminRole } from "../utils/role"
+  UploadCard,
+} from "../components/ConciliationWorkbench/WorkbenchControls";
+import AppModal from "../components/AppModal";
+import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
+import { isAdminRole } from "../utils/role";
 
 export default function ConciliationWorkbenchPage() {
   const {
@@ -66,8 +66,8 @@ export default function ConciliationWorkbenchPage() {
     erpPayloadText,
     setErpPayloadText,
     sendToErp,
-    lastErpShipment
-  } = useConciliationWorkbench()
+    lastErpShipment,
+  } = useConciliationWorkbench();
 
   return (
     <>
@@ -83,9 +83,9 @@ export default function ConciliationWorkbenchPage() {
                   Subi dos Excel y comparalos por layout
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                  A la izquierda va tu archivo del sistema y a la derecha el extracto del
-                  banco. Los matches automaticos se marcan y el resto se puede emparejar
-                  manualmente arrastrando.
+                  A la izquierda va tu archivo del sistema y a la derecha el
+                  extracto del banco. Los matches automaticos se marcan y el
+                  resto se puede emparejar manualmente arrastrando.
                 </p>
               </div>
 
@@ -126,7 +126,7 @@ export default function ConciliationWorkbenchPage() {
                 onChange={(value) => setSelectedUserId(Number(value))}
                 options={users.map((item) => ({
                   value: Number(item.id),
-                  label: `${item.usrLogin}${item.usrNombre ? ` - ${item.usrNombre}` : ""}`
+                  label: `${item.usrLogin}${item.usrNombre ? ` - ${item.usrNombre}` : ""}`,
                 }))}
               />
             ) : null}
@@ -137,7 +137,7 @@ export default function ConciliationWorkbenchPage() {
               onChange={(value) => setSelectedBankId(Number(value))}
               options={banks.map((item) => ({
                 value: item.id,
-                label: item.alias ?? item.bankName
+                label: item.alias ?? item.bankName,
               }))}
             />
 
@@ -147,7 +147,7 @@ export default function ConciliationWorkbenchPage() {
               onChange={(value) => setSelectedLayoutId(Number(value))}
               options={layouts.map((item) => ({
                 value: item.id,
-                label: `${item.name}${item.active ? " - activo" : ""}`
+                label: `${item.name}${item.active ? " - activo" : ""}`,
               }))}
             />
 
@@ -193,14 +193,19 @@ export default function ConciliationWorkbenchPage() {
           {selectedReconciliationForUpdate ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               <div>
-                <p className="font-bold">Actualizando: {selectedReconciliationForUpdate.name}</p>
+                <p className="font-bold">
+                  Actualizando: {selectedReconciliationForUpdate.name}
+                </p>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-90">
                   <span>
                     <strong>Fecha:</strong>{" "}
-                    {new Date(selectedReconciliationForUpdate.createdAt).toLocaleString()}
+                    {new Date(
+                      selectedReconciliationForUpdate.createdAt,
+                    ).toLocaleString()}
                   </span>
                   <span>
-                    <strong>Layout:</strong> {selectedReconciliationForUpdate.layoutName}
+                    <strong>Layout:</strong>{" "}
+                    {selectedReconciliationForUpdate.layoutName}
                   </span>
                   <span>
                     <strong>Match actual:</strong>{" "}
@@ -208,8 +213,9 @@ export default function ConciliationWorkbenchPage() {
                   </span>
                 </div>
                 <p className="mt-2 text-[11px] leading-relaxed opacity-75">
-                  La conciliacion se actualizara de forma incremental para no duplicar lineas
-                  ya guardadas y sumar solo los nuevos movimientos.
+                  La conciliacion se actualizara de forma incremental para no
+                  duplicar lineas ya guardadas y sumar solo los nuevos
+                  movimientos.
                 </p>
               </div>
               <button
@@ -251,15 +257,6 @@ export default function ConciliationWorkbenchPage() {
 
         {preview && metrics ? (
           <>
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <Metric label="Sistema" value={String(metrics.totalSystemRows)} />
-              <Metric label="Banco" value={String(metrics.totalBankRows)} />
-              <Metric label="Auto" value={String(metrics.autoMatches)} tone="emerald" />
-              <Metric label="Manual" value={String(metrics.manualMatches)} tone="amber" />
-              <Metric label="Pendientes" value={String(metrics.unmatchedSystem)} tone="rose" />
-              <Metric label="Match %" value={`${metrics.matchPercentage}%`} />
-            </div>
-
             <div className="flex flex-wrap justify-end gap-3">
               {canUseErp ? (
                 <button
@@ -291,6 +288,27 @@ export default function ConciliationWorkbenchPage() {
               onDragEnd={onDragEnd}
               onRemoveManualMatch={removeManualMatch}
             />
+
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <Metric label="Sistema" value={String(metrics.totalSystemRows)} />
+              <Metric label="Banco" value={String(metrics.totalBankRows)} />
+              <Metric
+                label="Auto"
+                value={String(metrics.autoMatches)}
+                tone="emerald"
+              />
+              <Metric
+                label="Manual"
+                value={String(metrics.manualMatches)}
+                tone="amber"
+              />
+              <Metric
+                label="Pendientes"
+                value={String(metrics.unmatchedSystem)}
+                tone="rose"
+              />
+              <Metric label="Match %" value={`${metrics.matchPercentage}%`} />
+            </div>
           </>
         ) : null}
       </section>
@@ -320,15 +338,20 @@ export default function ConciliationWorkbenchPage() {
       >
         <div className="space-y-5">
           <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-            Este flujo primero persiste la conciliacion actual y luego hace el POST
+            Este flujo primero persiste la conciliacion actual y luego hace el
+            POST
             <strong> Deposits</strong> al Service Layer del ERP seleccionado.
           </div>
 
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Configuracion ERP</span>
+            <span className="text-sm font-semibold text-slate-700">
+              Configuracion ERP
+            </span>
             <select
               value={selectedCompanyErpConfigId}
-              onChange={(event) => setSelectedCompanyErpConfigId(Number(event.target.value))}
+              onChange={(event) =>
+                setSelectedCompanyErpConfigId(Number(event.target.value))
+              }
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             >
               {companyErpConfigs.map((config) => (
@@ -363,7 +386,9 @@ export default function ConciliationWorkbenchPage() {
           ) : null}
 
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Payload JSON para Deposits</span>
+            <span className="text-sm font-semibold text-slate-700">
+              Payload JSON para Deposits
+            </span>
             <textarea
               value={erpPayloadText}
               onChange={(event) => setErpPayloadText(event.target.value)}
@@ -375,15 +400,17 @@ export default function ConciliationWorkbenchPage() {
 
           <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
             <div className="flex items-center gap-2 font-bold">
-              <FiServer className="h-4 w-4" /> Endpoint fijo de esta primera version
+              <FiServer className="h-4 w-4" /> Endpoint fijo de esta primera
+              version
             </div>
             <p className="mt-2 text-xs leading-6">
-              El backend autentica contra <code>/Login</code> del Service Layer configurado y
-              luego publica en <code>/Deposits</code> usando la configuracion ERP de la empresa.
+              El backend autentica contra <code>/Login</code> del Service Layer
+              configurado y luego publica en <code>/Deposits</code> usando la
+              configuracion ERP de la empresa.
             </p>
           </div>
         </div>
       </AppModal>
     </>
-  )
+  );
 }

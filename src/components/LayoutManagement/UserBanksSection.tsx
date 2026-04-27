@@ -10,6 +10,7 @@ interface UserBanksSectionProps {
   onReload: () => void;
   onCreateBank: (userId: number) => void;
   onEditBank: (userId: number, bank: UserBankWithLayouts) => void;
+  onDeleteBank: (userId: number, bank: UserBankWithLayouts) => void;
   onCreateLayout: (userId: number, bank: UserBankWithLayouts) => void;
   onEditLayout: (userId: number, bank: UserBankWithLayouts, layout: Layout) => void;
   onDeleteLayout: (userId: number, bankId: number, layout: Layout) => void;
@@ -21,6 +22,7 @@ export default function UserBanksSection({
   onReload,
   onCreateBank,
   onEditBank,
+  onDeleteBank,
   onCreateLayout,
   onEditLayout,
   onDeleteLayout,
@@ -159,6 +161,13 @@ export default function UserBanksSection({
                                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white"
                                 >
                                   <FiEdit3 className="h-3.5 w-3.5" /> Editar banco
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteBank(uid, bank)}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                                >
+                                  <FiTrash2 className="h-3.5 w-3.5" /> Eliminar banco
                                 </button>
                                 <button
                                   type="button"

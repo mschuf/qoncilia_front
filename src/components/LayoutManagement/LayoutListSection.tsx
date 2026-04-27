@@ -6,6 +6,7 @@ import { MetricTile } from "./MetricCards";
 interface LayoutListSectionProps {
   selectedBank: UserBankWithLayouts | null;
   onEditBank: (bank: UserBankWithLayouts) => void;
+  onDeleteBank: (bank: UserBankWithLayouts) => void;
   onCreateLayout: (bank: UserBankWithLayouts) => void;
   onEditLayout: (bank: UserBankWithLayouts, layout: Layout) => void;
   onDeleteLayout: (bank: UserBankWithLayouts, layout: Layout) => void;
@@ -14,6 +15,7 @@ interface LayoutListSectionProps {
 export default function LayoutListSection({
   selectedBank,
   onEditBank,
+  onDeleteBank,
   onCreateLayout,
   onEditLayout,
   onDeleteLayout
@@ -52,6 +54,13 @@ export default function LayoutListSection({
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             >
               <FiEdit3 className="h-4 w-4" /> Editar banco
+            </button>
+            <button
+              type="button"
+              onClick={() => onDeleteBank(selectedBank)}
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+            >
+              <FiTrash2 className="h-4 w-4" /> Eliminar banco
             </button>
             <button
               type="button"

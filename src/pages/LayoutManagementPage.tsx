@@ -10,6 +10,7 @@ import {
   FiSettings,
   FiShield,
   FiSliders,
+  FiTrash2,
   FiUsers,
 } from "react-icons/fi";
 import ReactMarkdown from "react-markdown";
@@ -22,7 +23,12 @@ import { MetricCard } from "../components/LayoutManagement/MetricCards";
 import TemplateLayoutSection from "../components/LayoutManagement/TemplateLayoutSection";
 import UserBanksSection from "../components/LayoutManagement/UserBanksSection";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import useLayoutManagement from "../hooks/useLayoutManagement";
+import type {
+  BankDeletionPreview,
+  UserBankWithLayouts,
+} from "../types/conciliation";
 import AdminBankingPage from "./AdminBankingPage";
 import layoutDocsMarkdown from "../../docs/layouts-creacion-edicion.md?raw";
 import { isSuperAdminRole } from "../utils/role";
@@ -34,6 +40,11 @@ type PendingDelete = {
   description: string;
   confirmLabel: string;
   onConfirm: () => Promise<void>;
+} | null;
+
+type PendingBankDelete = {
+  userId: number;
+  bank: UserBankWithLayouts;
 } | null;
 
 const workspaceOptions: Array<{
@@ -79,9 +90,17 @@ export default function LayoutManagementPage() {
 }
 
 function SuperadminLayoutManagementPage() {
+  const toast = useToast();
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceKey>("users");
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
+  const [pendingBankDelete, setPendingBankDelete] = useState<PendingBankDelete>(
+    null,
+  );
+  const [bankDeletePreview, setBankDeletePreview] =
+    useState<BankDeletionPreview | null>(null);
+  const [bankDeleteLoading, setBankDeleteLoading] = useState(false);
+  const [bankDeleteSubmitting, setBankDeleteSubmitting] = useState(false);
   const {
     users,
     selectedUserId,
@@ -134,6 +153,8 @@ function SuperadminLayoutManagementPage() {
     saveLayout,
     saveTemplate,
     applyTemplateToSelectedBank,
+    getBankDeletionPreview,
+    deleteBank,
     deleteLayout,
     deleteTemplate,
   } = useLayoutManagement();
@@ -167,6 +188,51 @@ function SuperadminLayoutManagementPage() {
     const action = pendingDelete.onConfirm;
     setPendingDelete(null);
     await action();
+  };
+
+  const closeBankDeleteModal = () => {
+    if (bankDeleteSubmitting) return;
+    setPendingBankDelete(null);
+    setBankDeletePreview(null);
+    setBankDeleteLoading(false);
+  };
+
+  const handleDeleteBank = async (userId: number, bank: UserBankWithLayouts) => {
+    setPendingBankDelete({ userId, bank });
+    setBankDeletePreview(null);
+    setBankDeleteLoading(true);
+
+    try {
+      const preview = await getBankDeletionPreview(userId, bank.id);
+      setBankDeletePreview(preview);
+    } catch (error) {
+      setPendingBankDelete(null);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar el detalle del banco a eliminar.",
+      );
+    } finally {
+      setBankDeleteLoading(false);
+    }
+  };
+
+  const confirmBankDelete = async () => {
+    if (!pendingBankDelete) return;
+
+    setBankDeleteSubmitting(true);
+
+    try {
+      await deleteBank(pendingBankDelete.userId, pendingBankDelete.bank);
+      setPendingBankDelete(null);
+      setBankDeletePreview(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo eliminar el banco.",
+      );
+    } finally {
+      setBankDeleteSubmitting(false);
+    }
   };
 
   return (
@@ -309,6 +375,9 @@ function SuperadminLayoutManagementPage() {
                   onReload={() => void loadAllCatalogs()}
                   onCreateBank={prepareCreateBank}
                   onEditBank={prepareEditBank}
+                  onDeleteBank={(userId, bank) =>
+                    void handleDeleteBank(userId, bank)
+                  }
                   onCreateLayout={prepareCreateLayout}
                   onEditLayout={prepareEditLayout}
                   onDeleteLayout={(userId, bankId, layout) =>
@@ -321,6 +390,9 @@ function SuperadminLayoutManagementPage() {
                 <LayoutListSection
                   selectedBank={selectedBank}
                   onEditBank={openEditBank}
+                  onDeleteBank={(bank) =>
+                    void handleDeleteBank(bank.userId, bank)
+                  }
                   onCreateLayout={openCreateLayout}
                   onEditLayout={openEditLayout}
                   onDeleteLayout={(_bank, layout) =>
@@ -471,6 +543,185 @@ function SuperadminLayoutManagementPage() {
       </AppModal>
 
       <AppModal
+        open={Boolean(pendingBankDelete)}
+        onClose={closeBankDeleteModal}
+        title={
+          pendingBankDelete
+            ? `Eliminar banco ${pendingBankDelete.bank.alias ?? pendingBankDelete.bank.bankName}`
+            : "Eliminar banco"
+        }
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeBankDeleteModal}
+              disabled={bankDeleteSubmitting}
+              className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmBankDelete()}
+              disabled={
+                bankDeleteLoading ||
+                bankDeleteSubmitting ||
+                !pendingBankDelete ||
+                !bankDeletePreview
+              }
+              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+            >
+              <FiTrash2 className="h-4 w-4" />
+              {bankDeleteSubmitting ? "Eliminando..." : "Eliminar en cascada"}
+            </button>
+          </div>
+        }
+      >
+        {bankDeleteLoading ? (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-slate-700">
+              Cargando dependencias del banco...
+            </p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+              <div className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+              <div className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+            </div>
+          </div>
+        ) : bankDeletePreview ? (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">
+                Confirmacion requerida
+              </p>
+              <p className="mt-2 text-sm leading-6 text-rose-900">
+                Si confirmas, se eliminara el banco para el usuario{" "}
+                <span className="font-bold">{bankDeletePreview.bank.userLogin}</span>.
+                Tambien se borraran en cascada sus layouts, cuentas bancarias y
+                conciliaciones asociadas.
+              </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <DeleteSummaryCard
+                label="Layouts"
+                value={String(bankDeletePreview.layouts.length)}
+                helper="Configuraciones del banco"
+              />
+              <DeleteSummaryCard
+                label="Cuentas"
+                value={String(bankDeletePreview.accounts.length)}
+                helper="Cuentas bancarias ligadas"
+              />
+              <DeleteSummaryCard
+                label="Conciliaciones"
+                value={String(bankDeletePreview.reconciliationCount)}
+                helper="Historial que tambien se elimina"
+              />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                Banco seleccionado
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-slate-900 shadow-sm">
+                  {bankDeletePreview.bank.alias ?? bankDeletePreview.bank.bankName}
+                </span>
+                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">
+                  Responsable {bankDeletePreview.bank.userLogin}
+                </span>
+                {bankDeletePreview.bank.branch ? (
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">
+                    Sucursal {bankDeletePreview.bank.branch}
+                  </span>
+                ) : null}
+                <span
+                  className={`rounded-full px-3 py-1.5 font-semibold ${
+                    bankDeletePreview.bank.active
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {bankDeletePreview.bank.active ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <DeleteRecordsSection
+                title="Layouts asociados"
+                emptyMessage="Este banco no tiene layouts asociados."
+                items={bankDeletePreview.layouts.map((layout) => (
+                  <div
+                    key={layout.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-slate-900">
+                        {layout.name}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          layout.active
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {layout.active ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {layout.description ?? "Sin descripcion"}
+                    </p>
+                  </div>
+                ))}
+              />
+
+              <DeleteRecordsSection
+                title="Cuentas bancarias asociadas"
+                emptyMessage="Este banco no tiene cuentas bancarias asociadas."
+                items={bankDeletePreview.accounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-slate-900">
+                        {account.name}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          account.active
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {account.active ? "Activa" : "Inactiva"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {account.currency} | Cuenta {account.accountNumber}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      ERP {account.bankErpId} | Mayor {account.majorAccountNumber}
+                      {account.paymentAccountNumber
+                        ? ` | Pago ${account.paymentAccountNumber}`
+                        : ""}
+                    </p>
+                  </div>
+                ))}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm leading-6 text-slate-600">
+            No se pudo cargar el detalle del banco.
+          </p>
+        )}
+      </AppModal>
+
+      <AppModal
         open={isDocsModalOpen}
         onClose={() => setIsDocsModalOpen(false)}
         title="Documentacion: Bancos y Layouts"
@@ -481,6 +732,51 @@ function SuperadminLayoutManagementPage() {
           </ReactMarkdown>
         </div>
       </AppModal>
+    </section>
+  );
+}
+
+function DeleteSummaryCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-extrabold text-slate-900">{value}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-500">{helper}</p>
+    </div>
+  );
+}
+
+function DeleteRecordsSection({
+  title,
+  emptyMessage,
+  items,
+}: {
+  title: string;
+  emptyMessage: string;
+  items: JSX.Element[];
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-sm font-extrabold text-slate-900">{title}</p>
+      <div className="mt-3 space-y-3">
+        {items.length > 0 ? (
+          items
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+            {emptyMessage}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

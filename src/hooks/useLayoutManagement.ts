@@ -4,7 +4,9 @@ import { apiClient } from "../api/apiClient";
 import { useToast } from "../context/ToastContext";
 import type { AuthUser } from "../types/auth";
 import type {
+  BankDeletionPreview,
   CompareOperator,
+  DeleteBankResponse,
   Layout,
   LayoutDataType,
   LayoutMapping,
@@ -156,7 +158,7 @@ export default function useLayoutManagement() {
     if (!userId) {
       setBanks([]);
       setSelectedBankId(0);
-      return;
+      return [];
     }
     const response = await apiClient.get<UserBankWithLayouts[]>(
       `/conciliation/catalog?userId=${userId}`
@@ -169,6 +171,12 @@ export default function useLayoutManagement() {
       }
       return nextBanks[0]?.id ?? 0;
     });
+    setAllUserCatalogs((prev) => {
+      const next = new Map(prev);
+      next.set(userId, nextBanks);
+      return next;
+    });
+    return nextBanks;
   }, []);
 
   const loadAllCatalogs = useCallback(async () => {
@@ -589,6 +597,9 @@ export default function useLayoutManagement() {
     }
 
     try {
+      if (uid !== selectedUserId) {
+        setSelectedUserId(uid);
+      }
       await apiClient.delete(
         `/conciliation/users/${uid}/banks/${bid}/layouts/${layout.id}`
       );
@@ -610,6 +621,36 @@ export default function useLayoutManagement() {
         error instanceof Error ? error.message : "No se pudo eliminar el template layout."
       );
     }
+  };
+
+  const getBankDeletionPreview = async (
+    userId: number,
+    bankId: number
+  ): Promise<BankDeletionPreview> => {
+    return apiClient.get<BankDeletionPreview>(
+      `/conciliation/users/${userId}/banks/${bankId}/delete-preview`
+    );
+  };
+
+  const deleteBank = async (
+    userId: number,
+    bank: UserBankWithLayouts
+  ): Promise<DeleteBankResponse> => {
+    const response = await apiClient.delete<DeleteBankResponse>(
+      `/conciliation/users/${userId}/banks/${bank.id}`
+    );
+
+    if (userId !== selectedUserId) {
+      setSelectedUserId(userId);
+    }
+
+    await loadCatalog(userId);
+
+    toast.success(
+      `Banco eliminado. Se borraron ${response.deletedLayouts} layout(s), ${response.deletedAccounts} cuenta(s) y ${response.deletedReconciliations} conciliacion(es).`
+    );
+
+    return response;
   };
 
   return {
@@ -665,6 +706,8 @@ export default function useLayoutManagement() {
     saveLayout,
     saveTemplate,
     applyTemplateToSelectedBank,
+    getBankDeletionPreview,
+    deleteBank,
     deleteLayout,
     deleteTemplate
   };

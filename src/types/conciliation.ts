@@ -70,6 +70,43 @@ export interface UserBankWithLayouts extends UserBankSummary {
   layouts: Layout[];
 }
 
+export interface BankDeletionPreviewBank extends UserBankSummary {
+  userId: number;
+  userLogin: string;
+}
+
+export interface BankDeletionLayout {
+  id: number;
+  name: string;
+  description: string | null;
+  active: boolean;
+}
+
+export interface BankDeletionAccount {
+  id: number;
+  name: string;
+  currency: string;
+  accountNumber: string;
+  bankErpId: string;
+  majorAccountNumber: string;
+  paymentAccountNumber: string | null;
+  active: boolean;
+}
+
+export interface BankDeletionPreview {
+  bank: BankDeletionPreviewBank;
+  layouts: BankDeletionLayout[];
+  accounts: BankDeletionAccount[];
+  reconciliationCount: number;
+}
+
+export interface DeleteBankResponse {
+  message: string;
+  deletedLayouts: number;
+  deletedAccounts: number;
+  deletedReconciliations: number;
+}
+
 export interface PreviewRow {
   rowId: string;
   rowNumber: number;
