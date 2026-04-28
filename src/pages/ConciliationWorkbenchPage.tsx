@@ -294,58 +294,6 @@ export default function ConciliationWorkbenchPage() {
           </div>
         </div>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                Conciliaciones guardadas
-              </p>
-              <h3 className="mt-2 text-lg font-extrabold text-slate-900">
-                Tabla de conciliaciones por cuenta
-              </h3>
-            </div>
-          </div>
-
-          {!selectedCompanyBankAccountId ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-              Selecciona una cuenta bancaria para ver conciliaciones guardadas
-              y parciales.
-            </div>
-          ) : savedReconciliations.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-              Todavia no hay conciliaciones guardadas para esta cuenta.
-            </div>
-          ) : (
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Fecha</th>
-                      <th className="px-3 py-2">Estado</th>
-                      <th className="px-3 py-2">Descripcion</th>
-                      <th className="px-3 py-2">Plantilla</th>
-                      <th className="px-3 py-2">Datos</th>
-                      <th className="px-3 py-2 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {savedReconciliations.map((item) => (
-                      <SavedReconciliationRow
-                        key={item.id}
-                        reconciliation={item}
-                        isCurrentLayout={item.layoutId === selectedLayoutId}
-                        isSelected={item.id === selectedUpdateReconciliationId}
-                        onLoad={() => void loadSavedReconciliation(item.id)}
-                        onDelete={() => void handleDeleteReconciliation(item)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
 
         {isLoadedWorkbench && preview && selectedReconciliationForUpdate ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -405,28 +353,28 @@ export default function ConciliationWorkbenchPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
               <CompactFilePanel
-                title={systemLabel}
-                file={systemFile}
-                currentFileName={
-                  selectedReconciliationForUpdate.systemFileName ??
-                  preview.systemFileName
-                }
-                hasSavedData={selectedReconciliationForUpdate.hasSystemData}
-                onChange={onFileChange(setSystemFile)}
-                onClearSelected={() => setSystemFile(null)}
-                onDeleteSaved={() => void handleDeleteSource("system")}
-              />
-              <CompactFilePanel
                 title={bankLabel}
                 file={bankFile}
                 currentFileName={
                   selectedReconciliationForUpdate.bankFileName ??
-                  preview.bankFileName
+                  preview?.bankFileName
                 }
                 hasSavedData={selectedReconciliationForUpdate.hasBankData}
                 onChange={onFileChange(setBankFile)}
                 onClearSelected={() => setBankFile(null)}
                 onDeleteSaved={() => void handleDeleteSource("bank")}
+              />
+              <CompactFilePanel
+                title={systemLabel}
+                file={systemFile}
+                currentFileName={
+                  selectedReconciliationForUpdate.systemFileName ??
+                  preview?.systemFileName
+                }
+                hasSavedData={selectedReconciliationForUpdate.hasSystemData}
+                onChange={onFileChange(setSystemFile)}
+                onClearSelected={() => setSystemFile(null)}
+                onDeleteSaved={() => void handleDeleteSource("system")}
               />
             </div>
 
@@ -495,16 +443,16 @@ export default function ConciliationWorkbenchPage() {
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
               <UploadCard
-                title={systemLabel}
-                file={systemFile}
-                onChange={onFileChange(setSystemFile)}
-                onClear={() => setSystemFile(null)}
-              />
-              <UploadCard
                 title={bankLabel}
                 file={bankFile}
                 onChange={onFileChange(setBankFile)}
                 onClear={() => setBankFile(null)}
+              />
+              <UploadCard
+                title={systemLabel}
+                file={systemFile}
+                onChange={onFileChange(setSystemFile)}
+                onClear={() => setSystemFile(null)}
               />
             </div>
 
@@ -533,6 +481,8 @@ export default function ConciliationWorkbenchPage() {
             </div>
           </section>
         )}
+
+
 
         {lastErpShipment ? (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -613,6 +563,59 @@ export default function ConciliationWorkbenchPage() {
             </div>
           </>
         ) : null}
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                Conciliaciones guardadas
+              </p>
+              <h3 className="mt-2 text-lg font-extrabold text-slate-900">
+                Tabla de conciliaciones por cuenta
+              </h3>
+            </div>
+          </div>
+
+          {!selectedCompanyBankAccountId ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+              Selecciona una cuenta bancaria para ver conciliaciones guardadas
+              y parciales.
+            </div>
+          ) : savedReconciliations.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+              Todavia no hay conciliaciones guardadas para esta cuenta.
+            </div>
+          ) : (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Estado</th>
+                      <th className="px-3 py-2">Descripcion</th>
+                      <th className="px-3 py-2">Plantilla</th>
+                      <th className="px-3 py-2">Datos</th>
+                      <th className="px-3 py-2 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedReconciliations.map((item) => (
+                      <SavedReconciliationRow
+                        key={item.id}
+                        reconciliation={item}
+                        isCurrentLayout={item.layoutId === selectedLayoutId}
+                        isSelected={item.id === selectedUpdateReconciliationId}
+                        onLoad={() => void loadSavedReconciliation(item.id)}
+                        onDelete={() => void handleDeleteReconciliation(item)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
       </section>
 
       <AppModal
