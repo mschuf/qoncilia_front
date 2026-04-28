@@ -28,31 +28,31 @@ export function getConciliationStatusPresentation(
       }
     case "ready_to_compare":
       return {
-        label: "Lista para comparar",
+        label: "A comparar",
         description: "Ya tiene ambos lados cargados y falta correr o guardar la comparacion.",
         badgeClassName: "bg-violet-100 text-violet-700"
       }
     case "matched":
       return {
-        label: "Matcheada",
+        label: "Conciliada",
         description: "Todas las filas quedaron conciliadas automaticamente.",
         badgeClassName: "bg-emerald-100 text-emerald-700"
       }
     case "matched_with_manual":
       return {
-        label: "Matcheada manual",
+        label: "Concil. manual",
         description: "Todas las filas quedaron conciliadas incluyendo matches manuales.",
         badgeClassName: "bg-emerald-100 text-emerald-700"
       }
     case "compared_with_pending":
       return {
-        label: "Comparada con pendientes",
+        label: "Pendientes",
         description: "Se comparo, pero todavia quedan filas sin conciliar.",
         badgeClassName: "bg-orange-100 text-orange-700"
       }
     case "compared_without_matches":
       return {
-        label: "Comparada sin match",
+        label: "Sin match",
         description: "Se comparo, pero no se encontraron matches.",
         badgeClassName: "bg-rose-100 text-rose-700"
       }

@@ -151,28 +151,13 @@ export default function MatchesSection({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <RowsTable
-          title={preview.layout.systemLabel}
-          rows={preview.systemRows}
-          mappings={preview.layout.mappings}
-          matchedRowIds={matchedSystemIds}
-          tone="system"
-        />
-        <RowsTable
-          title={preview.layout.bankLabel}
-          rows={preview.bankRows}
-          mappings={preview.layout.mappings}
-          matchedRowIds={matchedBankIds}
-          tone="bank"
-        />
-      </div>
+
 
       <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-extrabold text-slate-900">
-              Emparejado manual
+              Emparejar
             </h3>
             <p className="mt-1 text-sm text-slate-500">
               Arrastra una fila del sistema hacia una fila del banco solo cuando
@@ -217,85 +202,6 @@ export default function MatchesSection({
   );
 }
 
-function RowsTable({
-  title,
-  rows,
-  mappings,
-  matchedRowIds,
-  tone,
-}: {
-  title: string;
-  rows: PreviewRow[];
-  mappings: LayoutMapping[];
-  matchedRowIds: Set<string>;
-  tone: "system" | "bank";
-}) {
-  const badgeClassName =
-    tone === "system"
-      ? "bg-sky-100 text-sky-700"
-      : "bg-amber-100 text-amber-700";
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-        <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
-        <span
-          className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${badgeClassName}`}
-        >
-          {rows.length} filas
-        </span>
-      </div>
-      <div className="max-h-[420px] overflow-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Fila</th>
-              <th className="px-4 py-3">Resumen</th>
-              <th className="px-4 py-3">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const matched = matchedRowIds.has(row.rowId);
-
-              return (
-                <tr key={row.rowId} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-slate-700">
-                    #{row.rowNumber}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {summarizeRow(row, mappings)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
-                        matched
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {matched ? "Conciliada" : "Pendiente"}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={3}
-                  className="px-4 py-6 text-center text-sm text-slate-500"
-                >
-                  No hay filas disponibles en este lado.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 function UnmatchedColumn({
   title,

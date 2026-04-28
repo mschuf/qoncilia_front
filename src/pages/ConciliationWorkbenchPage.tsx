@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   FiArrowLeft,
   FiBarChart2,
@@ -23,6 +23,7 @@ import {
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import AppModal from "../components/AppModal";
+import ConfirmModal from "../components/ConfirmModal";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
 import type {
   ReconciliationSource,
@@ -130,27 +131,48 @@ export default function ConciliationWorkbenchPage() {
     preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
   const bankLabel = preview?.layout.bankLabel ?? selectedLayout?.bankLabel ?? "Banco";
 
-  const handleDeleteSource = async (source: ReconciliationSource) => {
+  const [confirmConfig, setConfirmConfig] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmVariant: "danger" | "primary";
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "",
+    confirmVariant: "danger",
+    onConfirm: () => {},
+  });
+
+  const handleDeleteSource = (source: ReconciliationSource) => {
     if (!selectedReconciliationForUpdate) return;
 
     const sourceLabel = source === "system" ? "sistema" : "banco";
-    const confirmed = window.confirm(
-      `Se eliminaran de la BD los datos guardados de ${sourceLabel} para la conciliacion "${selectedReconciliationForUpdate.name}".`,
-    );
-
-    if (!confirmed) return;
-    await deleteSavedSource(source);
+    
+    setConfirmConfig({
+      open: true,
+      title: "Eliminar datos guardados",
+      message: `¿Estas seguro de eliminar los datos guardados de ${sourceLabel} para la conciliacion "${selectedReconciliationForUpdate.name}"? Esta accion no se puede deshacer.`,
+      confirmLabel: "Eliminar datos",
+      confirmVariant: "danger",
+      onConfirm: () => void deleteSavedSource(source),
+    });
   };
 
-  const handleDeleteReconciliation = async (
+  const handleDeleteReconciliation = (
     reconciliation: ReconciliationSummary,
   ) => {
-    const confirmed = window.confirm(
-      `Se eliminara por completo la conciliacion "${reconciliation.name}" y sus resultados guardados.`,
-    );
-
-    if (!confirmed) return;
-    await deleteSavedReconciliation(reconciliation.id);
+    setConfirmConfig({
+      open: true,
+      title: "Eliminar conciliacion",
+      message: `¿Estas seguro de eliminar por completo la conciliacion "${reconciliation.name}" y sus resultados guardados? Esta accion no se puede deshacer.`,
+      confirmLabel: "Eliminar conciliacion",
+      confirmVariant: "danger",
+      onConfirm: () => void deleteSavedReconciliation(reconciliation.id),
+    });
   };
 
   return (
@@ -304,9 +326,6 @@ export default function ConciliationWorkbenchPage() {
                       <th className="px-3 py-2">Descripcion</th>
                       <th className="px-3 py-2">Plantilla</th>
                       <th className="px-3 py-2">Datos</th>
-                      <th className="px-3 py-2">Archivos</th>
-                      <th className="px-3 py-2">Match %</th>
-                      <th className="px-3 py-2">Act.</th>
                       <th className="px-3 py-2 text-right">Acciones</th>
                     </tr>
                   </thead>
@@ -544,15 +563,6 @@ export default function ConciliationWorkbenchPage() {
         {showPreviewResults && preview && metrics ? (
           <>
             <div className="flex flex-wrap justify-end gap-3">
-              {canUseErp ? (
-                <button
-                  type="button"
-                  onClick={openErpModal}
-                  className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-bold text-brand-700 transition hover:bg-brand-100"
-                >
-                  <FiSend className="h-4 w-4" /> Guardar y enviar a ERP
-                </button>
-              ) : null}
 
               <button
                 type="button"
@@ -703,6 +713,15 @@ export default function ConciliationWorkbenchPage() {
           </div>
         </div>
       </AppModal>
+      <ConfirmModal
+        open={confirmConfig.open}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, open: false }))}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmLabel={confirmConfig.confirmLabel}
+        confirmVariant={confirmConfig.confirmVariant}
+        onConfirm={confirmConfig.onConfirm}
+      />
     </>
   );
 }
@@ -766,13 +785,6 @@ function SavedReconciliationRow({
           reconciliation.hasBankData,
         )}
       </td>
-      <td className="px-3 py-3 text-xs text-slate-500">
-        {buildFilesSummary(reconciliation)}
-      </td>
-      <td className="px-3 py-3 font-semibold text-slate-700">
-        {reconciliation.matchPercentage}%
-      </td>
-      <td className="px-3 py-3 text-slate-600">{reconciliation.updateCount}</td>
       <td className="px-3 py-3">
         <div className="flex justify-end gap-2">
           <button

@@ -436,8 +436,13 @@ export default function useConciliationWorkbench() {
       return
     }
 
-    if (!systemFile && !bankFile) {
-      toast.error("Carga al menos un archivo para comparar o actualizar la mesa.")
+    const hasSavedData =
+      selectedUpdateReconciliationId > 0 &&
+      (selectedReconciliationForUpdate?.hasSystemData ||
+       selectedReconciliationForUpdate?.hasBankData);
+
+    if (!systemFile && !bankFile && !hasSavedData) {
+      toast.error("Carga al menos un archivo o usa datos guardados para comparar.")
       return
     }
 
