@@ -45,8 +45,8 @@ export default function LayoutModal({
   onRemoveMapping,
   onResetMappings,
   onSubmit,
-  entityLabel = "layout",
-  submitLabel = "Guardar layout",
+  entityLabel = "plantilla",
+  submitLabel = "Guardar plantilla",
   showReferenceBankField = false,
 }: LayoutModalProps) {
   useEscapeKey(open, onClose);
@@ -102,7 +102,7 @@ export default function LayoutModal({
                   />
                 ) : null}
                 <InputField
-                  label="Threshold auto-match"
+                  label="Umbral auto-match"
                   name="autoMatchThreshold"
                   value={layoutForm.autoMatchThreshold}
                   onChange={onFieldChange}
@@ -145,7 +145,7 @@ export default function LayoutModal({
                     checked={layoutForm.active}
                     onChange={onFieldChange}
                   />
-                  Dejar este layout activo
+                  Dejar esta plantilla activa
                 </label>
               </div>
             </div>

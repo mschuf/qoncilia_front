@@ -76,7 +76,7 @@ La funcionalidad se apoya en **4 tablas** principales en PostgreSQL:
 | `profile`           | Mis Datos                | `/mis-datos`        |
 | `conciliation`      | Conciliacion             | `/conciliation`     |
 | `users`             | Gestion de Usuarios      | `/users`            |
-| `layout_management` | Gestion de Layouts       | `/layout-management`|
+| `layout_management` | Gestion de Plantillas    | `/layout-management`|
 | `access_matrix`     | Modulos por Empresa y Rol| `/access-control`   |
 
 ### 3.4) Tabla `empresas_roles_modulos` (tabla pivot / matriz)
@@ -378,7 +378,7 @@ Al montar la pagina:
 La matriz se presenta como una **tabla** con:
 
 - **Filas**: cada rol del sistema (Super Admin, Admin, Gestor Cobranza, Gestor Pagos).
-- **Columnas**: cada modulo del sistema (Inicio, Mis Datos, Conciliacion, Gestion de Usuarios, Gestion de Layouts, Modulos por Empresa y Rol).
+- **Columnas**: cada modulo del sistema (Inicio, Mis Datos, Conciliacion, Gestion de Usuarios, Gestion de Plantillas, Modulos por Empresa y Rol).
 - **Celdas**: un **checkbox** que indica si el modulo esta habilitado (`checked`) o deshabilitado (`unchecked`) para ese rol en la empresa seleccionada.
 - **Columna de acciones**: un boton **"Guardar"** por cada fila/rol.
 
@@ -440,7 +440,7 @@ Usuario (Super Admin)
 El componente `Navbar.tsx` construye los links de navegacion basandose en:
 
 - `hasModule(moduleCode)` → verifica si el modulo esta en `enabledModules` del usuario actual.
-- Para algunos links, tambien verifica el rol (ej: "Layouts" y "Accesos" solo para Super Admin).
+- Para algunos links, tambien verifica el rol (ej: "Plantillas" y "Accesos" solo para Super Admin).
 
 Si un modulo es deshabilitado para un rol+empresa, los usuarios con esa combinacion **dejaran de ver** el link correspondiente en el menu.
 
@@ -496,7 +496,7 @@ Todas las tablas tienen triggers que actualizan automaticamente la columna `*_up
 
 | Archivo | Responsabilidad |
 | ------- | --------------- |
-| `sql/09_rbac_empresas_roles_modulos.sql` | Migracion SQL: crea tablas, triggers, seeds |
+| `sql/05_rbac_empresas_roles_modulos.sql` | SQL base: crea roles, empresas, modulos, matriz y enlaza `usuarios.rol_id` |
 | `access-control/access-control.module.ts` | Modulo NestJS: registra providers y entidades |
 | `access-control/access-control.controller.ts` | 4 endpoints REST con guards |
 | `access-control/access-control.service.ts` | Logica de negocio: CRUD empresas, matriz, permisos |

@@ -52,7 +52,7 @@ export default function LoginPage() {
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
             <FeatureStat label="Empresas" value="1 acceso" helper="Administra tu operacion" />
             <FeatureStat label="Bancos" value="ABM" helper="Catalogos y cuentas" />
-            <FeatureStat label="Layouts" value="Match" helper="Tolerancias configurables" />
+            <FeatureStat label="Plantillas" value="Match" helper="Tolerancias configurables" />
           </div>
         </section>
 

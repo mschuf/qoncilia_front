@@ -2,13 +2,23 @@ import { FiX } from "react-icons/fi";
 import useEscapeKey from "../hooks/useEscapeKey";
 import type { AppModalProps } from "../types/components/app-modal.types";
 
-export default function AppModal({ open, onClose, title, children, footer }: AppModalProps) {
+export default function AppModal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  closeOnBackdrop = true,
+}: AppModalProps) {
   useEscapeKey(open, onClose);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4"
+      onClick={closeOnBackdrop ? onClose : undefined}
+    >
       <div
         className="w-full max-w-2xl rounded-2xl bg-white shadow-glow"
         onClick={(event) => event.stopPropagation()}

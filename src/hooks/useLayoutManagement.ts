@@ -220,7 +220,7 @@ export default function useLayoutManagement() {
   }, [users]);
 
   const loadSystems = useCallback(async () => {
-    const response = await apiClient.get<ConciliationSystem[]>("/conciliation/systems");
+    const response = await apiClient.get<ConciliationSystem[]>("/conciliation/sistemas");
     setSystems(response ?? []);
   }, []);
 
@@ -270,7 +270,7 @@ export default function useLayoutManagement() {
   }, []);
 
   const loadTemplates = useCallback(async () => {
-    const response = await apiClient.get<TemplateLayout[]>("/conciliation/template-layouts");
+    const response = await apiClient.get<TemplateLayout[]>("/conciliation/plantillas-base");
     setTemplates(response ?? []);
   }, []);
 
@@ -289,7 +289,7 @@ export default function useLayoutManagement() {
   useEffect(() => {
     void loadTemplates().catch((error) => {
       toast.error(
-        error instanceof Error ? error.message : "No se pudieron cargar los template layouts."
+        error instanceof Error ? error.message : "No se pudieron cargar las plantillas base."
       );
     });
   }, [loadTemplates, toast]);
@@ -310,7 +310,7 @@ export default function useLayoutManagement() {
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudo cargar la vista global de bancos y layouts."
+          : "No se pudo cargar la vista global de bancos y plantillas."
       );
     });
   }, [loadAllCatalogs, toast, users.length]);
@@ -595,21 +595,21 @@ export default function useLayoutManagement() {
     try {
       if (editingLayout) {
         await apiClient.patch(
-          `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/layouts/${editingLayout.id}`,
+          `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/plantillas/${editingLayout.id}`,
           payload
         );
-        toast.success("Layout actualizado.");
+        toast.success("Plantilla actualizada.");
       } else {
         await apiClient.post(
-          `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/layouts`,
+          `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/plantillas`,
           payload
         );
-        toast.success("Layout creado.");
+        toast.success("Plantilla creada.");
       }
       setLayoutModalOpen(false);
       await loadCatalog(selectedUserId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo guardar el layout.");
+      toast.error(error instanceof Error ? error.message : "No se pudo guardar la plantilla.");
     }
   };
 
@@ -657,18 +657,18 @@ export default function useLayoutManagement() {
 
     try {
       if (editingTemplate) {
-        await apiClient.patch(`/conciliation/template-layouts/${editingTemplate.id}`, payload);
-        toast.success("Template layout actualizado.");
+        await apiClient.patch(`/conciliation/plantillas-base/${editingTemplate.id}`, payload);
+        toast.success("Plantilla base actualizada.");
       } else {
-        await apiClient.post("/conciliation/template-layouts", payload);
-        toast.success("Template layout creado.");
+        await apiClient.post("/conciliation/plantillas-base", payload);
+        toast.success("Plantilla base creada.");
       }
 
       setTemplateModalOpen(false);
       await loadTemplates();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "No se pudo guardar el template layout."
+        error instanceof Error ? error.message : "No se pudo guardar la plantilla base."
       );
     }
   };
@@ -678,10 +678,10 @@ export default function useLayoutManagement() {
 
     try {
       if (editingSystem) {
-        await apiClient.patch(`/conciliation/systems/${editingSystem.id}`, systemForm);
+        await apiClient.patch(`/conciliation/sistemas/${editingSystem.id}`, systemForm);
         toast.success("Sistema actualizado.");
       } else {
-        await apiClient.post("/conciliation/systems", systemForm);
+        await apiClient.post("/conciliation/sistemas", systemForm);
         toast.success("Sistema creado.");
       }
 
@@ -694,20 +694,20 @@ export default function useLayoutManagement() {
 
   const applyTemplateToSelectedBank = async (template: TemplateLayout) => {
     if (!selectedUserId || !selectedBankId) {
-      toast.error("Debes seleccionar usuario y banco antes de copiar un template.");
+      toast.error("Debes seleccionar usuario y banco antes de copiar una plantilla base.");
       return;
     }
 
     try {
       await apiClient.post(
-        `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/template-layouts/${template.id}/apply`,
+        `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/plantillas-base/${template.id}/aplicar`,
         {}
       );
-      toast.success("Template copiado al banco.");
+      toast.success("Plantilla base copiada al banco.");
       await loadCatalog(selectedUserId);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "No se pudo copiar el template al banco."
+        error instanceof Error ? error.message : "No se pudo copiar la plantilla base al banco."
       );
     }
   };
@@ -725,31 +725,31 @@ export default function useLayoutManagement() {
         setSelectedUserId(uid);
       }
       await apiClient.delete(
-        `/conciliation/users/${uid}/banks/${bid}/layouts/${layout.id}`
+        `/conciliation/users/${uid}/banks/${bid}/plantillas/${layout.id}`
       );
-      toast.success("Layout eliminado.");
+      toast.success("Plantilla eliminada.");
       await loadCatalog(uid);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo eliminar el layout.");
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar la plantilla.");
     }
   };
 
   const deleteTemplate = async (template: TemplateLayout) => {
     try {
-      await apiClient.delete(`/conciliation/template-layouts/${template.id}`);
-      toast.success("Template layout eliminado.");
+      await apiClient.delete(`/conciliation/plantillas-base/${template.id}`);
+      toast.success("Plantilla base eliminada.");
       await loadTemplates();
       await loadCatalog(selectedUserId);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "No se pudo eliminar el template layout."
+        error instanceof Error ? error.message : "No se pudo eliminar la plantilla base."
       );
     }
   };
 
   const deleteSystem = async (system: ConciliationSystem) => {
     try {
-      await apiClient.delete(`/conciliation/systems/${system.id}`);
+      await apiClient.delete(`/conciliation/sistemas/${system.id}`);
       toast.success("Sistema eliminado.");
       await loadSystems();
     } catch (error) {
@@ -781,7 +781,7 @@ export default function useLayoutManagement() {
     await loadCatalog(userId);
 
     toast.success(
-      `Banco eliminado. Se borraron ${response.deletedLayouts} layout(s), ${response.deletedAccounts} cuenta(s) y ${response.deletedReconciliations} conciliacion(es).`
+      `Banco eliminado. Se borraron ${response.deletedLayouts} plantilla(s), ${response.deletedAccounts} cuenta(s) y ${response.deletedReconciliations} conciliacion(es).`
     );
 
     return response;

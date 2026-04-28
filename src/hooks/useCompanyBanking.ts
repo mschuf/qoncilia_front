@@ -23,7 +23,7 @@ const initialBankForm: BankFormState = {
 const initialAccountForm: CompanyBankAccountFormState = {
   bankId: "",
   name: "",
-  currency: "GS",
+  currency: "PYG",
   accountNumber: "",
   bankErpId: "",
   majorAccountNumber: "",
@@ -81,6 +81,7 @@ export default function useCompanyBanking() {
   const companies = reference?.companies ?? []
   const banks = reference?.banks ?? []
   const accounts = reference?.accounts ?? []
+  const currencies = reference?.currencies ?? []
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId) ?? companies[0] ?? null
 
   const availableUsers = useMemo(
@@ -308,6 +309,7 @@ export default function useCompanyBanking() {
     availableUsers,
     changeCompany,
     banks,
+    currencies,
     selectedBankId,
     selectedBank,
     visibleAccounts,

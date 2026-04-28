@@ -33,6 +33,7 @@ export default function CreateUserModal({
       open={open}
       onClose={onClose}
       title="Crear nuevo usuario"
+      closeOnBackdrop={false}
       footer={
         <div className="flex justify-end gap-2">
           <button

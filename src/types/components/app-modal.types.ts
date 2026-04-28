@@ -6,4 +6,5 @@ export interface AppModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  closeOnBackdrop?: boolean;
 }

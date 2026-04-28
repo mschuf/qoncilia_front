@@ -148,7 +148,7 @@ export default function ConciliationHistoryPage() {
     }
 
     const response = await apiClient.get<ReconciliationSummary[]>(
-      `/conciliation/reconciliations?${params.toString()}`,
+      `/conciliation/conciliaciones?${params.toString()}`,
     );
     setReconciliations(response ?? []);
   }, [
@@ -169,7 +169,7 @@ export default function ConciliationHistoryPage() {
     }
 
     const response = await apiClient.get<ReconciliationDetail>(
-      `/conciliation/reconciliations/${reconciliationId}`,
+      `/conciliation/conciliaciones/${reconciliationId}`,
     );
     setSelectedReconciliation(response);
   }, []);
@@ -312,13 +312,13 @@ export default function ConciliationHistoryPage() {
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Layout</span>
+            <span className="text-sm font-semibold text-slate-700">Plantilla</span>
             <select
               value={selectedLayoutId}
               onChange={(event) => setSelectedLayoutId(Number(event.target.value))}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             >
-              <option value={0}>Todos los layouts del banco</option>
+              <option value={0}>Todas las plantillas del banco</option>
               {layouts.map((layout) => (
                 <option key={layout.id} value={layout.id}>
                   {layout.name}
@@ -387,7 +387,7 @@ export default function ConciliationHistoryPage() {
 
       {!canSearch ? (
         <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-          Selecciona un banco para cargar el historial. El layout sigue siendo opcional.
+          Selecciona un banco para cargar el historial. La plantilla sigue siendo opcional.
         </section>
       ) : (
         <div className="space-y-6">
@@ -407,7 +407,7 @@ export default function ConciliationHistoryPage() {
                       <th className="px-3 py-2">Usuario</th>
                       <th className="px-3 py-2">Banco</th>
                       <th className="px-3 py-2">Cuenta</th>
-                      <th className="px-3 py-2">Layout</th>
+                      <th className="px-3 py-2">Plantilla</th>
                       <th className="px-3 py-2">Sistema</th>
                       <th className="px-3 py-2">Datos</th>
                       <th className="px-3 py-2">Match %</th>

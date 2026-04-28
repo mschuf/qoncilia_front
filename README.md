@@ -15,4 +15,4 @@
 - `/users` (solo admin/superadmin)
 
 ## Documentacion funcional
-- [Creacion y edicion de layouts](./docs/layouts-creacion-edicion.md)
+- [Creacion y edicion de plantillas](./docs/plantillas-creacion-edicion.md)

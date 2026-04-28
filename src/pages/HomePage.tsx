@@ -58,7 +58,7 @@ export default function HomePage() {
             {roleLabel(role)}
           </div>
           <p className="mt-3 max-w-2xl text-sm text-slate-600">
-            Qoncilia ahora trabaja con el modelo <strong>empresa + usuarios + bancos + layouts</strong>.
+            Qoncilia ahora trabaja con el modelo <strong>empresa + usuarios + bancos + plantillas</strong>.
             Desde <strong>Conciliar</strong> operas la mesa, desde <strong>Bancos</strong> administras
             catalogos y cuentas, y desde <strong>Empresas</strong> gestionas la ficha de la compania.
           </p>
@@ -215,7 +215,7 @@ export default function HomePage() {
                       <tr>
                         <th className="px-4 py-3">Nombre</th>
                         <th className="px-4 py-3">Banco</th>
-                        <th className="px-4 py-3">Layout</th>
+                        <th className="px-4 py-3">Plantilla</th>
                         <th className="px-4 py-3">Match %</th>
                         <th className="px-4 py-3 text-center">Abrir</th>
                       </tr>

@@ -23,9 +23,9 @@ export default function TemplateLayoutSection({
     <section className="rounded-3xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-extrabold text-slate-900">Template Layouts</h3>
+          <h3 className="text-lg font-extrabold text-slate-900">Plantillas base</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Crea una vez y copia el template al banco del usuario que elijas.
+            Crea una vez y copia la base al banco del usuario que elijas.
           </p>
         </div>
 
@@ -34,7 +34,7 @@ export default function TemplateLayoutSection({
           onClick={onCreateTemplate}
           className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
         >
-          <FiPlus className="h-4 w-4" /> Nuevo template
+          <FiPlus className="h-4 w-4" /> Nueva plantilla base
         </button>
       </div>
 
@@ -94,14 +94,14 @@ export default function TemplateLayoutSection({
               <MetricTile label="Banco ref." value={template.referenceBankName ?? "-"} />
               <MetricTile label="Sistema" value={template.systemLabel} />
               <MetricTile label="Banco" value={template.bankLabel} />
-              <MetricTile label="Threshold" value={template.autoMatchThreshold.toFixed(2)} />
+              <MetricTile label="Umbral" value={template.autoMatchThreshold.toFixed(2)} />
             </div>
           </article>
         ))}
 
         {templates.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Todavia no hay template layouts creados.
+            Todavia no hay plantillas base creadas.
           </div>
         ) : null}
       </div>

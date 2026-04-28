@@ -127,7 +127,7 @@ export default function useGestorBankAssignments() {
     }
 
     if (selectedLayoutIds.length === 0) {
-      toast.error("Selecciona al menos un layout para asignar.")
+      toast.error("Selecciona al menos una plantilla para asignar.")
       return null
     }
 
@@ -141,7 +141,7 @@ export default function useGestorBankAssignments() {
       )
 
       setLastSyncResult(response)
-      toast.success("Banco, cuentas y layouts sincronizados con el gestor.")
+      toast.success("Banco, cuentas y plantillas sincronizados con el gestor.")
       await loadCatalog()
       return response
     } catch (error) {

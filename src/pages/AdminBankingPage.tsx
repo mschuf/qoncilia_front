@@ -20,6 +20,7 @@ export default function AdminBankingPage() {
     availableUsers,
     changeCompany,
     banks,
+    currencies,
     selectedBankId,
     selectedBank,
     visibleAccounts,
@@ -253,7 +254,7 @@ export default function AdminBankingPage() {
                 name="description"
                 value={bankForm.description}
                 onChange={onBankFieldChange}
-                placeholder="Banco principal para layouts y cuentas"
+                placeholder="Banco principal para plantillas y cuentas"
               />
 
               <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
@@ -420,13 +421,23 @@ export default function AdminBankingPage() {
                   onChange={onAccountFieldChange}
                   required
                 />
-                <Field
-                  label="Moneda"
-                  name="currency"
-                  value={accountForm.currency}
-                  onChange={onAccountFieldChange}
-                  required
-                />
+                <label className="space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Moneda</span>
+                  <select
+                    name="currency"
+                    value={accountForm.currency}
+                    onChange={onAccountFieldChange}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                    required
+                  >
+                    {currencies.length === 0 ? <option value="PYG">PYG - Guarani paraguayo</option> : null}
+                    {currencies.map((currency) => (
+                      <option key={currency.code} value={currency.code}>
+                        {currency.code} - {currency.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">

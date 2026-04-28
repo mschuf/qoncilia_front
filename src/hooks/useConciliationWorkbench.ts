@@ -206,7 +206,7 @@ export default function useConciliationWorkbench() {
       const query = isAdminRole(role) && userId ? `?userId=${userId}` : ""
       const [kpiResponse, historyResponse] = await Promise.all([
         apiClient.get<ConciliationKpis>(`/conciliation/kpis${query}`),
-        apiClient.get<ReconciliationSummary[]>(`/conciliation/reconciliations${query}`)
+        apiClient.get<ReconciliationSummary[]>(`/conciliation/conciliaciones${query}`)
       ])
       setKpis(kpiResponse)
       setHistory(historyResponse ?? [])
@@ -336,7 +336,7 @@ export default function useConciliationWorkbench() {
 
   const hydrateFromReconciliation = useCallback(async (reconciliationId: number) => {
     const detail = await apiClient.get<ReconciliationDetail>(
-      `/conciliation/reconciliations/${reconciliationId}`
+      `/conciliation/conciliaciones/${reconciliationId}`
     )
 
     if (detail.summarySnapshot) {
@@ -404,7 +404,7 @@ export default function useConciliationWorkbench() {
 
   const runPreview = async () => {
     if (!selectedBankId || !selectedLayoutId || !selectedCompanyBankAccountId) {
-      toast.error("Selecciona banco, cuenta bancaria y layout.")
+      toast.error("Selecciona banco, cuenta bancaria y plantilla.")
       return
     }
 
@@ -495,7 +495,7 @@ export default function useConciliationWorkbench() {
       }
 
       try {
-        const response = await apiClient.post<ReconciliationDetail>("/conciliation/reconciliations", {
+        const response = await apiClient.post<ReconciliationDetail>("/conciliation/conciliaciones", {
           reconciliationId: selectedUpdateReconciliationId > 0 ? selectedUpdateReconciliationId : undefined,
           userBankId: preview.userBank.id,
           companyBankAccountId: selectedCompanyBankAccountId,
@@ -544,7 +544,7 @@ export default function useConciliationWorkbench() {
   const saveFileData = useCallback(
     async (source: "system" | "bank"): Promise<ReconciliationDetail | null> => {
       if (!selectedBankId || !selectedLayoutId) {
-        toast.error("Selecciona banco, cuenta bancaria y layout antes de guardar.")
+        toast.error("Selecciona banco, cuenta bancaria y plantilla antes de guardar.")
         return null
       }
 
@@ -600,7 +600,7 @@ export default function useConciliationWorkbench() {
         }
 
         const userBank = preview?.userBank ?? selectedBank
-        const response = await apiClient.post<ReconciliationDetail>("/conciliation/reconciliations", {
+        const response = await apiClient.post<ReconciliationDetail>("/conciliation/conciliaciones", {
           reconciliationId: selectedUpdateReconciliationId > 0 ? selectedUpdateReconciliationId : undefined,
           userBankId: selectedBankId,
           companyBankAccountId: selectedCompanyBankAccountId,

@@ -41,7 +41,7 @@ export default function LayoutListSection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-extrabold text-slate-900">
-            {selectedBank ? `Layouts de ${selectedBank.alias ?? selectedBank.bankName}` : "Layouts"}
+            {selectedBank ? `Plantillas de ${selectedBank.alias ?? selectedBank.bankName}` : "Plantillas"}
           </h3>
           <p className="mt-1 text-sm text-slate-500">
             Podes usar columnas como <code>E|F</code> para Debito/Credito.
@@ -76,7 +76,7 @@ export default function LayoutListSection({
               onClick={() => onCreateLayout(selectedBank)}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
             >
-              <FiPlus className="h-4 w-4" /> Nuevo layout
+              <FiPlus className="h-4 w-4" /> Nueva plantilla
             </button>
           </div>
         ) : (
@@ -148,7 +148,7 @@ export default function LayoutListSection({
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     <MetricTile label="Sistema" value={layout.systemLabel} />
                     <MetricTile label="Banco" value={layout.bankLabel} />
-                    <MetricTile label="Threshold" value={layout.autoMatchThreshold.toFixed(2)} />
+                    <MetricTile label="Umbral" value={layout.autoMatchThreshold.toFixed(2)} />
                   </div>
 
                   <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -183,7 +183,7 @@ export default function LayoutListSection({
 
         {!selectedBank ? (
           <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-            Selecciona un banco para crear o editar layouts.
+            Selecciona un banco para crear o editar plantillas.
           </div>
         ) : null}
       </div>

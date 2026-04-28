@@ -61,7 +61,7 @@ export default function Navbar() {
     {
       to: "/layout-management",
       icon: <FiSettings className="h-4 w-4" />,
-      label: isSuperAdminRole(role) ? "Layouts" : "Bancos",
+      label: isSuperAdminRole(role) ? "Plantillas" : "Bancos",
       show: hasModule(APP_MODULE_VALUES.layoutManagement),
     },
     {

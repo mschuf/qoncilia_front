@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+﻿import { useMemo } from "react";
 import {
   FiAlertCircle,
   FiBarChart2,
@@ -95,9 +95,12 @@ export default function ConciliationWorkbenchPage() {
           Number(isPendingConciliationStatus(left.status));
         if (pendingDifference !== 0) return pendingDifference;
 
-        return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+        return (
+          new Date(right.updatedAt).getTime() -
+          new Date(left.updatedAt).getTime()
+        );
       }),
-    [reconciliationsForSelectedBankAccount]
+    [reconciliationsForSelectedBankAccount],
   );
 
   return (
@@ -111,7 +114,7 @@ export default function ConciliationWorkbenchPage() {
                   Mesa de Conciliacion
                 </p>
                 <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-                  Subi dos Excel y comparalos por layout
+                  Subi dos Excel y comparalos por plantilla
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                   A la izquierda va tu archivo del sistema y a la derecha el
@@ -173,10 +176,14 @@ export default function ConciliationWorkbenchPage() {
             />
 
             <label className="space-y-1.5">
-              <span className="text-sm font-semibold text-slate-700">Cuenta bancaria</span>
+              <span className="text-sm font-semibold text-slate-700">
+                Cuenta bancaria
+              </span>
               <select
                 value={selectedCompanyBankAccountId}
-                onChange={(event) => setSelectedCompanyBankAccountId(Number(event.target.value))}
+                onChange={(event) =>
+                  setSelectedCompanyBankAccountId(Number(event.target.value))
+                }
                 disabled={accounts.length === 0}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
               >
@@ -185,14 +192,15 @@ export default function ConciliationWorkbenchPage() {
                 ) : null}
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.name} - {account.accountNumber} ({account.currency})
+                    {account.name} - {account.accountNumber} ({account.currency}
+                    )
                   </option>
                 ))}
               </select>
             </label>
 
             <SelectBlock
-              label="Layout"
+              label="Plantilla"
               value={selectedLayoutId}
               onChange={(value) => setSelectedLayoutId(Number(value))}
               options={layouts.map((item) => ({
@@ -225,50 +233,6 @@ export default function ConciliationWorkbenchPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 xl:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                Cuenta seleccionada
-              </p>
-              <p className="mt-2 text-sm font-bold text-slate-900">
-                {selectedCompanyBankAccount
-                  ? `${selectedCompanyBankAccount.name} - ${selectedCompanyBankAccount.accountNumber}`
-                  : "Selecciona una cuenta bancaria"}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {selectedCompanyBankAccount
-                  ? `${selectedCompanyBankAccount.bankAlias ?? selectedCompanyBankAccount.bankName} · ${selectedCompanyBankAccount.currency}`
-                  : "La conciliacion ahora se guarda por cuenta, no solo por banco."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                Scope actual
-              </p>
-              <p className="mt-2 text-sm font-bold text-slate-900">
-                {selectedLayout ? `${selectedLayout.name} · ${selectedLayout.systemName}` : "Sin layout"}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {selectedLayout
-                  ? `${selectedLayout.bankLabel} vs ${selectedLayout.systemLabel}`
-                  : "Elige el layout con el que vas a comparar."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                Guardadas en este layout
-              </p>
-              <p className="mt-2 text-sm font-bold text-slate-900">
-                {availableReconciliationsForUpdate.length} conciliacion(es)
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {savedReconciliations.length > 0
-                  ? "Puedes cargar una guardada para continuar conciliando o actualizarla."
-                  : "Todavia no hay registros guardados para esta cuenta."}
-              </p>
-            </div>
-          </div>
-
           <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -278,30 +242,18 @@ export default function ConciliationWorkbenchPage() {
                 <h3 className="mt-2 text-lg font-extrabold text-slate-900">
                   Carga rapida de sistema, banco y comparaciones parciales
                 </h3>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  Aqui ves rapido lo que ya se guardo para el banco y la cuenta elegidos, incluso
-                  si solo existe el lado del sistema o del banco.
-                </p>
               </div>
-              {selectedCompanyBankAccount ? (
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                  <p className="font-semibold text-slate-900">
-                    {selectedCompanyBankAccount.name}
-                  </p>
-                  <p className="mt-1 text-xs">
-                    {selectedCompanyBankAccount.accountNumber} · {selectedCompanyBankAccount.currency}
-                  </p>
-                </div>
-              ) : null}
             </div>
 
             {!selectedCompanyBankAccountId ? (
               <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                Selecciona una cuenta bancaria para ver conciliaciones guardadas y parciales.
+                Selecciona una cuenta bancaria para ver conciliaciones guardadas
+                y parciales.
               </div>
             ) : savedReconciliations.length === 0 ? (
               <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                Todavia no hay conciliaciones guardadas para este banco y cuenta.
+                Todavia no hay conciliaciones guardadas para este banco y
+                cuenta.
               </div>
             ) : (
               <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -354,7 +306,11 @@ export default function ConciliationWorkbenchPage() {
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-90">
                   <span>
                     <strong>Estado:</strong>{" "}
-                    {getConciliationStatusPresentation(selectedReconciliationForUpdate.status).label}
+                    {
+                      getConciliationStatusPresentation(
+                        selectedReconciliationForUpdate.status,
+                      ).label
+                    }
                   </span>
                   <span>
                     <strong>Fecha:</strong>{" "}
@@ -363,7 +319,7 @@ export default function ConciliationWorkbenchPage() {
                     ).toLocaleString()}
                   </span>
                   <span>
-                    <strong>Layout:</strong>{" "}
+                    <strong>Plantilla:</strong>{" "}
                     {selectedReconciliationForUpdate.layoutName}
                   </span>
                   <span>
@@ -405,10 +361,10 @@ export default function ConciliationWorkbenchPage() {
                   <p className="mt-1 text-xs opacity-90">
                     Estado {lastErpShipment.status}
                     {lastErpShipment.externalDocEntry
-                      ? ` · DocEntry ${lastErpShipment.externalDocEntry}`
+                      ? ` - DocEntry ${lastErpShipment.externalDocEntry}`
                       : ""}
                     {lastErpShipment.externalDocNum
-                      ? ` · DocNum ${lastErpShipment.externalDocNum}`
+                      ? ` - DocNum ${lastErpShipment.externalDocNum}`
                       : ""}
                   </p>
                 </div>
@@ -550,7 +506,7 @@ export default function ConciliationWorkbenchPage() {
                   DB / TLS
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-800">
-                  {selectedCompanyErpConfig.dbName ?? "-"} · TLS{" "}
+                  {selectedCompanyErpConfig.dbName ?? "-"} - TLS{" "}
                   {selectedCompanyErpConfig.tlsVersion ?? "-"}
                 </p>
               </div>
@@ -593,12 +549,14 @@ function SavedReconciliationCard({
   isSelected,
   onLoad,
 }: {
-  reconciliation: ReconciliationSummary
-  isCurrentLayout: boolean
-  isSelected: boolean
-  onLoad: () => void
+  reconciliation: ReconciliationSummary;
+  isCurrentLayout: boolean;
+  isSelected: boolean;
+  onLoad: () => void;
 }) {
-  const statusPresentation = getConciliationStatusPresentation(reconciliation.status)
+  const statusPresentation = getConciliationStatusPresentation(
+    reconciliation.status,
+  );
 
   return (
     <article
@@ -610,9 +568,11 @@ function SavedReconciliationCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-slate-900">{reconciliation.name}</p>
+          <p className="text-sm font-bold text-slate-900">
+            {reconciliation.name}
+          </p>
           <p className="mt-1 text-xs text-slate-500">
-            {reconciliation.layoutName} · {reconciliation.systemName}
+            {reconciliation.layoutName} - {reconciliation.systemName}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -623,7 +583,7 @@ function SavedReconciliationCard({
           </span>
           {isCurrentLayout ? (
             <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
-              Layout actual
+              Plantilla actual
             </span>
           ) : null}
         </div>
@@ -638,7 +598,7 @@ function SavedReconciliationCard({
             {reconciliation.companyBankAccountName ?? "Sin cuenta asociada"}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            {reconciliation.companyBankAccountNumber ?? "-"} ·{" "}
+            {reconciliation.companyBankAccountNumber ?? "-"} -{" "}
             {reconciliation.companyBankAccountCurrency ?? "-"}
           </p>
         </div>
@@ -649,17 +609,21 @@ function SavedReconciliationCard({
           <p className="mt-2 text-sm font-semibold text-slate-800">
             {getConciliationDataSummary(
               reconciliation.hasSystemData,
-              reconciliation.hasBankData
+              reconciliation.hasBankData,
             )}
           </p>
-          <p className="mt-1 text-xs text-slate-500">{statusPresentation.description}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {statusPresentation.description}
+          </p>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500">
         <span>Match {reconciliation.matchPercentage}%</span>
         <span>Actualizaciones {reconciliation.updateCount}</span>
-        <span>Ultima carga {new Date(reconciliation.updatedAt).toLocaleString()}</span>
+        <span>
+          Ultima carga {new Date(reconciliation.updatedAt).toLocaleString()}
+        </span>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -673,10 +637,14 @@ function SavedReconciliationCard({
           onClick={onLoad}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
         >
-          {isSelected ? <FiRefreshCw className="h-4 w-4" /> : <FiCreditCard className="h-4 w-4" />}
+          {isSelected ? (
+            <FiRefreshCw className="h-4 w-4" />
+          ) : (
+            <FiCreditCard className="h-4 w-4" />
+          )}
           {isSelected ? "Recargar en mesa" : "Cargar en mesa"}
         </button>
       </div>
     </article>
-  )
+  );
 }

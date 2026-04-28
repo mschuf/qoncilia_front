@@ -30,7 +30,7 @@ import type {
   UserBankWithLayouts,
 } from "../types/conciliation";
 import AdminBankingPage from "./AdminBankingPage";
-import layoutDocsMarkdown from "../../docs/layouts-creacion-edicion.md?raw";
+import layoutDocsMarkdown from "../../docs/plantillas-creacion-edicion.md?raw";
 import { isSuperAdminRole } from "../utils/role";
 
 type WorkspaceKey = "banks" | "templates" | "accounts" | "users" | "systems";
@@ -56,13 +56,13 @@ const workspaceOptions: Array<{
   {
     key: "users",
     label: "Usuarios y Bancos",
-    description: "Vista global de todos los usuarios con sus bancos y layouts.",
+    description: "Vista global de todos los usuarios con sus bancos y plantillas.",
     icon: FiUsers,
   },
   {
     key: "banks",
-    label: "Bancos y Layouts",
-    description: "Asignacion por usuario y administracion del layout aplicado.",
+    label: "Bancos y Plantillas",
+    description: "Asignacion por usuario y administracion de la plantilla aplicada.",
     icon: FiGrid,
   },
   {
@@ -73,14 +73,14 @@ const workspaceOptions: Array<{
   },
   {
     key: "templates",
-    label: "Template Layouts",
-    description: "Base reutilizable para copiar layouts a bancos en segundos.",
+    label: "Plantillas Base",
+    description: "Base reutilizable para copiar plantillas a bancos en segundos.",
     icon: FiLayers,
   },
   {
     key: "systems",
     label: "Sistemas",
-    description: "ABM de sistemas origen para layouts dinamicos.",
+    description: "ABM de sistemas origen para plantillas dinamicas.",
     icon: FiSettings,
   },
 ];
@@ -182,9 +182,9 @@ function SuperadminLayoutManagementPage() {
     onConfirm: () => Promise<void>,
   ) => {
     setPendingDelete({
-      title: "Eliminar layout",
-      description: `Vas a eliminar el layout "${layoutName}". Si ya tiene conciliaciones guardadas, el sistema no lo va a permitir.`,
-      confirmLabel: "Eliminar layout",
+      title: "Eliminar plantilla",
+      description: `Vas a eliminar la plantilla "${layoutName}". Si ya tiene conciliaciones guardadas, el sistema no lo va a permitir.`,
+      confirmLabel: "Eliminar plantilla",
       onConfirm,
     });
   };
@@ -194,9 +194,9 @@ function SuperadminLayoutManagementPage() {
     onConfirm: () => Promise<void>,
   ) => {
     setPendingDelete({
-      title: "Eliminar template layout",
-      description: `Vas a eliminar el template "${templateName}". Los layouts ya copiados a bancos siguen existiendo, pero el template deja de estar disponible.`,
-      confirmLabel: "Eliminar template",
+      title: "Eliminar plantilla base",
+      description: `Vas a eliminar la plantilla base "${templateName}". Las plantillas ya copiadas a bancos siguen existiendo, pero la base deja de estar disponible.`,
+      confirmLabel: "Eliminar plantilla base",
       onConfirm,
     });
   };
@@ -266,7 +266,7 @@ function SuperadminLayoutManagementPage() {
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudieron recargar los datos de layouts.",
+          : "No se pudieron recargar los datos de plantillas.",
       );
     }
   };
@@ -281,7 +281,7 @@ function SuperadminLayoutManagementPage() {
                 Superadmin Studio
               </p>
               <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-                Bancos, Layouts y Templates en un solo flujo
+                Bancos, Plantillas y Sistemas en un solo flujo
               </h2>
             </div>
 
@@ -295,7 +295,7 @@ function SuperadminLayoutManagementPage() {
           </div>
 
           <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600">
-            Organiza el trabajo por usuario, banco y layout, y usa templates
+            Organiza el trabajo por usuario, banco y plantilla, y usa plantillas base
             como base para copiar configuraciones repetidas. La vista cambia con
             animacion para que sea mas clara en desktop y mucho mas comoda en
             mobile.
@@ -310,7 +310,7 @@ function SuperadminLayoutManagementPage() {
           />
           <MetricCard
             icon={FiLayers}
-            label="Templates"
+            label="Bases"
             value={String(templateCount)}
           />
           <MetricCard
@@ -325,7 +325,7 @@ function SuperadminLayoutManagementPage() {
           />
           <MetricCard
             icon={FiSliders}
-            label="Layouts"
+            label="Plantillas"
             value={String(layoutCount)}
           />
         </div>
@@ -455,7 +455,7 @@ function SuperadminLayoutManagementPage() {
                         ABM de sistemas dinamicos
                       </h3>
                       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                        Cada layout queda asociado a un sistema, por ejemplo SAP, Softland o el
+                        Cada plantilla queda asociada a un sistema, por ejemplo SAP, Softland o el
                         que necesites incorporar luego.
                       </p>
                     </div>
@@ -514,11 +514,11 @@ function SuperadminLayoutManagementPage() {
                             type="button"
                             onClick={() =>
                               setPendingDelete({
-                                title: "Eliminar sistema",
-                                description: `Vas a eliminar el sistema "${system.name}". Solo se puede borrar si no tiene layouts ni templates asociados.`,
-                                confirmLabel: "Eliminar sistema",
-                                onConfirm: () => deleteSystem(system),
-                              })
+                        title: "Eliminar sistema",
+                        description: `Vas a eliminar el sistema "${system.name}". Solo se puede borrar si no tiene plantillas ni plantillas base asociadas.`,
+                        confirmLabel: "Eliminar sistema",
+                        onConfirm: () => deleteSystem(system),
+                      })
                             }
                             className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
                           >
@@ -586,8 +586,8 @@ function SuperadminLayoutManagementPage() {
         onRemoveMapping={removeTemplateMappingRow}
         onResetMappings={resetTemplateToSuggestedMappings}
         onSubmit={saveTemplate}
-        entityLabel="template layout"
-        submitLabel="Guardar template"
+        entityLabel="plantilla base"
+        submitLabel="Guardar plantilla base"
         showReferenceBankField
       />
 
@@ -731,14 +731,14 @@ function SuperadminLayoutManagementPage() {
               <p className="mt-2 text-sm leading-6 text-rose-900">
                 Si confirmas, se eliminara el banco para el usuario{" "}
                 <span className="font-bold">{bankDeletePreview.bank.userLogin}</span>.
-                Tambien se borraran en cascada sus layouts, cuentas bancarias y
+                Tambien se borraran en cascada sus plantillas, cuentas bancarias y
                 conciliaciones asociadas.
               </p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
               <DeleteSummaryCard
-                label="Layouts"
+                label="Plantillas"
                 value={String(bankDeletePreview.layouts.length)}
                 helper="Configuraciones del banco"
               />
@@ -784,8 +784,8 @@ function SuperadminLayoutManagementPage() {
 
             <div className="grid gap-4 xl:grid-cols-2">
               <DeleteRecordsSection
-                title="Layouts asociados"
-                emptyMessage="Este banco no tiene layouts asociados."
+                title="Plantillas asociadas"
+                emptyMessage="Este banco no tiene plantillas asociadas."
                 items={bankDeletePreview.layouts.map((layout) => (
                   <div
                     key={layout.id}
@@ -858,7 +858,7 @@ function SuperadminLayoutManagementPage() {
       <AppModal
         open={isDocsModalOpen}
         onClose={() => setIsDocsModalOpen(false)}
-        title="Documentacion: Bancos y Layouts"
+        title="Documentacion: Bancos y Plantillas"
       >
         <div className="prose prose-slate prose-sm max-w-none">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>

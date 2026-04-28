@@ -50,7 +50,7 @@ export default function UserBanksSection({
         <div>
           <h3 className="text-lg font-extrabold text-slate-900">Usuarios y bancos</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Vista global de todos los usuarios con sus bancos asignados y layouts.
+            Vista global de todos los usuarios con sus bancos asignados y plantillas.
           </p>
         </div>
       </div>
@@ -130,7 +130,7 @@ export default function UserBanksSection({
                                   </span>
                                 ) : null}
                                 <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 shadow-sm">
-                                  {bank.layouts.length} layout(s)
+                                  {bank.layouts.length} plantilla(s)
                                 </span>
                               </div>
                             </div>
@@ -163,7 +163,7 @@ export default function UserBanksSection({
                                   onClick={() => onCreateLayout(uid, bank)}
                                   className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
                                 >
-                                  <FiPlus className="h-3.5 w-3.5" /> Nuevo layout
+                                  <FiPlus className="h-3.5 w-3.5" /> Nueva plantilla
                                 </button>
                               </div>
 
@@ -212,14 +212,14 @@ export default function UserBanksSection({
                                     <div className="mt-2 grid gap-2 sm:grid-cols-3">
                                       <MetricTile label="Sistema" value={layout.systemLabel} />
                                       <MetricTile label="Banco" value={layout.bankLabel} />
-                                      <MetricTile label="Threshold" value={layout.autoMatchThreshold.toFixed(2)} />
+                                      <MetricTile label="Umbral" value={layout.autoMatchThreshold.toFixed(2)} />
                                     </div>
                                   </div>
                                 ))}
 
                                 {bank.layouts.length === 0 ? (
                                   <div className="rounded-xl border border-dashed border-slate-300 p-3 text-center text-xs text-slate-500">
-                                    Sin layouts.
+                                    Sin plantillas.
                                   </div>
                                 ) : null}
                               </div>
