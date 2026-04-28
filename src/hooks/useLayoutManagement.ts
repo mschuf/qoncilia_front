@@ -201,18 +201,21 @@ export default function useLayoutManagement() {
 
   const loadAllCatalogs = useCallback(async () => {
     const nextMap = new Map<number, UserBankWithLayouts[]>();
-    for (const user of users) {
-      const uid = Number(user.id);
-      if (!uid) continue;
-      try {
-        const response = await apiClient.get<UserBankWithLayouts[]>(
-          `/conciliation/catalog?userId=${uid}`
-        );
-        nextMap.set(uid, response ?? []);
-      } catch {
-        nextMap.set(uid, []);
-      }
-    }
+    const userIds = users.map((user) => Number(user.id)).filter((id) => id > 0);
+
+    await Promise.all(
+      userIds.map(async (uid) => {
+        try {
+          const response = await apiClient.get<UserBankWithLayouts[]>(
+            `/conciliation/catalog?userId=${uid}`
+          );
+          nextMap.set(uid, response ?? []);
+        } catch {
+          nextMap.set(uid, []);
+        }
+      })
+    );
+
     setAllUserCatalogs(nextMap);
   }, [users]);
 
@@ -296,6 +299,21 @@ export default function useLayoutManagement() {
       toast.error(error instanceof Error ? error.message : "No se pudieron cargar los sistemas.");
     });
   }, [loadSystems, toast]);
+
+  useEffect(() => {
+    if (users.length === 0) {
+      setAllUserCatalogs(new Map());
+      return;
+    }
+
+    void loadAllCatalogs().catch((error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar la vista global de bancos y layouts."
+      );
+    });
+  }, [loadAllCatalogs, toast, users.length]);
 
   const selectedUser = useMemo(
     () => users.find((item) => Number(item.id) === selectedUserId) ?? null,

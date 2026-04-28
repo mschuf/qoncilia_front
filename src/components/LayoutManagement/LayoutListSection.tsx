@@ -5,6 +5,7 @@ import { MetricTile } from "./MetricCards";
 
 interface LayoutListSectionProps {
   selectedBank: UserBankWithLayouts | null;
+  onCreateBank: () => void;
   onEditBank: (bank: UserBankWithLayouts) => void;
   onDeleteBank: (bank: UserBankWithLayouts) => void;
   onCreateLayout: (bank: UserBankWithLayouts) => void;
@@ -14,6 +15,7 @@ interface LayoutListSectionProps {
 
 export default function LayoutListSection({
   selectedBank,
+  onCreateBank,
   onEditBank,
   onDeleteBank,
   onCreateLayout,
@@ -50,6 +52,13 @@ export default function LayoutListSection({
           <div className="flex gap-2">
             <button
               type="button"
+              onClick={onCreateBank}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
+            >
+              <FiPlus className="h-4 w-4" /> Nuevo banco
+            </button>
+            <button
+              type="button"
               onClick={() => onEditBank(selectedBank)}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             >
@@ -70,7 +79,15 @@ export default function LayoutListSection({
               <FiPlus className="h-4 w-4" /> Nuevo layout
             </button>
           </div>
-        ) : null}
+        ) : (
+          <button
+            type="button"
+            onClick={onCreateBank}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
+          >
+            <FiPlus className="h-4 w-4" /> Nuevo banco
+          </button>
+        )}
       </div>
 
       <div className="mt-4 space-y-3">

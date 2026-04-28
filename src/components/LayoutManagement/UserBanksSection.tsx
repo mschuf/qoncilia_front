@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiChevronDown, FiChevronUp, FiEdit3, FiLayers, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiChevronDown, FiChevronUp, FiEdit3, FiPlus, FiTrash2 } from "react-icons/fi";
 import type { Layout, UserBankWithLayouts } from "../../types/conciliation";
 import type { AuthUser } from "../../types/auth";
 import { MetricTile } from "./MetricCards";
@@ -7,8 +7,6 @@ import { MetricTile } from "./MetricCards";
 interface UserBanksSectionProps {
   users: AuthUser[];
   allCatalogs: Map<number, UserBankWithLayouts[]>;
-  onReload: () => void;
-  onCreateBank: (userId: number) => void;
   onEditBank: (userId: number, bank: UserBankWithLayouts) => void;
   onDeleteBank: (userId: number, bank: UserBankWithLayouts) => void;
   onCreateLayout: (userId: number, bank: UserBankWithLayouts) => void;
@@ -19,8 +17,6 @@ interface UserBanksSectionProps {
 export default function UserBanksSection({
   users,
   allCatalogs,
-  onReload,
-  onCreateBank,
   onEditBank,
   onDeleteBank,
   onCreateLayout,
@@ -57,13 +53,6 @@ export default function UserBanksSection({
             Vista global de todos los usuarios con sus bancos asignados y layouts.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onReload}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-        >
-          <FiLayers className="h-4 w-4" /> Recargar todo
-        </button>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -240,14 +229,6 @@ export default function UserBanksSection({
                       );
                     })}
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => onCreateBank(uid)}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-300 bg-brand-50/50 px-4 py-2.5 text-sm font-bold text-brand-600 transition hover:bg-brand-50"
-                  >
-                    <FiPlus className="h-4 w-4" /> Asignar banco a este usuario
-                  </button>
                 </div>
               ) : null}
             </div>

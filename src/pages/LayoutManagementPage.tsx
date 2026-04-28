@@ -66,6 +66,12 @@ const workspaceOptions: Array<{
     icon: FiGrid,
   },
   {
+    key: "accounts",
+    label: "Cuentas Bancarias",
+    description: "ABM completo de bancos y cuentas bancarias por empresa.",
+    icon: FiBriefcase,
+  },
+  {
     key: "templates",
     label: "Template Layouts",
     description: "Base reutilizable para copiar layouts a bancos en segundos.",
@@ -76,12 +82,6 @@ const workspaceOptions: Array<{
     label: "Sistemas",
     description: "ABM de sistemas origen para layouts dinamicos.",
     icon: FiSettings,
-  },
-  {
-    key: "accounts",
-    label: "Cuentas Bancarias",
-    description: "ABM completo de bancos y cuentas bancarias por empresa.",
-    icon: FiBriefcase,
   },
 ];
 
@@ -141,6 +141,7 @@ function SuperadminLayoutManagementPage() {
     loadCatalog,
     loadAllCatalogs,
     loadSystems,
+    loadTemplates,
     openCreateTemplate,
     openEditTemplate,
     openCreateBank,
@@ -149,7 +150,6 @@ function SuperadminLayoutManagementPage() {
     openEditLayout,
     openCreateSystem,
     openEditSystem,
-    prepareCreateBank,
     prepareEditBank,
     prepareCreateLayout,
     prepareEditLayout,
@@ -250,6 +250,24 @@ function SuperadminLayoutManagementPage() {
       );
     } finally {
       setBankDeleteSubmitting(false);
+    }
+  };
+
+  const reloadEverything = async () => {
+    try {
+      await Promise.all([
+        loadCatalog(selectedUserId),
+        loadAllCatalogs(),
+        loadSystems(),
+        loadTemplates(),
+      ]);
+      toast.success("Datos actualizados.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron recargar los datos de layouts.",
+      );
     }
   };
 
@@ -360,18 +378,10 @@ function SuperadminLayoutManagementPage() {
 
               <button
                 type="button"
-                onClick={() => void loadCatalog(selectedUserId)}
+                onClick={() => void reloadEverything()}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               >
                 <FiRefreshCcw className="h-4 w-4" /> Recargar
-              </button>
-
-              <button
-                type="button"
-                onClick={openCreateBank}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
-              >
-                <FiPlus className="h-4 w-4" /> Asignar banco
               </button>
             </div>
           </div>
@@ -395,8 +405,6 @@ function SuperadminLayoutManagementPage() {
                 <UserBanksSection
                   users={users}
                   allCatalogs={allUserCatalogs}
-                  onReload={() => void loadAllCatalogs()}
-                  onCreateBank={prepareCreateBank}
                   onEditBank={prepareEditBank}
                   onDeleteBank={(userId, bank) =>
                     void handleDeleteBank(userId, bank)
@@ -412,6 +420,7 @@ function SuperadminLayoutManagementPage() {
               ) : workspace === "banks" ? (
                 <LayoutListSection
                   selectedBank={selectedBank}
+                  onCreateBank={openCreateBank}
                   onEditBank={openEditBank}
                   onDeleteBank={(bank) =>
                     void handleDeleteBank(bank.userId, bank)
@@ -540,58 +549,6 @@ function SuperadminLayoutManagementPage() {
               onChange={setWorkspace}
               compact
             />
-          </div>
-
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-              Contexto Actual
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <ContextTile
-                label="Usuario"
-                value={selectedUser?.usrLogin ?? "Sin usuario"}
-                helper={
-                  selectedUser?.usrNombre ?? "Selecciona a quien administrar"
-                }
-              />
-              <ContextTile
-                label="Banco"
-                value={
-                  selectedBank?.alias ?? selectedBank?.bankName ?? "Sin banco"
-                }
-                helper={
-                  selectedBank
-                    ? `${selectedBank.layouts.length} layout(s) disponibles`
-                    : "Elige un banco para trabajar rapido"
-                }
-              />
-              <ContextTile
-                label="Workspace"
-                value={
-                  workspace === "users"
-                    ? "Usuarios y Bancos"
-                    : workspace === "banks"
-                      ? "Bancos y Layouts"
-                      : workspace === "templates"
-                        ? "Template Layouts"
-                        : workspace === "systems"
-                          ? "Sistemas"
-                        : "Cuentas Bancarias"
-                }
-                helper={
-                  workspace === "users"
-                    ? "Vista global de todos los usuarios"
-                    : workspace === "banks"
-                      ? "Aqui haces la asignacion operativa por usuario"
-                    : workspace === "templates"
-                      ? "Aqui defines las bases reutilizables"
-                      : workspace === "systems"
-                        ? "Aqui administras los sistemas disponibles"
-                      : "ABM de bancos y cuentas"
-                }
-              />
-            </div>
           </div>
         </aside>
       </div>
@@ -1014,26 +971,6 @@ function WorkspaceTabs({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function ContextTile({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-        {label}
-      </p>
-      <p className="mt-2 text-sm font-semibold text-slate-800">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{helper}</p>
     </div>
   );
 }

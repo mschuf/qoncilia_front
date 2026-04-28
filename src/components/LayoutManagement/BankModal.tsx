@@ -26,7 +26,7 @@ export default function BankModal({
     <AppModal
       open={open}
       onClose={onClose}
-      title={editingBank ? "Editar banco" : "Asignar banco"}
+      title={editingBank ? "Editar banco" : "Crear banco"}
       footer={<ModalActions formId="bank-layout-form" label="Guardar banco" onCancel={onClose} />}
     >
       <form id="bank-layout-form" onSubmit={onSubmit} className="grid gap-3 md:grid-cols-2">
