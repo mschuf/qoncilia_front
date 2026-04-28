@@ -8,11 +8,13 @@ import { useToast } from "../context/ToastContext"
 import type { AuthUser } from "../types/auth"
 import type {
   ConciliationKpis,
+  DeleteReconciliationResponse,
   Layout,
   LayoutMapping,
   PreviewMatch,
   PreviewResponse,
   PreviewRow,
+  ReconciliationSource,
   ReconciliationDetail,
   ReconciliationSummary,
   UserBankWithLayouts
@@ -35,6 +37,8 @@ const DEFAULT_ERP_DEPOSIT_PAYLOAD = JSON.stringify(
   null,
   2
 )
+
+type WorkbenchViewMode = "editor" | "loaded"
 
 function createManualMatch(
   mappings: LayoutMapping[],
@@ -170,6 +174,9 @@ export default function useConciliationWorkbench() {
   const [selectedUpdateReconciliationId, setSelectedUpdateReconciliationId] = useState<number>(
     updateIdParam ? Number(updateIdParam) : 0
   )
+  const [workbenchViewMode, setWorkbenchViewMode] = useState<WorkbenchViewMode>(
+    updateIdParam ? "loaded" : "editor"
+  )
 
   const canUseErp = isAdminRole(role) && hasModule(APP_MODULE_VALUES.erpManagement)
 
@@ -288,12 +295,56 @@ export default function useConciliationWorkbench() {
   useEffect(() => {
     if (updateIdParam) {
       setSelectedUpdateReconciliationId(Number(updateIdParam))
+      setWorkbenchViewMode("loaded")
     }
   }, [updateIdParam])
 
   const selectedReconciliationForUpdate = useMemo(
     () => history.find((item) => item.id === selectedUpdateReconciliationId) ?? null,
     [history, selectedUpdateReconciliationId]
+  )
+
+  const clearPreviewState = useCallback(() => {
+    setPreview(null)
+    setManualMatches([])
+    setUnmatchedSystemRows([])
+    setUnmatchedBankRows([])
+  }, [])
+
+  const hydrateWorkbenchFromDetail = useCallback(
+    (detail: ReconciliationDetail) => {
+      setSelectedBankId(detail.userBankId)
+      setSelectedLayoutId(detail.layoutId)
+      setSelectedCompanyBankAccountId(detail.companyBankAccountId ?? 0)
+      setReconciliationName(detail.name)
+
+      if (detail.summarySnapshot) {
+        setPreview({
+          userBank: detail.summarySnapshot.userBank,
+          companyBankAccount: detail.summarySnapshot.companyBankAccount,
+          layout: detail.summarySnapshot.layout,
+          systemFileName: detail.systemFileName ?? "sistema_guardado",
+          bankFileName: detail.bankFileName ?? "banco_guardado",
+          systemRows: detail.summarySnapshot.systemRows,
+          bankRows: detail.summarySnapshot.bankRows,
+          autoMatches: detail.summarySnapshot.autoMatches,
+          manualMatches: detail.summarySnapshot.manualMatches,
+          unmatchedSystemRows: detail.summarySnapshot.unmatchedSystemRows,
+          unmatchedBankRows: detail.summarySnapshot.unmatchedBankRows,
+          metrics: detail.summarySnapshot.metrics
+        })
+        setManualMatches(detail.summarySnapshot.manualMatches)
+        setUnmatchedSystemRows(detail.summarySnapshot.unmatchedSystemRows)
+        setUnmatchedBankRows(detail.summarySnapshot.unmatchedBankRows)
+      } else {
+        clearPreviewState()
+      }
+
+      setSystemFile(null)
+      setBankFile(null)
+      setLastErpShipment(null)
+    },
+    [clearPreviewState]
   )
 
   const applyUpdateSelection = useCallback(
@@ -313,61 +364,37 @@ export default function useConciliationWorkbench() {
     setSearchParams(nextParams, { replace: true })
   }, [searchParams, setSearchParams])
 
+  const openLoadedWorkbench = useCallback(() => {
+    setWorkbenchViewMode("loaded")
+  }, [])
+
+  const goBackToEditorWorkbench = useCallback(() => {
+    setWorkbenchViewMode("editor")
+  }, [])
+
   const onFileChange =
     (setter: Dispatch<SetStateAction<File | null>>) =>
     (event: ChangeEvent<HTMLInputElement>) => {
       setter(event.target.files?.[0] ?? null)
     }
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
+    clearUpdateSelection()
+    setWorkbenchViewMode("editor")
     setSystemFile(null)
     setBankFile(null)
-    setPreview(null)
-    setManualMatches([])
-    setUnmatchedSystemRows([])
-    setUnmatchedBankRows([])
-    setKpis(null)
+    clearPreviewState()
     setIsErpModalOpen(false)
     setLastErpShipment(null)
-    if (!selectedUpdateReconciliationId) {
-      setReconciliationName("")
-    }
-  }
+    setReconciliationName("")
+  }, [clearPreviewState, clearUpdateSelection])
 
   const hydrateFromReconciliation = useCallback(async (reconciliationId: number) => {
     const detail = await apiClient.get<ReconciliationDetail>(
       `/conciliation/conciliaciones/${reconciliationId}`
     )
-
-    if (detail.summarySnapshot) {
-      setPreview({
-        userBank: detail.summarySnapshot.userBank,
-        companyBankAccount: detail.summarySnapshot.companyBankAccount,
-        layout: detail.summarySnapshot.layout,
-        systemFileName: detail.systemFileName ?? "sistema_guardado",
-        bankFileName: detail.bankFileName ?? "banco_guardado",
-        systemRows: detail.summarySnapshot.systemRows,
-        bankRows: detail.summarySnapshot.bankRows,
-        autoMatches: detail.summarySnapshot.autoMatches,
-        manualMatches: detail.summarySnapshot.manualMatches,
-        unmatchedSystemRows: detail.summarySnapshot.unmatchedSystemRows,
-        unmatchedBankRows: detail.summarySnapshot.unmatchedBankRows,
-        metrics: detail.summarySnapshot.metrics
-      })
-      setManualMatches(detail.summarySnapshot.manualMatches)
-      setUnmatchedSystemRows(detail.summarySnapshot.unmatchedSystemRows)
-      setUnmatchedBankRows(detail.summarySnapshot.unmatchedBankRows)
-    } else {
-      setPreview(null)
-      setManualMatches([])
-      setUnmatchedSystemRows([])
-      setUnmatchedBankRows([])
-    }
-
-    setSystemFile(null)
-    setBankFile(null)
-    setReconciliationName(detail.name)
-  }, [])
+    hydrateWorkbenchFromDetail(detail)
+  }, [hydrateWorkbenchFromDetail])
 
   useEffect(() => {
     if (!selectedReconciliationForUpdate) return
@@ -392,6 +419,7 @@ export default function useConciliationWorkbench() {
 
   const loadSavedReconciliation = useCallback(
     async (reconciliationId: number) => {
+      setWorkbenchViewMode("loaded")
       if (selectedUpdateReconciliationId === reconciliationId) {
         await hydrateFromReconciliation(reconciliationId)
         return
@@ -430,7 +458,7 @@ export default function useConciliationWorkbench() {
       setUnmatchedSystemRows(response.unmatchedSystemRows)
       setUnmatchedBankRows(response.unmatchedBankRows)
       setLastErpShipment(null)
-      toast.success("Preview de conciliacion listo.")
+      toast.success("Comparacion lista.")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo generar la conciliacion.")
     }
@@ -479,6 +507,28 @@ export default function useConciliationWorkbench() {
     }
   }, [manualMatches.length, preview, unmatchedBankRows.length, unmatchedSystemRows.length])
 
+  const parseUploadedFile = useCallback(
+    async (
+      source: ReconciliationSource,
+      file: File
+    ): Promise<{ rows: PreviewRow[]; fileName: string }> => {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const params = new URLSearchParams({
+        userBankId: String(selectedBankId),
+        layoutId: String(selectedLayoutId),
+        source
+      })
+
+      return apiClient.post<{ rows: PreviewRow[]; fileName: string }>(
+        `/conciliation/parse-file?${params.toString()}`,
+        formData
+      )
+    },
+    [selectedBankId, selectedLayoutId]
+  )
+
   const saveReconciliation = useCallback(
     async (showSuccessToast = true): Promise<ReconciliationDetail | null> => {
       if (!preview || !selectedLayout) {
@@ -510,14 +560,16 @@ export default function useConciliationWorkbench() {
           manualMatches
         })
 
-        applyUpdateSelection(response.id)
+        setSelectedUpdateReconciliationId(response.id)
+        hydrateWorkbenchFromDetail(response)
+        setWorkbenchViewMode("loaded")
         await loadAnalytics(selectedUserId)
 
         if (showSuccessToast) {
           toast.success(
             selectedUpdateReconciliationId > 0
-              ? "Conciliacion actualizada sin duplicar lineas previas."
-              : "Conciliacion guardada."
+              ? "Comparacion actualizada sin duplicar lineas previas."
+              : "Comparacion guardada."
           )
         }
 
@@ -528,7 +580,7 @@ export default function useConciliationWorkbench() {
       }
     },
     [
-      applyUpdateSelection,
+      hydrateWorkbenchFromDetail,
       loadAnalytics,
       manualMatches,
       preview,
@@ -541,8 +593,7 @@ export default function useConciliationWorkbench() {
     ]
   )
 
-  const saveFileData = useCallback(
-    async (source: "system" | "bank"): Promise<ReconciliationDetail | null> => {
+  const saveWorkbenchFiles = useCallback(async (): Promise<ReconciliationDetail | null> => {
       if (!selectedBankId || !selectedLayoutId) {
         toast.error("Selecciona banco, cuenta bancaria y plantilla antes de guardar.")
         return null
@@ -558,94 +609,134 @@ export default function useConciliationWorkbench() {
         return null
       }
 
-      const file = source === "system" ? systemFile : bankFile
-      if (!file) {
-        toast.error(`No hay archivo de ${source === "system" ? "sistema" : "banco"} para guardar.`)
+      if (!systemFile && !bankFile) {
+        toast.error("Carga o reemplaza al menos un Excel antes de guardar.")
         return null
       }
 
       try {
-        let systemRows: PreviewRow[] = []
-        let bankRows: PreviewRow[] = []
-        let systemFileName: string | undefined
-        let bankFileName: string | undefined
+        const [parsedSystem, parsedBank] = await Promise.all([
+          systemFile ? parseUploadedFile("system", systemFile) : Promise.resolve(null),
+          bankFile ? parseUploadedFile("bank", bankFile) : Promise.resolve(null)
+        ])
 
-        if (preview) {
-          systemRows = preview.systemRows
-          bankRows = preview.bankRows
-          systemFileName = preview.systemFileName
-          bankFileName = preview.bankFileName
-        } else {
-          const formData = new FormData()
-          formData.append("file", file)
+        const systemRows = parsedSystem?.rows ?? preview?.systemRows ?? []
+        const bankRows = parsedBank?.rows ?? preview?.bankRows ?? []
+        const systemFileName = parsedSystem?.fileName ?? preview?.systemFileName
+        const bankFileName = parsedBank?.fileName ?? preview?.bankFileName
 
-          const params = new URLSearchParams({
-            userBankId: String(selectedBankId),
-            layoutId: String(selectedLayoutId),
-            source
-          })
-
-          const parsed = await apiClient.post<{ rows: PreviewRow[]; fileName: string }>(
-            `/conciliation/parse-file?${params.toString()}`,
-            formData
-          )
-
-          if (source === "system") {
-            systemRows = parsed.rows
-            systemFileName = parsed.fileName
-          } else {
-            bankRows = parsed.rows
-            bankFileName = parsed.fileName
-          }
-        }
-
-        const userBank = preview?.userBank ?? selectedBank
         const response = await apiClient.post<ReconciliationDetail>("/conciliation/conciliaciones", {
           reconciliationId: selectedUpdateReconciliationId > 0 ? selectedUpdateReconciliationId : undefined,
           userBankId: selectedBankId,
           companyBankAccountId: selectedCompanyBankAccountId,
           layoutId: selectedLayoutId,
           name: reconciliationName.trim(),
-          comparisonPerformed: Boolean(preview && preview.systemRows.length > 0 && preview.bankRows.length > 0),
+          comparisonPerformed: false,
           systemFileName,
           bankFileName,
           systemRows,
           bankRows,
-          autoMatches: preview?.autoMatches ?? [],
-          manualMatches: preview ? manualMatches : []
+          autoMatches: [],
+          manualMatches: []
         })
 
-        applyUpdateSelection(response.id)
+        setSelectedUpdateReconciliationId(response.id)
         await loadAnalytics(selectedUserId)
+
+        if (workbenchViewMode === "loaded") {
+          hydrateWorkbenchFromDetail(response)
+        } else {
+          clearPreviewState()
+          setSystemFile(null)
+          setBankFile(null)
+          setLastErpShipment(null)
+        }
 
         toast.success(
           selectedUpdateReconciliationId > 0
-            ? "Conciliacion actualizada sin duplicar lineas previas."
-            : "Registros guardados."
+            ? "Archivos actualizados en la conciliacion."
+            : "Archivos guardados."
         )
 
         return response
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "No se pudieron guardar los registros.")
+        toast.error(error instanceof Error ? error.message : "No se pudieron guardar los archivos.")
         return null
       }
     },
     [
-      applyUpdateSelection,
       bankFile,
+      clearPreviewState,
+      hydrateWorkbenchFromDetail,
       loadAnalytics,
-      manualMatches,
+      parseUploadedFile,
       preview,
       reconciliationName,
-      selectedBank,
       selectedBankId,
       selectedCompanyBankAccountId,
       selectedLayoutId,
       selectedUpdateReconciliationId,
       selectedUserId,
       systemFile,
+      workbenchViewMode,
       toast
     ]
+  )
+
+  const deleteSavedSource = useCallback(
+    async (source: ReconciliationSource): Promise<ReconciliationDetail | null> => {
+      if (!selectedUpdateReconciliationId) {
+        toast.error("Primero carga una conciliacion guardada.")
+        return null
+      }
+
+      try {
+        const response = await apiClient.delete<ReconciliationDetail>(
+          `/conciliation/conciliaciones/${selectedUpdateReconciliationId}/fuentes/${source}`
+        )
+        hydrateWorkbenchFromDetail(response)
+        setWorkbenchViewMode("loaded")
+        await loadAnalytics(selectedUserId)
+        toast.success(
+          source === "system"
+            ? "Los datos guardados del sistema fueron eliminados."
+            : "Los datos guardados del banco fueron eliminados."
+        )
+        return response
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar la fuente guardada de la conciliacion."
+        )
+        return null
+      }
+    },
+    [hydrateWorkbenchFromDetail, loadAnalytics, selectedUpdateReconciliationId, selectedUserId, toast]
+  )
+
+  const deleteSavedReconciliation = useCallback(
+    async (reconciliationId: number): Promise<boolean> => {
+      try {
+        const response = await apiClient.delete<DeleteReconciliationResponse>(
+          `/conciliation/conciliaciones/${reconciliationId}`
+        )
+
+        if (selectedUpdateReconciliationId === reconciliationId) {
+          clearAll()
+        }
+
+        await loadAnalytics(selectedUserId)
+        toast.success(response.message)
+        return true
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo eliminar la conciliacion guardada."
+        )
+        return false
+      }
+    },
+    [clearAll, loadAnalytics, selectedUpdateReconciliationId, selectedUserId, toast]
   )
 
   const targetCompanyId = useMemo(() => {
@@ -800,9 +891,12 @@ export default function useConciliationWorkbench() {
     availableReconciliationsForUpdate,
     reconciliationsForSelectedBankAccount,
     selectedUpdateReconciliationId,
+    workbenchViewMode,
     setSelectedUpdateReconciliationId,
     applyUpdateSelection,
     loadSavedReconciliation,
+    openLoadedWorkbench,
+    goBackToEditorWorkbench,
     selectedReconciliationForUpdate,
     clearUpdateSelection,
     metrics,
@@ -813,7 +907,9 @@ export default function useConciliationWorkbench() {
     onDragEnd,
     removeManualMatch,
     saveReconciliation,
-    saveFileData,
+    saveWorkbenchFiles,
+    deleteSavedSource,
+    deleteSavedReconciliation,
     companyErpConfigs,
     selectedCompanyErpConfigId,
     setSelectedCompanyErpConfigId,

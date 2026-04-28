@@ -130,6 +130,8 @@ export interface DeleteBankResponse {
   deletedReconciliations: number;
 }
 
+export type ReconciliationSource = "system" | "bank";
+
 export interface PreviewRow {
   rowId: string;
   rowNumber: number;
@@ -229,6 +231,11 @@ export interface ReconciliationSnapshot {
 
 export interface ReconciliationDetail extends ReconciliationSummary {
   summarySnapshot: ReconciliationSnapshot | null;
+}
+
+export interface DeleteReconciliationResponse {
+  id: number;
+  message: string;
 }
 
 export interface GestorAssignmentCatalog {

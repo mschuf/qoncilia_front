@@ -1,21 +1,22 @@
-﻿import { useMemo } from "react";
+import { useMemo } from "react";
 import {
-  FiAlertCircle,
+  FiArrowLeft,
   FiBarChart2,
   FiCheckCircle,
   FiClock,
-  FiCreditCard,
   FiDatabase,
+  FiEye,
   FiRefreshCw,
   FiSave,
   FiSend,
   FiServer,
+  FiTrash2,
   FiUploadCloud,
-  FiX,
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
+  CompactFilePanel,
   KpiCard,
   Metric,
   SelectBlock,
@@ -23,13 +24,24 @@ import {
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import AppModal from "../components/AppModal";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
-import type { ReconciliationSummary } from "../types/conciliation";
+import type {
+  ReconciliationSource,
+  ReconciliationSummary,
+} from "../types/conciliation";
 import {
   getConciliationDataSummary,
   getConciliationStatusPresentation,
   isPendingConciliationStatus,
 } from "../utils/conciliationStatus";
 import { isAdminRole } from "../utils/role";
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+function buildFilesSummary(reconciliation: ReconciliationSummary) {
+  return `${reconciliation.systemFileName ?? "sin sistema"} / ${reconciliation.bankFileName ?? "sin banco"}`;
+}
 
 export default function ConciliationWorkbenchPage() {
   const {
@@ -42,7 +54,6 @@ export default function ConciliationWorkbenchPage() {
     selectedBankId,
     setSelectedBankId,
     accounts,
-    selectedCompanyBankAccount,
     selectedCompanyBankAccountId,
     setSelectedCompanyBankAccountId,
     selectedLayoutId,
@@ -60,12 +71,12 @@ export default function ConciliationWorkbenchPage() {
     unmatchedSystemRows,
     unmatchedBankRows,
     kpis,
-    availableReconciliationsForUpdate,
     reconciliationsForSelectedBankAccount,
     selectedUpdateReconciliationId,
     loadSavedReconciliation,
+    openLoadedWorkbench,
+    goBackToEditorWorkbench,
     selectedReconciliationForUpdate,
-    clearUpdateSelection,
     metrics,
     onFileChange,
     clearAll,
@@ -73,7 +84,9 @@ export default function ConciliationWorkbenchPage() {
     onDragEnd,
     removeManualMatch,
     saveReconciliation,
-    saveFileData,
+    saveWorkbenchFiles,
+    deleteSavedSource,
+    deleteSavedReconciliation,
     companyErpConfigs,
     selectedCompanyErpConfigId,
     setSelectedCompanyErpConfigId,
@@ -85,6 +98,7 @@ export default function ConciliationWorkbenchPage() {
     setErpPayloadText,
     sendToErp,
     lastErpShipment,
+    workbenchViewMode,
   } = useConciliationWorkbench();
 
   const savedReconciliations = useMemo(
@@ -103,6 +117,42 @@ export default function ConciliationWorkbenchPage() {
     [reconciliationsForSelectedBankAccount],
   );
 
+  const isLoadedWorkbench =
+    workbenchViewMode === "loaded" &&
+    Boolean(selectedReconciliationForUpdate) &&
+    Boolean(preview);
+
+  const showPreviewResults =
+    Boolean(preview && metrics) &&
+    (workbenchViewMode === "loaded" || selectedUpdateReconciliationId === 0);
+
+  const systemLabel =
+    preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
+  const bankLabel = preview?.layout.bankLabel ?? selectedLayout?.bankLabel ?? "Banco";
+
+  const handleDeleteSource = async (source: ReconciliationSource) => {
+    if (!selectedReconciliationForUpdate) return;
+
+    const sourceLabel = source === "system" ? "sistema" : "banco";
+    const confirmed = window.confirm(
+      `Se eliminaran de la BD los datos guardados de ${sourceLabel} para la conciliacion "${selectedReconciliationForUpdate.name}".`,
+    );
+
+    if (!confirmed) return;
+    await deleteSavedSource(source);
+  };
+
+  const handleDeleteReconciliation = async (
+    reconciliation: ReconciliationSummary,
+  ) => {
+    const confirmed = window.confirm(
+      `Se eliminara por completo la conciliacion "${reconciliation.name}" y sus resultados guardados.`,
+    );
+
+    if (!confirmed) return;
+    await deleteSavedReconciliation(reconciliation.id);
+  };
+
   return (
     <>
       <section className="space-y-6">
@@ -114,12 +164,12 @@ export default function ConciliationWorkbenchPage() {
                   Mesa de Conciliacion
                 </p>
                 <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-                  Subi dos Excel y comparalos por plantilla
+                  Sube, guarda, compara y recarga conciliaciones con mas control
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                  A la izquierda va tu archivo del sistema y a la derecha el
-                  extracto del banco. Los matches automaticos se marcan y el
-                  resto se puede emparejar manualmente arrastrando.
+                  Puedes guardar archivos sin comparar, abrir conciliaciones ya
+                  guardadas, volver al formulario cuando lo necesites y eliminar
+                  solo sistema, solo banco o toda la conciliacion.
                 </p>
               </div>
 
@@ -139,12 +189,12 @@ export default function ConciliationWorkbenchPage() {
               icon={FiBarChart2}
             />
             <KpiCard
-              label="Auto-match"
+              label="Coinc. auto"
               value={String(kpis?.totalAutoMatches ?? 0)}
               icon={FiCheckCircle}
             />
             <KpiCard
-              label="Manual-match"
+              label="Coinc. manual"
               value={String(kpis?.totalManualMatches ?? 0)}
               icon={FiDatabase}
             />
@@ -192,8 +242,7 @@ export default function ConciliationWorkbenchPage() {
                 ) : null}
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.name} - {account.accountNumber} ({account.currency}
-                    )
+                    {account.name} - {account.accountNumber} ({account.currency})
                   </option>
                 ))}
               </select>
@@ -205,7 +254,7 @@ export default function ConciliationWorkbenchPage() {
               onChange={(value) => setSelectedLayoutId(Number(value))}
               options={layouts.map((item) => ({
                 value: item.id,
-                label: `${item.name}${item.active ? " - activo" : ""}`,
+                label: `${item.name}${item.active ? " - activa" : ""}`,
               }))}
             />
 
@@ -220,90 +269,76 @@ export default function ConciliationWorkbenchPage() {
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
               />
             </label>
+          </div>
+        </div>
 
-            <div className="flex items-end gap-2 xl:justify-end">
-              <button
-                type="button"
-                onClick={clearAll}
-                title="Limpiar todo"
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
-              >
-                <FiRefreshCw className="h-4 w-4" /> Limpiar
-              </button>
+        <section className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                Conciliaciones guardadas
+              </p>
+              <h3 className="mt-2 text-lg font-extrabold text-slate-900">
+                Tabla de conciliaciones por cuenta
+              </h3>
             </div>
           </div>
 
-          <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          {!selectedCompanyBankAccountId ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+              Selecciona una cuenta bancaria para ver conciliaciones guardadas
+              y parciales.
+            </div>
+          ) : savedReconciliations.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+              Todavia no hay conciliaciones guardadas para esta cuenta.
+            </div>
+          ) : (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Estado</th>
+                      <th className="px-3 py-2">Descripcion</th>
+                      <th className="px-3 py-2">Plantilla</th>
+                      <th className="px-3 py-2">Datos</th>
+                      <th className="px-3 py-2">Archivos</th>
+                      <th className="px-3 py-2">Match %</th>
+                      <th className="px-3 py-2">Act.</th>
+                      <th className="px-3 py-2 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedReconciliations.map((item) => (
+                      <SavedReconciliationRow
+                        key={item.id}
+                        reconciliation={item}
+                        isCurrentLayout={item.layoutId === selectedLayoutId}
+                        isSelected={item.id === selectedUpdateReconciliationId}
+                        onLoad={() => void loadSavedReconciliation(item.id)}
+                        onDelete={() => void handleDeleteReconciliation(item)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {isLoadedWorkbench && preview && selectedReconciliationForUpdate ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Conciliaciones guardadas
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand-600">
+                  Conciliacion cargada
                 </p>
-                <h3 className="mt-2 text-lg font-extrabold text-slate-900">
-                  Carga rapida de sistema, banco y comparaciones parciales
+                <h3 className="mt-2 text-2xl font-extrabold text-slate-900">
+                  {selectedReconciliationForUpdate.name}
                 </h3>
-              </div>
-            </div>
-
-            {!selectedCompanyBankAccountId ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                Selecciona una cuenta bancaria para ver conciliaciones guardadas
-                y parciales.
-              </div>
-            ) : savedReconciliations.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                Todavia no hay conciliaciones guardadas para este banco y
-                cuenta.
-              </div>
-            ) : (
-              <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                {savedReconciliations.map((item) => (
-                  <SavedReconciliationCard
-                    key={item.id}
-                    reconciliation={item}
-                    isCurrentLayout={item.layoutId === selectedLayoutId}
-                    isSelected={item.id === selectedUpdateReconciliationId}
-                    onLoad={() => void loadSavedReconciliation(item.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <UploadCard
-              title={selectedLayout?.bankLabel ?? "Banco"}
-              file={bankFile}
-              onChange={onFileChange(setBankFile)}
-              onClear={() => setBankFile(null)}
-              onSave={() => void saveFileData("bank")}
-            />
-            <UploadCard
-              title={selectedLayout?.systemLabel ?? "Sistema"}
-              file={systemFile}
-              onChange={onFileChange(setSystemFile)}
-              onClear={() => setSystemFile(null)}
-              onSave={() => void saveFileData("system")}
-            />
-          </div>
-
-          <div className="mt-5 flex justify-center">
-            <button
-              type="button"
-              onClick={runPreview}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-700/25"
-            >
-              <FiUploadCloud className="h-4 w-4" /> Comparar
-            </button>
-          </div>
-
-          {selectedReconciliationForUpdate ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <div>
-                <p className="font-bold">
-                  Actualizando: {selectedReconciliationForUpdate.name}
-                </p>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-90">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
                   <span>
                     <strong>Estado:</strong>{" "}
                     {
@@ -314,9 +349,7 @@ export default function ConciliationWorkbenchPage() {
                   </span>
                   <span>
                     <strong>Fecha:</strong>{" "}
-                    {new Date(
-                      selectedReconciliationForUpdate.createdAt,
-                    ).toLocaleString()}
+                    {formatDateTime(selectedReconciliationForUpdate.updatedAt)}
                   </span>
                   <span>
                     <strong>Plantilla:</strong>{" "}
@@ -330,55 +363,185 @@ export default function ConciliationWorkbenchPage() {
                       ? `- ${selectedReconciliationForUpdate.companyBankAccountNumber}`
                       : ""}
                   </span>
-                  <span>
-                    <strong>Match actual:</strong>{" "}
-                    {selectedReconciliationForUpdate.matchPercentage}%
-                  </span>
                 </div>
-                <p className="mt-2 text-[11px] leading-relaxed opacity-75">
-                  La conciliacion se actualizara de forma incremental para no
-                  duplicar lineas ya guardadas y sumar solo los nuevos
-                  movimientos.
-                </p>
               </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={goBackToEditorWorkbench}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  <FiArrowLeft className="h-4 w-4" /> Volver al formulario
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  <FiRefreshCw className="h-4 w-4" /> Limpiar mesa
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <CompactFilePanel
+                title={systemLabel}
+                file={systemFile}
+                currentFileName={
+                  selectedReconciliationForUpdate.systemFileName ??
+                  preview.systemFileName
+                }
+                hasSavedData={selectedReconciliationForUpdate.hasSystemData}
+                onChange={onFileChange(setSystemFile)}
+                onClearSelected={() => setSystemFile(null)}
+                onDeleteSaved={() => void handleDeleteSource("system")}
+              />
+              <CompactFilePanel
+                title={bankLabel}
+                file={bankFile}
+                currentFileName={
+                  selectedReconciliationForUpdate.bankFileName ??
+                  preview.bankFileName
+                }
+                hasSavedData={selectedReconciliationForUpdate.hasBankData}
+                onChange={onFileChange(setBankFile)}
+                onClearSelected={() => setBankFile(null)}
+                onDeleteSaved={() => void handleDeleteSource("bank")}
+              />
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
-                onClick={clearUpdateSelection}
-                className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-200"
+                onClick={() => void saveWorkbenchFiles()}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
               >
-                <FiX className="h-4 w-4" /> Cancelar actualizacion
+                <FiSave className="h-4 w-4" /> Guardar archivos
+              </button>
+              <button
+                type="button"
+                onClick={runPreview}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-700/25"
+              >
+                <FiUploadCloud className="h-4 w-4" /> Comparar
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void handleDeleteReconciliation(selectedReconciliationForUpdate)
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-100"
+              >
+                <FiTrash2 className="h-4 w-4" /> Eliminar conciliacion
               </button>
             </div>
-          ) : null}
+          </section>
+        ) : (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5">
+            {selectedReconciliationForUpdate ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="font-bold">
+                      Conciliacion lista para seguir trabajando:{" "}
+                      {selectedReconciliationForUpdate.name}
+                    </p>
+                    <p className="mt-1 text-xs opacity-90">
+                      Puedes volver a la vista cargada para revisar
+                      coincidencias y tablas, o limpiar la mesa para empezar una
+                      conciliacion nueva.
+                    </p>
+                  </div>
 
-          {lastErpShipment ? (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-bold">
-                    Ultimo envio ERP: {lastErpShipment.companyErpConfigName}
-                  </p>
-                  <p className="mt-1 text-xs opacity-90">
-                    Estado {lastErpShipment.status}
-                    {lastErpShipment.externalDocEntry
-                      ? ` - DocEntry ${lastErpShipment.externalDocEntry}`
-                      : ""}
-                    {lastErpShipment.externalDocNum
-                      ? ` - DocNum ${lastErpShipment.externalDocNum}`
-                      : ""}
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={openLoadedWorkbench}
+                      className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100"
+                    >
+                      <FiEye className="h-4 w-4" /> Ver conciliacion cargada
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAll}
+                      className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-200"
+                    >
+                      <FiRefreshCw className="h-4 w-4" /> Quitar de la mesa
+                    </button>
+                  </div>
                 </div>
-                {lastErpShipment.httpStatus ? (
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
-                    HTTP {lastErpShipment.httpStatus}
-                  </span>
-                ) : null}
               </div>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
 
-        {preview && metrics ? (
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <UploadCard
+                title={systemLabel}
+                file={systemFile}
+                onChange={onFileChange(setSystemFile)}
+                onClear={() => setSystemFile(null)}
+              />
+              <UploadCard
+                title={bankLabel}
+                file={bankFile}
+                onChange={onFileChange(setBankFile)}
+                onClear={() => setBankFile(null)}
+              />
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => void saveWorkbenchFiles()}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                <FiSave className="h-4 w-4" /> Guardar archivos
+              </button>
+              <button
+                type="button"
+                onClick={runPreview}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-700/25"
+              >
+                <FiUploadCloud className="h-4 w-4" /> Comparar
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+              >
+                <FiRefreshCw className="h-4 w-4" /> Limpiar
+              </button>
+            </div>
+          </section>
+        )}
+
+        {lastErpShipment ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-bold">
+                  Ultimo envio ERP: {lastErpShipment.companyErpConfigName}
+                </p>
+                <p className="mt-1 text-xs opacity-90">
+                  Estado {lastErpShipment.status}
+                  {lastErpShipment.externalDocEntry
+                    ? ` - DocEntry ${lastErpShipment.externalDocEntry}`
+                    : ""}
+                  {lastErpShipment.externalDocNum
+                    ? ` - DocNum ${lastErpShipment.externalDocNum}`
+                    : ""}
+                </p>
+              </div>
+              {lastErpShipment.httpStatus ? (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+                  HTTP {lastErpShipment.httpStatus}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {showPreviewResults && preview && metrics ? (
           <>
             <div className="flex flex-wrap justify-end gap-3">
               {canUseErp ? (
@@ -398,7 +561,7 @@ export default function ConciliationWorkbenchPage() {
               >
                 <FiSave className="h-4 w-4" />
                 {selectedUpdateReconciliationId > 0
-                  ? "Actualizar conciliacion"
+                  ? "Guardar comparacion"
                   : "Guardar conciliacion"}
               </button>
             </div>
@@ -410,9 +573,10 @@ export default function ConciliationWorkbenchPage() {
               unmatchedBankRows={unmatchedBankRows}
               onDragEnd={onDragEnd}
               onRemoveManualMatch={removeManualMatch}
+              manualMatcherInitiallyOpen={!isLoadedWorkbench}
             />
 
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
               <Metric label="Sistema" value={String(metrics.totalSystemRows)} />
               <Metric label="Banco" value={String(metrics.totalBankRows)} />
               <Metric
@@ -467,8 +631,8 @@ export default function ConciliationWorkbenchPage() {
         <div className="space-y-5">
           <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
             Este flujo primero persiste la conciliacion actual y luego hace el
-            POST
-            <strong> Deposits</strong> al Service Layer del ERP seleccionado.
+            POST <strong>Deposits</strong> al Service Layer del ERP
+            seleccionado.
           </div>
 
           <label className="space-y-1.5">
@@ -543,39 +707,34 @@ export default function ConciliationWorkbenchPage() {
   );
 }
 
-function SavedReconciliationCard({
+function SavedReconciliationRow({
   reconciliation,
   isCurrentLayout,
   isSelected,
   onLoad,
+  onDelete,
 }: {
   reconciliation: ReconciliationSummary;
   isCurrentLayout: boolean;
   isSelected: boolean;
   onLoad: () => void;
+  onDelete: () => void;
 }) {
   const statusPresentation = getConciliationStatusPresentation(
     reconciliation.status,
   );
 
   return (
-    <article
-      className={`rounded-2xl border p-4 transition ${
-        isSelected
-          ? "border-brand-300 bg-brand-50 shadow-sm"
-          : "border-slate-200 bg-white hover:border-slate-300"
+    <tr
+      className={`border-t border-slate-100 ${
+        isSelected ? "bg-brand-50" : "bg-white hover:bg-slate-50"
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-slate-900">
-            {reconciliation.name}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            {reconciliation.layoutName} - {reconciliation.systemName}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+      <td className="px-3 py-3 text-slate-600">
+        {formatDateTime(reconciliation.updatedAt)}
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex flex-wrap items-center gap-2">
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusPresentation.badgeClassName}`}
           >
@@ -587,64 +746,51 @@ function SavedReconciliationCard({
             </span>
           ) : null}
         </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl bg-slate-50 px-3 py-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
-            Cuenta
-          </p>
-          <p className="mt-2 text-sm font-semibold text-slate-800">
-            {reconciliation.companyBankAccountName ?? "Sin cuenta asociada"}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            {reconciliation.companyBankAccountNumber ?? "-"} -{" "}
-            {reconciliation.companyBankAccountCurrency ?? "-"}
-          </p>
+      </td>
+      <td className="px-3 py-3">
+        <p className="font-semibold text-slate-900">{reconciliation.name}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          {reconciliation.companyBankAccountName ?? "Sin cuenta asociada"}{" "}
+          {reconciliation.companyBankAccountNumber
+            ? `- ${reconciliation.companyBankAccountNumber}`
+            : ""}
+        </p>
+      </td>
+      <td className="px-3 py-3 text-slate-600">
+        <p>{reconciliation.layoutName}</p>
+        <p className="mt-1 text-xs text-slate-500">{reconciliation.systemName}</p>
+      </td>
+      <td className="px-3 py-3 text-slate-600">
+        {getConciliationDataSummary(
+          reconciliation.hasSystemData,
+          reconciliation.hasBankData,
+        )}
+      </td>
+      <td className="px-3 py-3 text-xs text-slate-500">
+        {buildFilesSummary(reconciliation)}
+      </td>
+      <td className="px-3 py-3 font-semibold text-slate-700">
+        {reconciliation.matchPercentage}%
+      </td>
+      <td className="px-3 py-3 text-slate-600">{reconciliation.updateCount}</td>
+      <td className="px-3 py-3">
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onLoad}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <FiEye className="h-4 w-4" /> Cargar
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+          >
+            <FiTrash2 className="h-4 w-4" /> Eliminar
+          </button>
         </div>
-        <div className="rounded-2xl bg-slate-50 px-3 py-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
-            Datos guardados
-          </p>
-          <p className="mt-2 text-sm font-semibold text-slate-800">
-            {getConciliationDataSummary(
-              reconciliation.hasSystemData,
-              reconciliation.hasBankData,
-            )}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            {statusPresentation.description}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500">
-        <span>Match {reconciliation.matchPercentage}%</span>
-        <span>Actualizaciones {reconciliation.updateCount}</span>
-        <span>
-          Ultima carga {new Date(reconciliation.updatedAt).toLocaleString()}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs text-slate-500">
-          {reconciliation.systemFileName || reconciliation.bankFileName
-            ? `Archivos: ${reconciliation.systemFileName ?? "sin sistema"} / ${reconciliation.bankFileName ?? "sin banco"}`
-            : "Sin nombres de archivo guardados"}
-        </div>
-        <button
-          type="button"
-          onClick={onLoad}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          {isSelected ? (
-            <FiRefreshCw className="h-4 w-4" />
-          ) : (
-            <FiCreditCard className="h-4 w-4" />
-          )}
-          {isSelected ? "Recargar en mesa" : "Cargar en mesa"}
-        </button>
-      </div>
-    </article>
+      </td>
+    </tr>
   );
 }
