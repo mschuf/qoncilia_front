@@ -2,3 +2,9 @@ node_modules
 dist
 .env
 
+# Agent skills (instalados con `npx skills add`)
+.agents/
+.claude/
+skills/
+skills-lock.json
+
