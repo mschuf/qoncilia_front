@@ -12,7 +12,8 @@ import type {
   PreviewMatch,
   PreviewResponse,
   PreviewRow,
-  UserBankWithLayouts
+  UserBankWithLayouts,
+  PaginatedResponse
 } from "../types/conciliation"
 import { isAdminRole } from "../utils/role"
 
@@ -126,6 +127,11 @@ export default function useConciliationWorkbench() {
   const [selectedCompanyBankAccountId, setSelectedCompanyBankAccountId] = useState<number>(0)
   const [selectedLayoutId, setSelectedLayoutId] = useState<number>(0)
   const [bankStatements, setBankStatements] = useState<BankStatementSummary[]>([])
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [selectedBankStatementId, setSelectedBankStatementId] = useState<number>(0)
   const [systemFile, setSystemFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
@@ -211,12 +217,18 @@ export default function useConciliationWorkbench() {
     if (isAdminRole(role) && selectedUserId) {
       params.set("userId", String(selectedUserId))
     }
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    if (search.trim()) params.set("search", search.trim());
+    params.set("page", String(page));
+    params.set("limit", "10");
 
-    const response = await apiClient.get<BankStatementSummary[]>(
+    const response = await apiClient.get<PaginatedResponse<BankStatementSummary>>(
       `/conciliation/bank-statements?${params.toString()}`
     )
-    const nextStatements = response ?? []
+    const nextStatements = response?.data ?? []
     setBankStatements(nextStatements)
+    setTotalPages(response?.lastPage ?? 1)
     setSelectedBankStatementId((current) => {
       if (current > 0 && nextStatements.some((item) => item.id === current)) return current
       return nextStatements[0]?.id ?? 0
@@ -226,7 +238,11 @@ export default function useConciliationWorkbench() {
     selectedBankId,
     selectedCompanyBankAccountId,
     selectedLayoutId,
-    selectedUserId
+    selectedUserId,
+    dateFrom,
+    dateTo,
+    search,
+    page
   ])
 
   useEffect(() => {
@@ -362,6 +378,15 @@ export default function useConciliationWorkbench() {
     onDragEnd,
     removeManualMatch,
     clearAll,
-    reloadBankStatements: loadBankStatements
+    reloadBankStatements: loadBankStatements,
+    page,
+    setPage,
+    totalPages,
+    search,
+    setSearch,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo
   }
 }

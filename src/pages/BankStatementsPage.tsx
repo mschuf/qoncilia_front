@@ -14,6 +14,7 @@ import type {
   BankStatementPreviewResponse,
   BankStatementSummary,
   DeleteBankStatementResponse,
+  PaginatedResponse,
   Layout,
   LayoutMapping,
   PreviewRow,
@@ -69,6 +70,11 @@ export default function BankStatementsPage() {
     null,
   );
   const [statements, setStatements] = useState<BankStatementSummary[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedDetail, setSelectedDetail] =
     useState<BankStatementDetail | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BankStatementSummary | null>(
@@ -181,17 +187,27 @@ export default function BankStatementsPage() {
       params.set("companyBankAccountId", String(selectedCompanyBankAccountId));
     }
     if (selectedLayoutId) params.set("layoutId", String(selectedLayoutId));
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    if (search.trim()) params.set("search", search.trim());
+    params.set("page", String(page));
+    params.set("limit", "10");
 
-    const response = await apiClient.get<BankStatementSummary[]>(
+    const response = await apiClient.get<PaginatedResponse<BankStatementSummary>>(
       `/conciliation/bank-statements?${params.toString()}`,
     );
-    setStatements(response ?? []);
+    setStatements(response?.data ?? []);
+    setTotalPages(response?.lastPage ?? 1);
   }, [
     role,
     selectedBankId,
     selectedCompanyBankAccountId,
     selectedLayoutId,
     selectedUserId,
+    dateFrom,
+    dateTo,
+    search,
+    page,
   ]);
 
   useEffect(() => {
@@ -474,10 +490,44 @@ export default function BankStatementsPage() {
                 Archivos del banco por cuenta y layout
               </h3>
             </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-4 items-end border-b border-slate-100 pb-5">
+            <label className="space-y-1.5">
+              <span className="text-sm font-semibold text-slate-700">Buscar extracto</span>
+              <div className="relative">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Ej. Extracto Enero..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                />
+              </div>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-semibold text-slate-700">Desde</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-sm font-semibold text-slate-700">Hasta</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              />
+            </label>
             <button
               type="button"
-              onClick={() => void loadStatements()}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              onClick={() => { setPage(1); void loadStatements(); }}
+              className="inline-flex h-[42px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
             >
               <FiSearch className="h-4 w-4" /> Buscar
             </button>
@@ -489,9 +539,8 @@ export default function BankStatementsPage() {
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Fecha</th>
-                    <th className="px-3 py-2">Extracto</th>
-                    <th className="px-3 py-2">Banco</th>
-                    <th className="px-3 py-2">Cuenta</th>
+                    <th className="px-3 py-2">Banco y Cuenta</th>
+                    <th className="px-3 py-2">Alias del Extracto</th>
                     <th className="px-3 py-2">Layout</th>
                     <th className="px-3 py-2">Filas</th>
                     <th className="px-3 py-2 text-right">Acciones</th>
@@ -508,18 +557,19 @@ export default function BankStatementsPage() {
                       </td>
                       <td className="px-3 py-3">
                         <p className="font-semibold text-slate-900">
+                          {statement.bankAlias ?? statement.bankName}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {statement.companyBankAccountName} - {statement.companyBankAccountNumber}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <p className="font-semibold text-slate-900">
                           {statement.name}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                           {statement.fileName}
                         </p>
-                      </td>
-                      <td className="px-3 py-3">
-                        {statement.bankAlias ?? statement.bankName}
-                      </td>
-                      <td className="px-3 py-3">
-                        {statement.companyBankAccountName} -{" "}
-                        {statement.companyBankAccountNumber}
                       </td>
                       <td className="px-3 py-3">{statement.layoutName}</td>
                       <td className="px-3 py-3 font-semibold">
@@ -557,6 +607,30 @@ export default function BankStatementsPage() {
                   ) : null}
                 </tbody>
               </table>
+            </div>
+          </div>
+          
+          <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+            <span>
+              Página <span className="font-semibold">{page}</span> de <span className="font-semibold">{totalPages}</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                Siguiente
+              </button>
             </div>
           </div>
         </section>

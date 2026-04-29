@@ -336,3 +336,11 @@ export interface DeleteBankStatementResponse {
   id: number;
   message: string;
 }
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  lastPage: number;
+}

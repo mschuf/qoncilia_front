@@ -46,6 +46,15 @@ export default function ConciliationWorkbenchPage() {
     removeManualMatch,
     clearAll,
     reloadBankStatements,
+    page,
+    setPage,
+    totalPages,
+    search,
+    setSearch,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
   } = useConciliationWorkbench();
 
   const bankLabel = preview?.layout.bankLabel ?? selectedLayout?.bankLabel ?? "Banco";
@@ -145,14 +154,55 @@ export default function ConciliationWorkbenchPage() {
           ) : null}
         </div>
 
+        <div className="mt-5 grid gap-3 lg:grid-cols-4 items-end border-b border-slate-100 pb-5">
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Buscar extracto</span>
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Ej. Extracto Enero..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Desde</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Hasta</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => { setPage(1); void reloadBankStatements(); }}
+            className="inline-flex h-[42px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+          >
+            <FiSearch className="h-4 w-4" /> Buscar
+          </button>
+        </div>
+
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Fecha</th>
-                  <th className="px-3 py-2">Extracto</th>
-                  <th className="px-3 py-2">Cuenta</th>
+                  <th className="px-3 py-2">Banco y Cuenta</th>
+                  <th className="px-3 py-2">Alias del Extracto</th>
                   <th className="px-3 py-2">Layout</th>
                   <th className="px-3 py-2">Filas</th>
                   <th className="px-3 py-2 text-right">Seleccionar</th>
@@ -176,6 +226,30 @@ export default function ConciliationWorkbenchPage() {
                 ) : null}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+          <span>
+            Página <span className="font-semibold">{page}</span> de <span className="font-semibold">{totalPages}</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              Siguiente
+            </button>
           </div>
         </div>
       </section>
@@ -260,11 +334,12 @@ function StatementRow({
     <tr className={`border-t border-slate-100 ${selected ? "bg-brand-50" : "bg-white hover:bg-slate-50"}`}>
       <td className="px-3 py-3 text-slate-600">{formatDateTime(statement.createdAt)}</td>
       <td className="px-3 py-3">
+        <p className="font-semibold text-slate-900">{statement.bankAlias ?? statement.bankName}</p>
+        <p className="mt-1 text-xs text-slate-500">{statement.companyBankAccountName} - {statement.companyBankAccountNumber}</p>
+      </td>
+      <td className="px-3 py-3">
         <p className="font-semibold text-slate-900">{statement.name}</p>
         <p className="mt-1 text-xs text-slate-500">{statement.fileName}</p>
-      </td>
-      <td className="px-3 py-3 text-slate-600">
-        {statement.companyBankAccountName} - {statement.companyBankAccountNumber}
       </td>
       <td className="px-3 py-3 text-slate-600">{statement.layoutName}</td>
       <td className="px-3 py-3 font-semibold text-slate-800">{statement.rowCount}</td>
