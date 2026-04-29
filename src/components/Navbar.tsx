@@ -136,7 +136,7 @@ export default function Navbar() {
       to: "/erp-management",
       icon: <FiServer className="h-4 w-4" />,
       label: isSuperAdminRole(role) ? "Empresas" : "Mi Empresa",
-      show: hasModule(APP_MODULE_VALUES.erpManagement),
+      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.erpManagement),
     },
   ];
 
