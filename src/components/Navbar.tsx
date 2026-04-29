@@ -7,6 +7,7 @@ import {
   FiDatabase,
   FiGrid,
   FiHome,
+  FiLayers,
   FiLogOut,
   FiMenu,
   FiSettings,
@@ -127,16 +128,19 @@ export default function Navbar() {
       show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
     },
     {
+      to: "/admin-plantillas",
+      icon: <FiLayers className="h-4 w-4" />,
+      label: "Plantillas",
+      show:
+        isAdminRole(role) &&
+        !isSuperAdminRole(role) &&
+        hasModule(APP_MODULE_VALUES.layoutManagement),
+    },
+    {
       to: "/access-control",
       icon: <FiGrid className="h-4 w-4" />,
       label: "Accesos",
       show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.accessMatrix),
-    },
-    {
-      to: "/erp-management",
-      icon: <FiServer className="h-4 w-4" />,
-      label: isSuperAdminRole(role) ? "Empresas" : "Mi Empresa",
-      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.erpManagement),
     },
   ];
 

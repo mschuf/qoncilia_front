@@ -91,6 +91,16 @@ export interface UserBankWithLayouts extends UserBankSummary {
   userLogin: string;
   accounts: CompanyBankAccountSummary[];
   layouts: Layout[];
+  availableTemplateIds: number[];
+}
+
+export interface BankWithAvailableTemplates extends UserBankSummary {
+  userId: number;
+  userLogin: string;
+  companyId: number;
+  companyName: string;
+  layouts: Layout[];
+  availableTemplates: TemplateLayout[];
 }
 
 export interface BankDeletionPreviewBank extends UserBankSummary {

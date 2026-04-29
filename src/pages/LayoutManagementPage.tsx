@@ -17,6 +17,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AppModal from "../components/AppModal";
 import BankModal from "../components/LayoutManagement/BankModal";
+import BankAvailableTemplatesPanel from "../components/LayoutManagement/BankAvailableTemplatesPanel";
 import LayoutListSection from "../components/LayoutManagement/LayoutListSection";
 import LayoutModal from "../components/LayoutManagement/LayoutModal";
 import { MetricCard } from "../components/LayoutManagement/MetricCards";
@@ -170,6 +171,7 @@ function SuperadminLayoutManagementPage() {
     saveTemplate,
     saveSystem,
     applyTemplateToSelectedBank,
+    setBankAvailableTemplates,
     getBankDeletionPreview,
     deleteBank,
     deleteLayout,
@@ -418,19 +420,30 @@ function SuperadminLayoutManagementPage() {
                   }
                 />
               ) : workspace === "banks" ? (
-                <LayoutListSection
-                  selectedBank={selectedBank}
-                  onCreateBank={openCreateBank}
-                  onEditBank={openEditBank}
-                  onDeleteBank={(bank) =>
-                    void handleDeleteBank(bank.userId, bank)
-                  }
-                  onCreateLayout={openCreateLayout}
-                  onEditLayout={openEditLayout}
-                  onDeleteLayout={(_bank, layout) =>
-                    handleDeleteLayout(layout.name, () => deleteLayout(layout))
-                  }
-                />
+                <>
+                  <LayoutListSection
+                    selectedBank={selectedBank}
+                    onCreateBank={openCreateBank}
+                    onEditBank={openEditBank}
+                    onDeleteBank={(bank) =>
+                      void handleDeleteBank(bank.userId, bank)
+                    }
+                    onCreateLayout={openCreateLayout}
+                    onEditLayout={openEditLayout}
+                    onDeleteLayout={(_bank, layout) =>
+                      handleDeleteLayout(layout.name, () => deleteLayout(layout))
+                    }
+                  />
+                  <BankAvailableTemplatesPanel
+                    selectedBank={selectedBank}
+                    templates={templates}
+                    onSave={(ids) =>
+                      selectedBank
+                        ? setBankAvailableTemplates(selectedBank, ids)
+                        : Promise.resolve()
+                    }
+                  />
+                </>
               ) : workspace === "templates" ? (
                 <TemplateLayoutSection
                   templates={templates}

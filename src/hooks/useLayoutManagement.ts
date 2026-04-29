@@ -692,6 +692,27 @@ export default function useLayoutManagement() {
     }
   };
 
+  const setBankAvailableTemplates = async (
+    bank: UserBankWithLayouts,
+    templateLayoutIds: number[]
+  ) => {
+    try {
+      await apiClient.put(
+        `/conciliation/users/${bank.userId}/banks/${bank.id}/plantillas-base/disponibles`,
+        { templateLayoutIds }
+      );
+      toast.success("Plantillas habilitadas actualizadas.");
+      await loadCatalog(bank.userId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron guardar las plantillas habilitadas para el banco."
+      );
+      throw error;
+    }
+  };
+
   const applyTemplateToSelectedBank = async (template: TemplateLayout) => {
     if (!selectedUserId || !selectedBankId) {
       toast.error("Debes seleccionar usuario y banco antes de copiar una plantilla base.");
@@ -851,6 +872,7 @@ export default function useLayoutManagement() {
     saveTemplate,
     saveSystem,
     applyTemplateToSelectedBank,
+    setBankAvailableTemplates,
     getBankDeletionPreview,
     deleteBank,
     deleteLayout,

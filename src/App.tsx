@@ -13,6 +13,7 @@ const BankStatementsPage = lazy(() => import("./pages/BankStatementsPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LayoutManagementPage = lazy(() => import("./pages/LayoutManagementPage"));
+const AdminTemplatesPage = lazy(() => import("./pages/AdminTemplatesPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const UserManagementPage = lazy(() => import("./pages/UserManagementPage"));
@@ -119,6 +120,17 @@ export default function App() {
                   requiredModule={APP_MODULE_VALUES.layoutManagement}
                 >
                   <LayoutManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="admin-plantillas"
+              element={
+                <ProtectedRoute
+                  roles={[ROLE_VALUES.admin, ROLE_VALUES.isSuperAdmin]}
+                  requiredModule={APP_MODULE_VALUES.layoutManagement}
+                >
+                  <AdminTemplatesPage />
                 </ProtectedRoute>
               }
             />
