@@ -1,15 +1,18 @@
 import type { ChangeEvent, FormEvent } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { apiClient } from "../api/apiClient"
+import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
 import type { AuthUser } from "../types/auth"
 import type {
   BankFormState,
   CompanyBankAccountFormState,
   CompanyBankingReferenceResponse,
+  DeleteBankingEntityResponse,
   PublicBank,
   PublicCompanyBankAccount
 } from "../types/banking"
+import { isSuperAdminRole } from "../utils/role"
 
 const initialBankForm: BankFormState = {
   userId: "",
@@ -33,6 +36,7 @@ const initialAccountForm: CompanyBankAccountFormState = {
 
 export default function useCompanyBanking() {
   const toast = useToast()
+  const { role, user } = useAuth()
   const [reference, setReference] = useState<CompanyBankingReferenceResponse | null>(null)
   const [users, setUsers] = useState<AuthUser[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<number>(0)
@@ -43,9 +47,14 @@ export default function useCompanyBanking() {
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null)
 
   const loadUsers = useCallback(async () => {
+    if (!isSuperAdminRole(role)) {
+      setUsers(user ? [user] : [])
+      return
+    }
+
     const response = await apiClient.get<AuthUser[]>("/users/list")
     setUsers(response ?? [])
-  }, [])
+  }, [role, user])
 
   const loadReference = useCallback(async (companyId?: number) => {
     const params = companyId ? `?companyId=${companyId}` : ""
@@ -85,8 +94,11 @@ export default function useCompanyBanking() {
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId) ?? companies[0] ?? null
 
   const availableUsers = useMemo(
-    () => users.filter((item) => Number(item.companyId ?? 0) === selectedCompanyId),
-    [selectedCompanyId, users]
+    () =>
+      isSuperAdminRole(role)
+        ? users.filter((item) => Number(item.companyId ?? 0) === selectedCompanyId)
+        : users,
+    [role, selectedCompanyId, users]
   )
 
   const selectedBank = useMemo(
@@ -232,6 +244,26 @@ export default function useCompanyBanking() {
     }
   }
 
+  const deleteBank = async (bankId: number) => {
+    try {
+      const response = await apiClient.delete<DeleteBankingEntityResponse>(
+        `/company-banking/banks/${bankId}`
+      )
+
+      if (editingBankId === bankId) {
+        resetBankForm()
+      }
+      if (selectedBankId === bankId) {
+        setSelectedBankId(0)
+      }
+
+      await loadReference(selectedCompanyId)
+      toast.success(response.message)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar el banco.")
+    }
+  }
+
   const resetAccountForm = () => {
     setEditingAccountId(null)
     setAccountForm({
@@ -292,6 +324,23 @@ export default function useCompanyBanking() {
     }
   }
 
+  const deleteAccount = async (accountId: number) => {
+    try {
+      const response = await apiClient.delete<DeleteBankingEntityResponse>(
+        `/company-banking/accounts/${accountId}`
+      )
+
+      if (editingAccountId === accountId) {
+        resetAccountForm()
+      }
+
+      await loadReference(selectedCompanyId)
+      toast.success(response.message)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar la cuenta bancaria.")
+    }
+  }
+
   const stats = useMemo(
     () => ({
       banks: banks.length,
@@ -323,9 +372,11 @@ export default function useCompanyBanking() {
     selectBank,
     startEditBank,
     saveBank,
+    deleteBank,
     resetBankForm,
     startEditAccount,
     saveAccount,
+    deleteAccount,
     resetAccountForm,
     reload: loadReference,
     stats

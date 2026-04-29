@@ -8,6 +8,7 @@ import { APP_MODULE_VALUES } from "./utils/modules";
 import { ROLE_VALUES } from "./utils/role";
 
 const AppLayout = lazy(() => import("./layouts/AppLayout"));
+const AdminBankingPage = lazy(() => import("./pages/AdminBankingPage"));
 const BankStatementsPage = lazy(() => import("./pages/BankStatementsPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
@@ -65,6 +66,28 @@ export default function App() {
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliation}>
                   <BankStatementsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="banks"
+              element={
+                <ProtectedRoute
+                  roles={[ROLE_VALUES.admin, ROLE_VALUES.isSuperAdmin]}
+                  requiredModule={APP_MODULE_VALUES.layoutManagement}
+                >
+                  <AdminBankingPage mode="banks" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="bank-accounts"
+              element={
+                <ProtectedRoute
+                  roles={[ROLE_VALUES.admin, ROLE_VALUES.isSuperAdmin]}
+                  requiredModule={APP_MODULE_VALUES.layoutManagement}
+                >
+                  <AdminBankingPage mode="accounts" />
                 </ProtectedRoute>
               }
             />

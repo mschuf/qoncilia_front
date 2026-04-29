@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   FiActivity,
   FiBriefcase,
   FiChevronDown,
+  FiCreditCard,
   FiDatabase,
   FiGrid,
   FiHome,
@@ -14,16 +15,36 @@ import {
   FiUser,
   FiX,
 } from "react-icons/fi";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { APP_MODULE_VALUES } from "../utils/modules";
-import { isSuperAdminRole, roleLabel } from "../utils/role";
+import { isAdminRole, isSuperAdminRole, roleLabel } from "../utils/role";
+
+type NavigationLink = {
+  to: string;
+  icon: ReactNode;
+  label: string;
+  show: boolean;
+};
+
+type NavigationItem =
+  | NavigationLink
+  | {
+      key: string;
+      icon: ReactNode;
+      label: string;
+      show: boolean;
+      children: NavigationLink[];
+    };
 
 export default function Navbar() {
   const { user, role, logout, hasModule } = useAuth();
+  const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isBankMenuOpen, setIsBankMenuOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
+  const bankMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -34,13 +55,40 @@ export default function Navbar() {
       ) {
         setIsProfileMenuOpen(false);
       }
+
+      if (
+        bankMenuRef.current &&
+        event.target instanceof Node &&
+        !bankMenuRef.current.contains(event.target)
+      ) {
+        setIsBankMenuOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  const navLinks = [
+  const bankManagementLinks: NavigationLink[] = [
+    {
+      to: "/banks",
+      icon: <FiBriefcase className="h-4 w-4" />,
+      label: "Cargar Banco",
+      show: isAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
+    },
+    {
+      to: "/bank-accounts",
+      icon: <FiCreditCard className="h-4 w-4" />,
+      label: "Cuentas Bancarias",
+      show: isAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
+    },
+  ];
+  const visibleBankManagementLinks = bankManagementLinks.filter((link) => link.show);
+  const isBankMenuActive = visibleBankManagementLinks.some((link) =>
+    location.pathname === link.to || location.pathname.startsWith(`${link.to}/`),
+  );
+
+  const navLinks: NavigationItem[] = [
     {
       to: "/",
       icon: <FiHome className="h-4 w-4" />,
@@ -52,6 +100,13 @@ export default function Navbar() {
       icon: <FiDatabase className="h-4 w-4" />,
       label: "Extractos bancos",
       show: hasModule(APP_MODULE_VALUES.conciliation),
+    },
+    {
+      key: "bank-management",
+      icon: <FiDatabase className="h-4 w-4" />,
+      label: "Banco",
+      show: visibleBankManagementLinks.length > 0,
+      children: visibleBankManagementLinks,
     },
     {
       to: "/conciliation",
@@ -68,8 +123,8 @@ export default function Navbar() {
     {
       to: "/layout-management",
       icon: <FiSettings className="h-4 w-4" />,
-      label: isSuperAdminRole(role) ? "Plantillas" : "Bancos",
-      show: hasModule(APP_MODULE_VALUES.layoutManagement),
+      label: "Plantillas",
+      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
     },
     {
       to: "/access-control",
@@ -101,27 +156,71 @@ export default function Navbar() {
           </div>
         </div>
 
-        <nav className="ml-4 mr-4 hidden flex-1 items-center justify-center overflow-x-auto no-scrollbar lg:flex">
+        <nav className="ml-4 mr-4 hidden flex-1 items-center justify-center lg:flex">
           <div className="flex items-center gap-2">
             {navLinks
               .filter((link) => link.show)
-              .map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  className={({ isActive }) =>
-                    `whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
-                      isActive
-                        ? "bg-slate-900 text-white shadow-md"
-                        : "text-slate-600 hover:bg-slate-100"
-                    }`
-                  }
-                >
-                  <span className="flex items-center gap-2">
-                    {link.icon} {link.label}
-                  </span>
-                </NavLink>
-              ))}
+              .map((link) =>
+                "children" in link ? (
+                  <div key={link.key} ref={bankMenuRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsBankMenuOpen((current) => !current)}
+                      className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
+                        isBankMenuActive
+                          ? "bg-slate-900 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                      aria-expanded={isBankMenuOpen}
+                      aria-haspopup="menu"
+                    >
+                      <span className="flex items-center gap-2">
+                        {link.icon} {link.label}
+                        <FiChevronDown
+                          className={`h-4 w-4 transition ${isBankMenuOpen ? "rotate-180" : ""}`}
+                        />
+                      </span>
+                    </button>
+
+                    {isBankMenuOpen ? (
+                      <div className="absolute left-0 top-[calc(100%+0.6rem)] z-40 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                        {link.children.map((child) => (
+                          <NavLink
+                            key={child.to}
+                            to={child.to}
+                            onClick={() => setIsBankMenuOpen(false)}
+                            className={({ isActive }) =>
+                              `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                                isActive
+                                  ? "bg-slate-900 text-white"
+                                  : "text-slate-700 hover:bg-slate-50"
+                              }`
+                            }
+                          >
+                            {child.icon} {child.label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    className={({ isActive }) =>
+                      `whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
+                        isActive
+                          ? "bg-slate-900 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`
+                    }
+                  >
+                    <span className="flex items-center gap-2">
+                      {link.icon} {link.label}
+                    </span>
+                  </NavLink>
+                ),
+              )}
           </div>
         </nav>
 
@@ -225,24 +324,72 @@ export default function Navbar() {
           <nav className="flex flex-col space-y-2 px-4 py-4">
             {navLinks
               .filter((link) => link.show)
-              .map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                      isActive
-                        ? "bg-slate-900 text-white shadow-md"
-                        : "text-slate-600 hover:bg-slate-100"
-                    }`
-                  }
-                >
-                  <span className="flex items-center gap-3">
-                    {link.icon} {link.label}
-                  </span>
-                </NavLink>
-              ))}
+              .map((link) =>
+                "children" in link ? (
+                  <div key={link.key} className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsBankMenuOpen((current) => !current)}
+                      className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                        isBankMenuActive
+                          ? "bg-slate-900 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                      aria-expanded={isBankMenuOpen || isBankMenuActive}
+                    >
+                      <span className="flex items-center gap-3">
+                        {link.icon} {link.label}
+                      </span>
+                      <FiChevronDown
+                        className={`h-4 w-4 transition ${
+                          isBankMenuOpen || isBankMenuActive ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {isBankMenuOpen || isBankMenuActive ? (
+                      <div className="ml-4 space-y-2 border-l border-slate-200 pl-3">
+                        {link.children.map((child) => (
+                          <NavLink
+                            key={child.to}
+                            to={child.to}
+                            onClick={() => {
+                              setIsMobileMenuOpen(false);
+                              setIsBankMenuOpen(false);
+                            }}
+                            className={({ isActive }) =>
+                              `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                                isActive
+                                  ? "bg-slate-900 text-white shadow-md"
+                                  : "text-slate-600 hover:bg-slate-100"
+                              }`
+                            }
+                          >
+                            {child.icon} {child.label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={({ isActive }) =>
+                      `rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                        isActive
+                          ? "bg-slate-900 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`
+                    }
+                  >
+                    <span className="flex items-center gap-3">
+                      {link.icon} {link.label}
+                    </span>
+                  </NavLink>
+                ),
+              )}
           </nav>
         </div>
       ) : null}

@@ -64,3 +64,8 @@ export interface CompanyBankAccountFormState {
   paymentAccountNumber: string
   active: boolean
 }
+
+export interface DeleteBankingEntityResponse {
+  id: number
+  message: string
+}

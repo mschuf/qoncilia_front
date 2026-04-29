@@ -89,7 +89,7 @@ export default function LayoutManagementPage() {
   const { role } = useAuth();
 
   if (!isSuperAdminRole(role)) {
-    return <AdminBankingPage />;
+    return <AdminBankingPage mode="banks" />;
   }
 
   return <SuperadminLayoutManagementPage />;
@@ -536,7 +536,7 @@ function SuperadminLayoutManagementPage() {
                   </div>
                 </section>
               ) : (
-                <AdminBankingPage />
+                <AdminBankingPage mode="accounts" />
               )}
             </motion.div>
           </AnimatePresence>
