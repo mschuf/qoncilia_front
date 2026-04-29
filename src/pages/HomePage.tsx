@@ -59,8 +59,7 @@ export default function HomePage() {
           </div>
           <p className="mt-3 max-w-2xl text-sm text-slate-600">
             Qoncilia ahora trabaja con el modelo <strong>empresa + usuarios + bancos + plantillas</strong>.
-            Desde <strong>Conciliar</strong> operas la mesa, desde <strong>Bancos</strong> administras
-            catalogos y cuentas, y desde <strong>Empresas</strong> gestionas la ficha de la compania.
+            Desde <strong>Extractos bancos</strong> guardas los Excel del banco por cuenta, desde <strong>Conciliar</strong> comparas contra el Excel del sistema sin guardarlo.
           </p>
         </div>
       </div>
@@ -71,7 +70,7 @@ export default function HomePage() {
         <div className="space-y-8">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <Link
-              to="/conciliation/history"
+              to="/bank-statements"
               className="group rounded-3xl border border-slate-200 bg-white p-5 transition hover:border-brand-500 hover:shadow-md"
             >
               <div className="flex items-center gap-3 text-brand-600">
@@ -83,7 +82,7 @@ export default function HomePage() {
               <p className="mt-3 text-3xl font-extrabold text-slate-900 transition group-hover:text-brand-600">
                 {kpis.totalReconciliations}
               </p>
-              <p className="mt-1 text-xs text-slate-500">Conciliaciones</p>
+              <p className="mt-1 text-xs text-slate-500">Extractos bancarios</p>
             </Link>
 
             <Link
@@ -93,65 +92,65 @@ export default function HomePage() {
               <div className="flex items-center gap-3 text-emerald-600">
                 <FiPercent className="h-5 w-5" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Match
+                  Mesa
                 </span>
               </div>
               <p className="mt-3 text-3xl font-extrabold text-slate-900 transition group-hover:text-emerald-600">
-                {kpis.averageMatchPercentage}%
+                Lista
               </p>
-              <p className="mt-1 text-xs text-slate-500">Promedio global</p>
+              <p className="mt-1 text-xs text-slate-500">Comparacion en mesa</p>
             </Link>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-3 text-emerald-500">
                 <FiCheckCircle className="h-5 w-5" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Auto
+                  Auto match
                 </span>
               </div>
               <p className="mt-3 text-3xl font-extrabold text-slate-900">
                 {kpis.totalAutoMatches}
               </p>
-              <p className="mt-1 text-xs text-slate-500">Lineas automaticas</p>
+              <p className="mt-1 text-xs text-slate-500">Solo en comparacion</p>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-3 text-amber-500">
                 <FiDatabase className="h-5 w-5" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Manual
+                  Match manual
                 </span>
               </div>
               <p className="mt-3 text-3xl font-extrabold text-slate-900">
                 {kpis.totalManualMatches}
               </p>
-              <p className="mt-1 text-xs text-slate-500">Lineas manuales</p>
+              <p className="mt-1 text-xs text-slate-500">Solo en comparacion</p>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-3 text-rose-500">
                 <FiAlertCircle className="h-5 w-5" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Sys Pendiente
+                  Sistema
                 </span>
               </div>
               <p className="mt-3 text-3xl font-extrabold text-slate-900">
                 {kpis.totalUnmatchedSystem}
               </p>
-              <p className="mt-1 text-xs text-slate-500">Sin conciliar (Sistema)</p>
+              <p className="mt-1 text-xs text-slate-500">No se guardan</p>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-3 text-rose-500">
                 <FiAlertCircle className="h-5 w-5" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Bco Pendiente
+                  Filas banco
                 </span>
               </div>
               <p className="mt-3 text-3xl font-extrabold text-slate-900">
                 {kpis.totalUnmatchedBank}
               </p>
-              <p className="mt-1 text-xs text-slate-500">Sin conciliar (Banco)</p>
+              <p className="mt-1 text-xs text-slate-500">Filas banco guardadas</p>
             </div>
           </div>
 
@@ -165,7 +164,7 @@ export default function HomePage() {
                   <BarChart
                     data={kpis.bankBreakdown.map((item) => ({
                       name: item.alias ?? item.bankName,
-                      conciliaciones: item.totalReconciliations,
+                      extractos: item.totalReconciliations,
                       match: item.averageMatchPercentage,
                     }))}
                   >
@@ -186,7 +185,7 @@ export default function HomePage() {
                       contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                     />
                     <Bar
-                      dataKey="conciliaciones"
+                      dataKey="extractos"
                       fill="#0ea5e9"
                       radius={[6, 6, 0, 0]}
                       barSize={40}
@@ -199,13 +198,13 @@ export default function HomePage() {
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-extrabold text-slate-900">
-                  Historico reciente
+                  Extractos recientes
                 </h3>
                 <Link
-                  to="/conciliation/history"
+                  to="/bank-statements"
                   className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand-600 transition hover:text-brand-700"
                 >
-                  <FiClock className="h-4 w-4" /> Ver historial completo
+                  <FiClock className="h-4 w-4" /> Ver extractos
                 </Link>
               </div>
               <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100 ring-1 ring-slate-200">
@@ -213,10 +212,10 @@ export default function HomePage() {
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       <tr>
-                        <th className="px-4 py-3">Nombre</th>
+                        <th className="px-4 py-3">Extracto</th>
                         <th className="px-4 py-3">Banco</th>
                         <th className="px-4 py-3">Plantilla</th>
-                        <th className="px-4 py-3">Match %</th>
+                        <th className="px-4 py-3">Filas</th>
                         <th className="px-4 py-3 text-center">Abrir</th>
                       </tr>
                     </thead>
@@ -232,23 +231,15 @@ export default function HomePage() {
                           </td>
                           <td className="px-4 py-3">{item.layoutName}</td>
                           <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
-                                item.matchPercentage >= 90
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : item.matchPercentage >= 50
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-rose-100 text-rose-800"
-                              }`}
-                            >
-                              {item.matchPercentage}%
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
+                              {item.unmatchedBank}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <Link
-                              to={`/conciliation?updateId=${item.id}`}
+                              to="/bank-statements"
                               className="inline-flex rounded-lg p-2 text-slate-400 transition hover:bg-slate-200 hover:text-brand-600"
-                              title="Cargar en la mesa de conciliacion"
+                              title="Ver extractos bancarios"
                             >
                               <FiExternalLink className="h-4 w-4" />
                             </Link>
@@ -261,7 +252,7 @@ export default function HomePage() {
                             colSpan={5}
                             className="px-4 py-10 text-center text-sm text-slate-500"
                           >
-                            No hay conciliaciones recientes para mostrar.
+                            No hay extractos bancarios recientes para mostrar.
                           </td>
                         </tr>
                       )}

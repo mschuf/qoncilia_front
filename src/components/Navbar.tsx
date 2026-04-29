@@ -3,6 +3,7 @@ import {
   FiActivity,
   FiBriefcase,
   FiChevronDown,
+  FiDatabase,
   FiGrid,
   FiHome,
   FiLogOut,
@@ -45,6 +46,12 @@ export default function Navbar() {
       icon: <FiHome className="h-4 w-4" />,
       label: "Home",
       show: hasModule(APP_MODULE_VALUES.home),
+    },
+    {
+      to: "/bank-statements",
+      icon: <FiDatabase className="h-4 w-4" />,
+      label: "Extractos bancos",
+      show: hasModule(APP_MODULE_VALUES.conciliation),
     },
     {
       to: "/conciliation",

@@ -1,5 +1,5 @@
 import type { ChangeEvent, ComponentType, DragEvent, MouseEvent } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FiFile, FiSave, FiTrash2, FiUploadCloud, FiX } from "react-icons/fi";
 
 export function KpiCard({
@@ -97,6 +97,12 @@ export function UploadCard({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    if (!file && inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }, [file]);
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();

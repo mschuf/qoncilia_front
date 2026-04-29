@@ -8,7 +8,7 @@ import { APP_MODULE_VALUES } from "./utils/modules";
 import { ROLE_VALUES } from "./utils/role";
 
 const AppLayout = lazy(() => import("./layouts/AppLayout"));
-const ConciliationHistoryPage = lazy(() => import("./pages/ConciliationHistoryPage"));
+const BankStatementsPage = lazy(() => import("./pages/BankStatementsPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LayoutManagementPage = lazy(() => import("./pages/LayoutManagementPage"));
@@ -61,6 +61,14 @@ export default function App() {
               }
             />
             <Route
+              path="bank-statements"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliation}>
+                  <BankStatementsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="conciliation"
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliation}>
@@ -68,14 +76,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="conciliation/history"
-              element={
-                <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliation}>
-                  <ConciliationHistoryPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="conciliation/history" element={<Navigate to="/bank-statements" replace />} />
             <Route
               path="users"
               element={

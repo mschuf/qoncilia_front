@@ -781,7 +781,7 @@ export default function useLayoutManagement() {
     await loadCatalog(userId);
 
     toast.success(
-      `Banco eliminado. Se borraron ${response.deletedLayouts} plantilla(s), ${response.deletedAccounts} cuenta(s) y ${response.deletedReconciliations} conciliacion(es).`
+      `Banco eliminado. Se borraron ${response.deletedLayouts} plantilla(s), ${response.deletedAccounts} cuenta(s) y ${response.deletedBankStatements} extracto(s).`
     );
 
     return response;

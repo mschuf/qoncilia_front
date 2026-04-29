@@ -183,7 +183,7 @@ function SuperadminLayoutManagementPage() {
   ) => {
     setPendingDelete({
       title: "Eliminar plantilla",
-      description: `Vas a eliminar la plantilla "${layoutName}". Si ya tiene conciliaciones guardadas, el sistema no lo va a permitir.`,
+      description: `Vas a eliminar la plantilla "${layoutName}". Si ya tiene extractos bancarios guardados, el sistema no lo va a permitir.`,
       confirmLabel: "Eliminar plantilla",
       onConfirm,
     });
@@ -732,7 +732,7 @@ function SuperadminLayoutManagementPage() {
                 Si confirmas, se eliminara el banco para el usuario{" "}
                 <span className="font-bold">{bankDeletePreview.bank.userLogin}</span>.
                 Tambien se borraran en cascada sus plantillas, cuentas bancarias y
-                conciliaciones asociadas.
+                extractos bancarios asociados.
               </p>
             </div>
 
@@ -748,9 +748,9 @@ function SuperadminLayoutManagementPage() {
                 helper="Cuentas bancarias ligadas"
               />
               <DeleteSummaryCard
-                label="Conciliaciones"
-                value={String(bankDeletePreview.reconciliationCount)}
-                helper="Historial que tambien se elimina"
+                label="Extractos"
+                value={String(bankDeletePreview.bankStatementCount)}
+                helper="Archivos de banco guardados"
               />
             </div>
 
