@@ -20,12 +20,18 @@ type PendingApply = {
   template: TemplateLayout;
 } | null;
 
+type PendingActivate = {
+  bank: BankWithAvailableTemplates;
+  layout: Layout;
+} | null;
+
 export default function AdminTemplatesPage() {
   const toast = useToast();
   const [banks, setBanks] = useState<BankWithAvailableTemplates[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedBankId, setSelectedBankId] = useState<number>(0);
   const [pendingApply, setPendingApply] = useState<PendingApply>(null);
+  const [pendingActivate, setPendingActivate] = useState<PendingActivate>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const reload = useCallback(async () => {
@@ -88,6 +94,30 @@ export default function AdminTemplatesPage() {
         error instanceof Error
           ? error.message
           : "No se pudo aplicar la plantilla al banco.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!pendingActivate) return;
+    setSubmitting(true);
+    try {
+      await apiClient.patch(
+        `/conciliation/admin/banks/${pendingActivate.bank.id}/plantillas/${pendingActivate.layout.id}/activate`,
+        {},
+      );
+      toast.success(
+        `Plantilla "${pendingActivate.layout.name}" activada correctamente.`,
+      );
+      setPendingActivate(null);
+      await reload();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo activar la plantilla.",
       );
     } finally {
       setSubmitting(false);
@@ -241,14 +271,31 @@ export default function AdminTemplatesPage() {
                                 campo(s)
                               </p>
                             </div>
-                            <span
-                              className={`rounded-full px-3 py-1 text-[11px] font-semibold ${layout.active
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-slate-100 text-slate-500"
+                            <div className="flex items-center gap-3">
+                              <span
+                                className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                                  layout.active
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-slate-100 text-slate-500"
                                 }`}
-                            >
-                              {layout.active ? "Activa" : "Inactiva"}
-                            </span>
+                              >
+                                {layout.active ? "Activa" : "Inactiva"}
+                              </span>
+                              {!layout.active ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPendingActivate({
+                                      bank: selectedBank,
+                                      layout,
+                                    })
+                                  }
+                                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 transition hover:bg-brand-100"
+                                >
+                                  Activar
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -353,6 +400,20 @@ export default function AdminTemplatesPage() {
         confirmLabel={submitting ? "Aplicando..." : "Aplicar plantilla"}
         confirmVariant="primary"
         onConfirm={() => void handleApply()}
+      />
+
+      <ConfirmModal
+        open={Boolean(pendingActivate)}
+        onClose={() => (submitting ? null : setPendingActivate(null))}
+        title="Activar plantilla"
+        message={
+          pendingActivate
+            ? `Vas a volver a activar la plantilla "${pendingActivate.layout.name}". Esto la convertira en la plantilla principal y desactivara la que este activa actualmente.`
+            : ""
+        }
+        confirmLabel={submitting ? "Activando..." : "Activar plantilla"}
+        confirmVariant="primary"
+        onConfirm={() => void handleActivate()}
       />
     </>
   );
