@@ -4,6 +4,7 @@ import type { DragEndEvent } from "@dnd-kit/core"
 import { apiClient } from "../api/apiClient"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
+import { getStoredSapConfigId, storeSapConfigId } from "../erp/sap"
 import type { AuthUser } from "../types/auth"
 import type {
   BankStatementSummary,
@@ -15,6 +16,7 @@ import type {
   UserBankWithLayouts,
   PaginatedResponse
 } from "../types/conciliation"
+import type { CompanyErpConfig, SapErpSession } from "../types/erp"
 import { isAdminRole } from "../utils/role"
 
 function createManualMatch(
@@ -134,6 +136,9 @@ export default function useConciliationWorkbench() {
   const [dateTo, setDateTo] = useState("")
   const [selectedBankStatementId, setSelectedBankStatementId] = useState<number>(0)
   const [systemFile, setSystemFile] = useState<File | null>(null)
+  const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
+  const [selectedErpConfigId, setSelectedErpConfigId] = useState<number>(0)
+  const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [manualMatches, setManualMatches] = useState<PreviewMatch[]>([])
   const [unmatchedSystemRows, setUnmatchedSystemRows] = useState<PreviewRow[]>([])
@@ -165,6 +170,51 @@ export default function useConciliationWorkbench() {
       toast.error(error instanceof Error ? error.message : "No se pudieron cargar usuarios.")
     })
   }, [loadUsers, toast])
+
+  const loadErpConfigs = useCallback(async () => {
+    const response = await apiClient.get<CompanyErpConfig[]>("/erp/configs?activeOnly=true")
+    const nextConfigs = response ?? []
+    setErpConfigs(nextConfigs)
+    setSelectedErpConfigId((current) => {
+      const stored = getStoredSapConfigId()
+      if (current && nextConfigs.some((config) => config.id === current)) return current
+      if (stored && nextConfigs.some((config) => config.id === stored)) return stored
+      return nextConfigs.find((config) => config.isDefault)?.id ?? nextConfigs[0]?.id ?? 0
+    })
+  }, [])
+
+  const checkErpSession = useCallback(async () => {
+    if (!selectedErpConfigId) {
+      setErpSession(null)
+      return null
+    }
+
+    const response = await apiClient.get<SapErpSession>(
+      `/erp/sap/sessions/status?companyErpConfigId=${selectedErpConfigId}`,
+      { timeoutMs: 20000 }
+    )
+    setErpSession(response)
+    if (response.authenticated) {
+      storeSapConfigId(selectedErpConfigId)
+    }
+    return response
+  }, [selectedErpConfigId])
+
+  useEffect(() => {
+    void loadErpConfigs().catch((error) => {
+      toast.error(error instanceof Error ? error.message : "No se pudieron cargar las ERPs activas.")
+    })
+  }, [loadErpConfigs, toast])
+
+  useEffect(() => {
+    if (!selectedErpConfigId) {
+      setErpSession(null)
+      return
+    }
+
+    storeSapConfigId(selectedErpConfigId)
+    void checkErpSession().catch(() => setErpSession(null))
+  }, [checkErpSession, selectedErpConfigId])
 
   useEffect(() => {
     if (!selectedUserId) return
@@ -270,6 +320,16 @@ export default function useConciliationWorkbench() {
     }
 
   const runComparison = async () => {
+    if (!selectedErpConfigId) {
+      toast.error("No hay una configuracion ERP activa para conciliar.")
+      return
+    }
+
+    if (!erpSession?.authenticated) {
+      toast.error("Inicia sesion en el ERP antes de conciliar.")
+      return
+    }
+
     if (!selectedBankStatementId) {
       toast.error("Selecciona un extracto bancario guardado.")
       return
@@ -368,6 +428,11 @@ export default function useConciliationWorkbench() {
     selectedBankStatement,
     systemFile,
     setSystemFile,
+    erpConfigs,
+    selectedErpConfigId,
+    setSelectedErpConfigId,
+    erpSession,
+    checkErpSession,
     preview,
     manualMatches,
     unmatchedSystemRows,

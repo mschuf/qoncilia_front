@@ -35,6 +35,11 @@ export default function ConciliationWorkbenchPage() {
     selectedBankStatement,
     systemFile,
     setSystemFile,
+    erpConfigs,
+    selectedErpConfigId,
+    setSelectedErpConfigId,
+    erpSession,
+    checkErpSession,
     preview,
     manualMatches,
     unmatchedSystemRows,
@@ -132,6 +137,46 @@ export default function ConciliationWorkbenchPage() {
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
             >
               <FiSearch className="h-4 w-4" /> Buscar extractos
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">ERP activo</span>
+            <select
+              value={selectedErpConfigId}
+              onChange={(event) => setSelectedErpConfigId(Number(event.target.value))}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+            >
+              {erpConfigs.length === 0 ? <option value={0}>Sin ERPs activas</option> : null}
+              {erpConfigs.map((config) => (
+                <option key={config.id} value={config.id}>
+                  {config.name} - {config.dbName ?? config.code}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="flex flex-wrap items-end gap-2">
+            <span
+              className={`inline-flex h-[46px] items-center rounded-xl px-4 text-sm font-bold ${
+                erpSession?.authenticated
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {erpSession?.authenticated ? "ERP conectado" : "ERP sin sesion"}
+            </span>
+            <button
+              type="button"
+              onClick={() => void checkErpSession()}
+              disabled={!selectedErpConfigId}
+              className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              <FiRefreshCw className="h-4 w-4" /> Validar
             </button>
           </div>
         </div>

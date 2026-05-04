@@ -2,6 +2,7 @@ export interface ErpReferenceResponse {
   companies: Array<{
     id: number
     code: string
+    fiscalId?: string
     name: string
     active: boolean
   }>
@@ -54,6 +55,30 @@ export interface CompanyErpConfigFormState {
   serviceLayerUrl: string
   tlsVersion: string
   allowSelfSigned: boolean
+}
+
+export type SapSessionStatus =
+  | "active"
+  | "not_authenticated"
+  | "expired"
+  | "invalid"
+  | "logged_out"
+
+export interface SapErpSession {
+  companyErpConfigId: number
+  companyErpConfigName: string
+  erpType: string
+  authenticated: boolean
+  status: SapSessionStatus
+  username: string | null
+  expiresAt: string | null
+  lastValidatedAt: string | null
+  checkedAt: string
+}
+
+export interface SapLoginFormState {
+  username: string
+  password: string
 }
 
 export interface CompanyProfileFormState {

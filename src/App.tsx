@@ -149,7 +149,12 @@ export default function App() {
               path="erp-management"
               element={
                 <ProtectedRoute
-                  roles={[ROLE_VALUES.admin, ROLE_VALUES.isSuperAdmin]}
+                  roles={[
+                    ROLE_VALUES.gestorCobranza,
+                    ROLE_VALUES.gestorPagos,
+                    ROLE_VALUES.admin,
+                    ROLE_VALUES.isSuperAdmin
+                  ]}
                   requiredModule={APP_MODULE_VALUES.erpManagement}
                 >
                   <ErpManagementPage />

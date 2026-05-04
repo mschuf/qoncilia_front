@@ -37,7 +37,12 @@ export function fallbackModulesForRole(role: Role | null | undefined): AppModule
     ];
   }
 
-  return [APP_MODULE_VALUES.home, APP_MODULE_VALUES.profile, APP_MODULE_VALUES.conciliation];
+  return [
+    APP_MODULE_VALUES.home,
+    APP_MODULE_VALUES.profile,
+    APP_MODULE_VALUES.conciliation,
+    APP_MODULE_VALUES.erpManagement
+  ];
 }
 
 export function normalizeEnabledModules(

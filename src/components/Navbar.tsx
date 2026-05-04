@@ -17,7 +17,9 @@ import {
   FiX,
 } from "react-icons/fi";
 import { NavLink, useLocation } from "react-router-dom";
+import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
+import type { CompanyErpConfig } from "../types/erp";
 import { APP_MODULE_VALUES } from "../utils/modules";
 import { isAdminRole, isSuperAdminRole, roleLabel } from "../utils/role";
 
@@ -44,6 +46,7 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isBankMenuOpen, setIsBankMenuOpen] = useState(false);
+  const [profileErpConfigs, setProfileErpConfigs] = useState<CompanyErpConfig[]>([]);
   const profileRef = useRef<HTMLDivElement | null>(null);
   const bankMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -69,6 +72,15 @@ export default function Navbar() {
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
+
+  useEffect(() => {
+    if (!isProfileMenuOpen || !hasModule(APP_MODULE_VALUES.erpManagement)) return;
+
+    void apiClient
+      .get<CompanyErpConfig[]>("/erp/configs?activeOnly=true", { showBackdrop: false })
+      .then((response) => setProfileErpConfigs(response ?? []))
+      .catch(() => setProfileErpConfigs([]));
+  }, [hasModule, isProfileMenuOpen]);
 
   const bankManagementLinks: NavigationLink[] = [
     {
@@ -262,6 +274,52 @@ export default function Navbar() {
                   ) : null}
                 </div>
 
+                {hasModule(APP_MODULE_VALUES.erpManagement) ? (
+                  <div className="mt-3 rounded-2xl border border-slate-200 p-2">
+                    <div className="px-2 pb-1">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                        ERPs activas
+                      </p>
+                    </div>
+                    {profileErpConfigs.slice(0, 4).map((config) => (
+                      <NavLink
+                        key={config.id}
+                        to={`/erp-management?configId=${config.id}`}
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className={({ isActive }) =>
+                          `mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                            isActive
+                              ? "bg-slate-900 text-white"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`
+                        }
+                      >
+                        <FiServer className="h-4 w-4" />
+                        <span className="min-w-0 flex-1 truncate">{config.name}</span>
+                      </NavLink>
+                    ))}
+                    {profileErpConfigs.length === 0 ? (
+                      <NavLink
+                        to="/erp-management"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <FiBriefcase className="h-4 w-4" />
+                        Configurar ERP
+                      </NavLink>
+                    ) : null}
+                    {profileErpConfigs.length > 4 ? (
+                      <NavLink
+                        to="/erp-management"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-[0.12em] text-brand-600 transition hover:bg-brand-50"
+                      >
+                        Ver todas
+                      </NavLink>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {hasModule(APP_MODULE_VALUES.profile) ? (
                   <NavLink
                     to="/mis-datos"
@@ -275,23 +333,6 @@ export default function Navbar() {
                     }
                   >
                     <FiUser className="h-4 w-4" /> Mis Datos
-                  </NavLink>
-                ) : null}
-
-                {hasModule(APP_MODULE_VALUES.erpManagement) ? (
-                  <NavLink
-                    to="/erp-management"
-                    onClick={() => setIsProfileMenuOpen(false)}
-                    className={({ isActive }) =>
-                      `mt-2 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                        isActive
-                          ? "bg-slate-900 text-white"
-                          : "text-slate-700 hover:bg-slate-50"
-                      }`
-                    }
-                  >
-                    <FiBriefcase className="h-4 w-4" />
-                    {isSuperAdminRole(role) ? "Empresas" : "Mi Empresa"}
                   </NavLink>
                 ) : null}
 
