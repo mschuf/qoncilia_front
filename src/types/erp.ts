@@ -56,23 +56,6 @@ export interface CompanyErpConfigFormState {
   allowSelfSigned: boolean
 }
 
-export interface ErpShipmentResult {
-  id: number
-  reconciliationId: number
-  companyErpConfigId: number
-  companyErpConfigName: string
-  documentType: string
-  status: string
-  endpoint: string | null
-  httpStatus: number | null
-  responsePayload: Record<string, unknown> | null
-  errorMessage: string | null
-  externalDocEntry: string | null
-  externalDocNum: string | null
-  createdAt: string
-  updatedAt: string
-}
-
 export interface CompanyProfileFormState {
   name: string
   fiscalId: string

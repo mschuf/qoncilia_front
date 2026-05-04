@@ -142,8 +142,6 @@ export interface DeleteBankResponse {
   deletedBankStatements: number;
 }
 
-export type ReconciliationSource = "system" | "bank";
-
 export interface PreviewRow {
   rowId: string;
   rowNumber: number;
@@ -194,61 +192,6 @@ export interface PreviewResponse {
   unmatchedSystemRows: PreviewRow[];
   unmatchedBankRows: PreviewRow[];
   metrics: PreviewMetrics;
-}
-
-export interface ReconciliationSummary {
-  id: number;
-  name: string;
-  status: string;
-  updateCount: number;
-  userId: number;
-  userLogin: string;
-  userBankId: number;
-  bankName: string;
-  bankAlias: string | null;
-  companyBankAccountId: number | null;
-  companyBankAccountName: string | null;
-  companyBankAccountNumber: string | null;
-  companyBankAccountCurrency: string | null;
-  layoutId: number;
-  layoutName: string;
-  systemId: number;
-  systemName: string;
-  systemFileName: string | null;
-  bankFileName: string | null;
-  hasSystemData: boolean;
-  hasBankData: boolean;
-  totalSystemRows: number;
-  totalBankRows: number;
-  autoMatches: number;
-  manualMatches: number;
-  unmatchedSystem: number;
-  unmatchedBank: number;
-  matchPercentage: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ReconciliationSnapshot {
-  userBank: UserBankSummary;
-  companyBankAccount: CompanyBankAccountSummary;
-  layout: Layout;
-  systemRows: PreviewRow[];
-  bankRows: PreviewRow[];
-  autoMatches: PreviewMatch[];
-  manualMatches: PreviewMatch[];
-  unmatchedSystemRows: PreviewRow[];
-  unmatchedBankRows: PreviewRow[];
-  metrics: PreviewMetrics;
-}
-
-export interface ReconciliationDetail extends ReconciliationSummary {
-  summarySnapshot: ReconciliationSnapshot | null;
-}
-
-export interface DeleteReconciliationResponse {
-  id: number;
-  message: string;
 }
 
 export interface GestorAssignmentCatalog {
