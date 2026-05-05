@@ -57,30 +57,6 @@ export interface CompanyErpConfigFormState {
   allowSelfSigned: boolean
 }
 
-export type SapSessionStatus =
-  | "active"
-  | "not_authenticated"
-  | "expired"
-  | "invalid"
-  | "logged_out"
-
-export interface SapErpSession {
-  companyErpConfigId: number
-  companyErpConfigName: string
-  erpType: string
-  authenticated: boolean
-  status: SapSessionStatus
-  username: string | null
-  expiresAt: string | null
-  lastValidatedAt: string | null
-  checkedAt: string
-}
-
-export interface SapLoginFormState {
-  username: string
-  password: string
-}
-
 export interface CompanyProfileFormState {
   name: string
   fiscalId: string

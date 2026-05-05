@@ -1,4 +1,4 @@
-import { FiRefreshCw, FiSearch, FiUploadCloud } from "react-icons/fi";
+import { FiRefreshCw, FiSearch, FiSend, FiUploadCloud } from "react-icons/fi";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
   Metric,
@@ -7,10 +7,66 @@ import {
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
 import type { BankStatementSummary } from "../types/conciliation";
+import type { SapErpSession } from "../erp/sap";
 import { isAdminRole } from "../utils/role";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
+}
+
+function resolveErpStatus(session: SapErpSession | null) {
+  if (!session) {
+    return {
+      label: "ERP sin validar",
+      title: "Todavia no se valido la sesion ERP.",
+      detail: "Presiona Validar para consultar si hay una sesion activa antes de conciliar.",
+      badgeClass: "bg-slate-100 text-slate-600",
+      panelClass: "border-slate-200 bg-slate-50 text-slate-600"
+    };
+  }
+
+  if (session.authenticated) {
+    return {
+      label: "ERP conectado",
+      title: session.username ? `Sesion activa para ${session.username}.` : "Sesion ERP activa.",
+      detail: session.lastValidatedAt
+        ? `Validada el ${formatDateTime(session.lastValidatedAt)}.`
+        : `Validada el ${formatDateTime(session.checkedAt)}.`,
+      badgeClass: "bg-emerald-100 text-emerald-700",
+      panelClass: "border-emerald-200 bg-emerald-50 text-emerald-700"
+    };
+  }
+
+  const messages: Record<SapErpSession["status"], { title: string; detail: string }> = {
+    active: {
+      title: "Sesion ERP activa.",
+      detail: "La sesion esta lista para conciliar."
+    },
+    not_authenticated: {
+      title: "No hay una sesion ERP activa.",
+      detail: "Inicia sesion desde Configurar ERP y luego vuelve a validar."
+    },
+    expired: {
+      title: "La sesion ERP expiro.",
+      detail: "Inicia sesion nuevamente desde Configurar ERP."
+    },
+    invalid: {
+      title: "La sesion ERP no es valida.",
+      detail: "Inicia sesion nuevamente desde Configurar ERP."
+    },
+    logged_out: {
+      title: "La sesion ERP esta cerrada.",
+      detail: "Inicia sesion desde Configurar ERP para poder conciliar."
+    }
+  };
+
+  const message = messages[session.status] ?? messages.not_authenticated;
+  return {
+    label: "ERP sin sesion",
+    ...message,
+    badgeClass: "bg-amber-100 text-amber-700",
+    panelClass: "border-amber-200 bg-amber-50 text-amber-700"
+  };
 }
 
 export default function ConciliationWorkbenchPage() {
@@ -40,6 +96,9 @@ export default function ConciliationWorkbenchPage() {
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
+    isSendingDeposit,
+    depositDate,
+    setDepositDate,
     preview,
     manualMatches,
     unmatchedSystemRows,
@@ -49,6 +108,7 @@ export default function ConciliationWorkbenchPage() {
     runComparison,
     onDragEnd,
     removeManualMatch,
+    sendDepositToErp,
     clearAll,
     reloadBankStatements,
     page,
@@ -64,6 +124,7 @@ export default function ConciliationWorkbenchPage() {
 
   const bankLabel = preview?.layout.bankLabel ?? selectedLayout?.bankLabel ?? "Banco";
   const systemLabel = preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
+  const erpStatus = resolveErpStatus(erpSession);
 
   return (
     <section className="space-y-6">
@@ -162,23 +223,23 @@ export default function ConciliationWorkbenchPage() {
 
           <div className="flex flex-wrap items-end gap-2">
             <span
-              className={`inline-flex h-[46px] items-center rounded-xl px-4 text-sm font-bold ${
-                erpSession?.authenticated
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-amber-100 text-amber-700"
-              }`}
+              className={`inline-flex h-[46px] items-center rounded-xl px-4 text-sm font-bold ${erpStatus.badgeClass}`}
             >
-              {erpSession?.authenticated ? "ERP conectado" : "ERP sin sesion"}
+              {erpStatus.label}
             </span>
             <button
               type="button"
-              onClick={() => void checkErpSession()}
+              onClick={() => void checkErpSession(true)}
               disabled={!selectedErpConfigId}
               className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
             >
               <FiRefreshCw className="h-4 w-4" /> Validar
             </button>
           </div>
+        </div>
+        <div className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${erpStatus.panelClass}`}>
+          <p className="font-bold">{erpStatus.title}</p>
+          <p className="mt-1 text-xs">{erpStatus.detail}</p>
         </div>
       </section>
 
@@ -342,6 +403,42 @@ export default function ConciliationWorkbenchPage() {
 
       {preview && metrics ? (
         <>
+          <section className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                  Envio ERP
+                </p>
+                <h3 className="mt-2 text-lg font-extrabold text-slate-900">
+                  Deposito por tarjeta de credito
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Se enviaran {preview.autoMatches.length + manualMatches.length} coincidencias en CreditLines.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Fecha deposito</span>
+                  <input
+                    type="date"
+                    value={depositDate}
+                    onChange={(event) => setDepositDate(event.target.value)}
+                    className="h-[46px] rounded-xl border border-slate-200 px-4 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void sendDepositToErp()}
+                  disabled={isSendingDeposit || !erpSession?.authenticated || preview.autoMatches.length + manualMatches.length === 0}
+                  className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiSend className="h-4 w-4" />
+                  {isSendingDeposit ? "Enviando..." : "Enviar al ERP"}
+                </button>
+              </div>
+            </div>
+          </section>
+
           <MatchesSection
             preview={preview}
             manualMatches={manualMatches}

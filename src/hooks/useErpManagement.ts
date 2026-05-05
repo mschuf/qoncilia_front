@@ -4,13 +4,16 @@ import { useSearchParams } from "react-router-dom"
 import { apiClient } from "../api/apiClient"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
-import { getStoredSapConfigId, storeSapConfigId } from "../erp/sap"
+import {
+  getStoredSapConfigId,
+  storeSapConfigId,
+  type SapErpSession,
+  type SapLoginFormState
+} from "../erp/sap"
 import type {
   CompanyErpConfig,
   CompanyErpConfigFormState,
-  ErpReferenceResponse,
-  SapErpSession,
-  SapLoginFormState
+  ErpReferenceResponse
 } from "../types/erp"
 import { isSuperAdminRole } from "../utils/role"
 

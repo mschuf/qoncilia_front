@@ -4,7 +4,13 @@ import type { DragEndEvent } from "@dnd-kit/core"
 import { apiClient } from "../api/apiClient"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
-import { getStoredSapConfigId, storeSapConfigId } from "../erp/sap"
+import {
+  getStoredSapConfigId,
+  storeSapConfigId,
+  type SapDepositRequest,
+  type SapErpSession,
+  type SapErpShipmentResult
+} from "../erp/sap"
 import type { AuthUser } from "../types/auth"
 import type {
   BankStatementSummary,
@@ -16,7 +22,7 @@ import type {
   UserBankWithLayouts,
   PaginatedResponse
 } from "../types/conciliation"
-import type { CompanyErpConfig, SapErpSession } from "../types/erp"
+import type { CompanyErpConfig } from "../types/erp"
 import { isAdminRole } from "../utils/role"
 
 function createManualMatch(
@@ -107,6 +113,82 @@ function sortRows(rows: PreviewRow[]) {
   return [...rows].sort((left, right) => left.rowNumber - right.rowNumber)
 }
 
+function findRowValue(row: PreviewRow | undefined, keys: string[]) {
+  if (!row) return null
+  const sources = [row.normalized, row.values]
+
+  for (const key of keys) {
+    for (const source of sources) {
+      const direct = source[key]
+      if (direct !== undefined && direct !== null && String(direct).trim()) return direct
+
+      const lowerKey = key.toLowerCase()
+      const foundEntry = Object.entries(source).find(([entryKey]) => entryKey.toLowerCase() === lowerKey)
+      const foundValue = foundEntry?.[1]
+      if (foundValue !== undefined && foundValue !== null && String(foundValue).trim()) return foundValue
+    }
+  }
+
+  return null
+}
+
+function findRowText(row: PreviewRow | undefined, keys: string[]) {
+  const value = findRowValue(row, keys)
+  if (value === null) return undefined
+  const text = String(value).trim()
+  return text || undefined
+}
+
+function parseRowNumber(row: PreviewRow | undefined, keys: string[]) {
+  const value = findRowValue(row, keys)
+  if (typeof value === "number" && Number.isFinite(value)) return Math.abs(value)
+  if (typeof value !== "string") return undefined
+
+  const normalized = value.trim().replace(/\s/g, "")
+  const numberValue = normalized.includes(",")
+    ? Number(normalized.replace(/\./g, "").replace(",", "."))
+    : Number(normalized)
+
+  return Number.isFinite(numberValue) ? Math.abs(numberValue) : undefined
+}
+
+function toSapDate(value: string | number | undefined) {
+  if (value === undefined) return undefined
+  const text = String(value).trim()
+  if (!text) return undefined
+  const dateOnly = text.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (dateOnly) return `${dateOnly[1]}T00:00:00Z`
+
+  const parsed = Date.parse(text)
+  if (Number.isNaN(parsed)) return undefined
+  return `${new Date(parsed).toISOString().slice(0, 10)}T00:00:00Z`
+}
+
+function todayDateInputValue() {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
+function sapSessionMessage(session: SapErpSession): string {
+  switch (session.status) {
+    case "active":
+      return session.username
+        ? `Sesion ERP activa para ${session.username}.`
+        : "Sesion ERP activa."
+    case "expired":
+      return "La sesion ERP expiro. Inicia sesion nuevamente desde Configurar ERP."
+    case "invalid":
+      return "La sesion ERP no es valida. Inicia sesion nuevamente desde Configurar ERP."
+    case "logged_out":
+      return "La sesion ERP esta cerrada. Inicia sesion desde Configurar ERP."
+    case "not_authenticated":
+    default:
+      return "No hay una sesion ERP activa. Inicia sesion desde Configurar ERP."
+  }
+}
+
 export function summarizeRow(row: PreviewRow | undefined, mappings: LayoutMapping[]): string {
   if (!row) return "-"
 
@@ -139,6 +221,8 @@ export default function useConciliationWorkbench() {
   const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
   const [selectedErpConfigId, setSelectedErpConfigId] = useState<number>(0)
   const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
+  const [isSendingDeposit, setIsSendingDeposit] = useState(false)
+  const [depositDate, setDepositDate] = useState(todayDateInputValue())
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [manualMatches, setManualMatches] = useState<PreviewMatch[]>([])
   const [unmatchedSystemRows, setUnmatchedSystemRows] = useState<PreviewRow[]>([])
@@ -183,22 +267,42 @@ export default function useConciliationWorkbench() {
     })
   }, [])
 
-  const checkErpSession = useCallback(async () => {
+  const checkErpSession = useCallback(async (showFeedback = false) => {
     if (!selectedErpConfigId) {
       setErpSession(null)
+      if (showFeedback) {
+        toast.error("Selecciona una configuracion ERP activa.")
+      }
       return null
     }
 
-    const response = await apiClient.get<SapErpSession>(
-      `/erp/sap/sessions/status?companyErpConfigId=${selectedErpConfigId}`,
-      { timeoutMs: 20000 }
-    )
-    setErpSession(response)
-    if (response.authenticated) {
-      storeSapConfigId(selectedErpConfigId)
+    try {
+      const response = await apiClient.get<SapErpSession>(
+        `/erp/sap/sessions/status?companyErpConfigId=${selectedErpConfigId}`,
+        { timeoutMs: 20000 }
+      )
+      setErpSession(response)
+      if (response.authenticated) {
+        storeSapConfigId(selectedErpConfigId)
+      }
+      if (showFeedback) {
+        const message = sapSessionMessage(response)
+        if (response.authenticated) {
+          toast.success(message)
+        } else {
+          toast.error(message)
+        }
+      }
+      return response
+    } catch (error) {
+      setErpSession(null)
+      if (showFeedback) {
+        toast.error(error instanceof Error ? error.message : "No se pudo validar la sesion ERP.")
+        return null
+      }
+      throw error
     }
-    return response
-  }, [selectedErpConfigId])
+  }, [selectedErpConfigId, toast])
 
   useEffect(() => {
     void loadErpConfigs().catch((error) => {
@@ -387,6 +491,92 @@ export default function useConciliationWorkbench() {
     }
   }
 
+  const sendDepositToErp = async () => {
+    if (!selectedErpConfigId) {
+      toast.error("No hay una configuracion ERP activa para enviar el deposito.")
+      return
+    }
+
+    if (!erpSession?.authenticated) {
+      toast.error("Inicia sesion en el ERP antes de enviar el deposito.")
+      return
+    }
+
+    if (!preview || !selectedBankStatementId) {
+      toast.error("Primero compara un extracto bancario guardado.")
+      return
+    }
+
+    const matches = [...preview.autoMatches, ...manualMatches]
+    if (matches.length === 0) {
+      toast.error("No hay coincidencias para enviar al ERP.")
+      return
+    }
+
+    const creditLines = matches.map((match) => {
+      const systemRow = preview.systemRows.find((item) => item.rowId === match.systemRowId)
+      const bankRow = preview.bankRows.find((item) => item.rowId === match.bankRowId)
+
+      return {
+        systemRowId: match.systemRowId,
+        bankRowId: match.bankRowId,
+        absId: parseRowNumber(systemRow, ["absId", "AbsId", "paymentId", "idPago", "id_pago"]),
+        voucherNumber:
+          findRowText(bankRow, ["ref3", "voucherNumber", "comprobante", "referencia", "reference"]) ??
+          findRowText(systemRow, ["ref3", "voucherNumber", "comprobante", "referencia", "reference"]),
+        payDate: toSapDate(
+          findRowText(bankRow, ["fecha", "payDate", "date"]) ??
+            findRowText(systemRow, ["fecha", "payDate", "date"])
+        ),
+        customer:
+          findRowText(systemRow, [
+            "customer",
+            "cliente",
+            "cardCode",
+            "codigoCliente",
+            "codigo_cliente"
+          ]) ??
+          findRowText(bankRow, [
+            "customer",
+            "cliente",
+            "cardCode",
+            "codigoCliente",
+            "codigo_cliente"
+          ]),
+        total:
+          parseRowNumber(bankRow, ["monto", "amount", "total"]) ??
+          parseRowNumber(systemRow, ["monto", "amount", "total"]),
+        creditCurrency: selectedBankStatement?.companyBankAccountCurrency
+      }
+    })
+
+    const request: SapDepositRequest = {
+      companyErpConfigId: selectedErpConfigId,
+      bankStatementId: selectedBankStatementId,
+      depositDate: toSapDate(depositDate),
+      journalRemarks: selectedBankStatement
+        ? `Conciliacion ${selectedBankStatement.name}`
+        : "Conciliacion",
+      creditLines
+    }
+
+    try {
+      setIsSendingDeposit(true)
+      const response = await apiClient.post<SapErpShipmentResult>("/erp/sap/deposits", request, {
+        timeoutMs: 30000
+      })
+      toast.success(
+        response.externalDocNum
+          ? `Deposito enviado al ERP. Nro ${response.externalDocNum}.`
+          : "Deposito enviado al ERP."
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo enviar el deposito al ERP.")
+    } finally {
+      setIsSendingDeposit(false)
+    }
+  }
+
   const metrics = useMemo(() => {
     if (!preview) return null
     const paired = preview.autoMatches.length + manualMatches.length
@@ -433,6 +623,9 @@ export default function useConciliationWorkbench() {
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
+    isSendingDeposit,
+    depositDate,
+    setDepositDate,
     preview,
     manualMatches,
     unmatchedSystemRows,
@@ -442,6 +635,7 @@ export default function useConciliationWorkbench() {
     runComparison,
     onDragEnd,
     removeManualMatch,
+    sendDepositToErp,
     clearAll,
     reloadBankStatements: loadBankStatements,
     page,

@@ -46,7 +46,9 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isBankMenuOpen, setIsBankMenuOpen] = useState(false);
-  const [profileErpConfigs, setProfileErpConfigs] = useState<CompanyErpConfig[]>([]);
+  const [profileErpConfigs, setProfileErpConfigs] = useState<
+    CompanyErpConfig[]
+  >([]);
   const profileRef = useRef<HTMLDivElement | null>(null);
   const bankMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -74,10 +76,13 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    if (!isProfileMenuOpen || !hasModule(APP_MODULE_VALUES.erpManagement)) return;
+    if (!isProfileMenuOpen || !hasModule(APP_MODULE_VALUES.erpManagement))
+      return;
 
     void apiClient
-      .get<CompanyErpConfig[]>("/erp/configs?activeOnly=true", { showBackdrop: false })
+      .get<CompanyErpConfig[]>("/erp/configs?activeOnly=true", {
+        showBackdrop: false,
+      })
       .then((response) => setProfileErpConfigs(response ?? []))
       .catch(() => setProfileErpConfigs([]));
   }, [hasModule, isProfileMenuOpen]);
@@ -96,9 +101,13 @@ export default function Navbar() {
       show: isAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
     },
   ];
-  const visibleBankManagementLinks = bankManagementLinks.filter((link) => link.show);
-  const isBankMenuActive = visibleBankManagementLinks.some((link) =>
-    location.pathname === link.to || location.pathname.startsWith(`${link.to}/`),
+  const visibleBankManagementLinks = bankManagementLinks.filter(
+    (link) => link.show,
+  );
+  const isBankMenuActive = visibleBankManagementLinks.some(
+    (link) =>
+      location.pathname === link.to ||
+      location.pathname.startsWith(`${link.to}/`),
   );
 
   const navLinks: NavigationItem[] = [
@@ -115,13 +124,6 @@ export default function Navbar() {
       show: hasModule(APP_MODULE_VALUES.conciliation),
     },
     {
-      key: "bank-management",
-      icon: <FiDatabase className="h-4 w-4" />,
-      label: "Banco",
-      show: visibleBankManagementLinks.length > 0,
-      children: visibleBankManagementLinks,
-    },
-    {
       to: "/conciliation",
       icon: <FiActivity className="h-4 w-4" />,
       label: "Conciliar",
@@ -134,10 +136,18 @@ export default function Navbar() {
       show: hasModule(APP_MODULE_VALUES.users),
     },
     {
+      key: "bank-management",
+      icon: <FiDatabase className="h-4 w-4" />,
+      label: "Banco",
+      show: visibleBankManagementLinks.length > 0,
+      children: visibleBankManagementLinks,
+    },
+    {
       to: "/layout-management",
       icon: <FiSettings className="h-4 w-4" />,
       label: "Plantillas",
-      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
+      show:
+        isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
     },
     {
       to: "/admin-plantillas",
@@ -168,7 +178,9 @@ export default function Navbar() {
             <FiShield className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-600">Qoncilia</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-brand-600">
+              Qoncilia
+            </p>
           </div>
         </div>
 
@@ -257,7 +269,9 @@ export default function Navbar() {
             {isProfileMenuOpen ? (
               <div className="absolute right-0 top-[calc(100%+0.75rem)] z-40 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
                 <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-bold text-slate-900">{displayName ?? "-"}</p>
+                  <p className="text-sm font-bold text-slate-900">
+                    {displayName ?? "-"}
+                  </p>
                   <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-500">
                     {roleLabel(role)}
                   </p>
@@ -266,9 +280,13 @@ export default function Navbar() {
                       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
                         Mi empresa
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-800">{user.companyName}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-800">
+                        {user.companyName}
+                      </p>
                       {user.companyCode ? (
-                        <p className="mt-1 text-xs text-slate-500">ID fiscal: {user.companyCode}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          ID fiscal: {user.companyCode}
+                        </p>
                       ) : null}
                     </div>
                   ) : null}
@@ -295,7 +313,9 @@ export default function Navbar() {
                         }
                       >
                         <FiServer className="h-4 w-4" />
-                        <span className="min-w-0 flex-1 truncate">{config.name}</span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {config.name}
+                        </span>
                       </NavLink>
                     ))}
                     {profileErpConfigs.length === 0 ? (
