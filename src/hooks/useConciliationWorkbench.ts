@@ -213,7 +213,6 @@ export default function useConciliationWorkbench() {
   const [bankStatements, setBankStatements] = useState<BankStatementSummary[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [selectedBankStatementId, setSelectedBankStatementId] = useState<number>(0)
@@ -355,7 +354,7 @@ export default function useConciliationWorkbench() {
     }
   }, [selectedLayout])
 
-  const loadBankStatements = useCallback(async () => {
+  const loadBankStatements = useCallback(async (targetPage = page) => {
     if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
       setBankStatements([])
       setSelectedBankStatementId(0)
@@ -373,8 +372,7 @@ export default function useConciliationWorkbench() {
     }
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
-    if (search.trim()) params.set("search", search.trim());
-    params.set("page", String(page));
+    params.set("page", String(targetPage));
     params.set("limit", "10");
 
     const response = await apiClient.get<PaginatedResponse<BankStatementSummary>>(
@@ -395,7 +393,6 @@ export default function useConciliationWorkbench() {
     selectedUserId,
     dateFrom,
     dateTo,
-    search,
     page
   ])
 
@@ -404,6 +401,17 @@ export default function useConciliationWorkbench() {
       toast.error(error instanceof Error ? error.message : "No se pudieron cargar extractos.")
     })
   }, [loadBankStatements, toast])
+
+  const searchBankStatements = useCallback(() => {
+    if (page === 1) {
+      void loadBankStatements(1).catch((error) => {
+        toast.error(error instanceof Error ? error.message : "No se pudieron cargar extractos.")
+      })
+      return
+    }
+
+    setPage(1)
+  }, [loadBankStatements, page, toast])
 
   const selectedBankStatement = useMemo(
     () => bankStatements.find((item) => item.id === selectedBankStatementId) ?? null,
@@ -638,11 +646,10 @@ export default function useConciliationWorkbench() {
     sendDepositToErp,
     clearAll,
     reloadBankStatements: loadBankStatements,
+    searchBankStatements,
     page,
     setPage,
     totalPages,
-    search,
-    setSearch,
     dateFrom,
     setDateFrom,
     dateTo,

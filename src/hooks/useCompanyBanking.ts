@@ -134,13 +134,19 @@ export default function useCompanyBanking() {
   }, [availableUsers, editingBankId])
 
   useEffect(() => {
-    if (!editingAccountId && selectedBankId > 0) {
-      setAccountForm((current) => ({
+    if (editingAccountId) return
+
+    setAccountForm((current) => {
+      const currentBankId = Number(current.bankId || 0)
+      const currentBankIsAvailable = banks.some((bank) => bank.id === currentBankId)
+      const nextBankId = currentBankIsAvailable ? currentBankId : selectedBankId || banks[0]?.id || ""
+
+      return {
         ...current,
-        bankId: Number(current.bankId || 0) > 0 ? current.bankId : selectedBankId
-      }))
-    }
-  }, [editingAccountId, selectedBankId])
+        bankId: nextBankId
+      }
+    })
+  }, [banks, editingAccountId, selectedBankId])
 
   const selectBank = (bankId: number) => {
     setSelectedBankId(bankId)

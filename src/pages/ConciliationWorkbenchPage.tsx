@@ -81,9 +81,6 @@ export default function ConciliationWorkbenchPage() {
     accounts,
     selectedCompanyBankAccountId,
     setSelectedCompanyBankAccountId,
-    selectedLayoutId,
-    setSelectedLayoutId,
-    layouts,
     selectedLayout,
     bankStatements,
     selectedBankStatementId,
@@ -110,12 +107,10 @@ export default function ConciliationWorkbenchPage() {
     removeManualMatch,
     sendDepositToErp,
     clearAll,
-    reloadBankStatements,
+    searchBankStatements,
     page,
     setPage,
     totalPages,
-    search,
-    setSearch,
     dateFrom,
     setDateFrom,
     dateTo,
@@ -136,12 +131,12 @@ export default function ConciliationWorkbenchPage() {
           Comparar contra un extracto bancario guardado
         </h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          Selecciona banco, cuenta y layout, busca el extracto guardado, sube el Excel del sistema y revisa las coincidencias sin persistir datos del sistema.
+          Selecciona banco y cuenta, busca el extracto guardado, sube el Excel del sistema y revisa las coincidencias sin persistir datos del sistema.
         </p>
       </div>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-6">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_auto]">
           {isAdminRole(role) ? (
             <SelectBlock
               label="Usuario"
@@ -181,23 +176,35 @@ export default function ConciliationWorkbenchPage() {
             </select>
           </label>
 
-          <SelectBlock
-            label="Layout"
-            value={selectedLayoutId}
-            onChange={(value) => setSelectedLayoutId(Number(value))}
-            options={layouts.map((item) => ({
-              value: item.id,
-              label: `${item.name}${item.active ? " - activa" : ""}`,
-            }))}
-          />
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Desde</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </label>
 
-          <div className="flex items-end xl:col-span-2">
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Hasta</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </label>
+
+          <div className="flex items-end">
             <button
               type="button"
-              onClick={() => void reloadBankStatements()}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+              onClick={searchBankStatements}
+              aria-label="Buscar extractos"
+              title="Buscar extractos"
+              className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700"
             >
-              <FiSearch className="h-4 w-4" /> Buscar extractos
+              <FiSearch className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -260,48 +267,7 @@ export default function ConciliationWorkbenchPage() {
           ) : null}
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-4 items-end border-b border-slate-100 pb-5">
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Buscar extracto</span>
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Ej. Extracto Enero..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Desde</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Hasta</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => { setPage(1); void reloadBankStatements(); }}
-            className="inline-flex h-[42px] items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
-          >
-            <FiSearch className="h-4 w-4" /> Buscar
-          </button>
-        </div>
-
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
