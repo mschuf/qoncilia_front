@@ -67,7 +67,10 @@ export default function AdminTemplatesPage() {
   );
 
   const totalAvailable = useMemo(
-    () => banks.reduce((acc, bank) => acc + bank.availableTemplates.length, 0),
+    () =>
+      new Set(
+        banks.flatMap((bank) => bank.availableTemplates.map((template) => template.id)),
+      ).size,
     [banks],
   );
 
@@ -136,9 +139,9 @@ export default function AdminTemplatesPage() {
               Plantillas de mis bancos
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              El super admin habilita un catalogo de plantillas base por cada banco. Desde
-              aca podes aplicar la que mas se ajuste a tu operativa para crear la plantilla
-              de conciliacion del banco.
+              El super admin habilita un catalogo global de plantillas base para tu
+              usuario. Desde aca podes aplicar cualquiera de esas plantillas al banco
+              que necesites operar.
             </p>
           </div>
 
@@ -215,7 +218,7 @@ export default function AdminTemplatesPage() {
                             : "bg-brand-50 text-brand-700"
                             }`}
                         >
-                          {bank.availableTemplates.length} habilitada(s)
+                          {bank.availableTemplates.length} global(es)
                         </span>
                         <span
                           className={`rounded-full px-2.5 py-1 ${isSelected
@@ -319,8 +322,8 @@ export default function AdminTemplatesPage() {
 
                     {selectedBank.availableTemplates.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                        Este banco aun no tiene plantillas habilitadas. Pedile al super
-                        admin que asigne al menos una plantilla base.
+                        Tu usuario aun no tiene plantillas habilitadas. Pedile al super
+                        admin que asigne al menos una plantilla base a tu usuario.
                       </div>
                     ) : (
                       <div className="grid gap-3 md:grid-cols-2">

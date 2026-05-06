@@ -325,6 +325,11 @@ export default function useLayoutManagement() {
     [banks, selectedBankId]
   );
 
+  const selectedUserAvailableTemplateIds = useMemo(
+    () => banks[0]?.availableTemplateIds ?? [],
+    [banks]
+  );
+
   const layoutCount = useMemo(
     () => banks.reduce((total, bank) => total + bank.layouts.length, 0),
     [banks]
@@ -692,22 +697,22 @@ export default function useLayoutManagement() {
     }
   };
 
-  const setBankAvailableTemplates = async (
-    bank: UserBankWithLayouts,
+  const setUserAvailableTemplates = async (
+    userId: number,
     templateLayoutIds: number[]
   ) => {
     try {
       await apiClient.put(
-        `/conciliation/users/${bank.userId}/banks/${bank.id}/plantillas-base/disponibles`,
+        `/conciliation/users/${userId}/plantillas-base/disponibles`,
         { templateLayoutIds }
       );
       toast.success("Plantillas habilitadas actualizadas.");
-      await loadCatalog(bank.userId);
+      await Promise.all([loadCatalog(userId), loadAllCatalogs()]);
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudieron guardar las plantillas habilitadas para el banco."
+          : "No se pudieron guardar las plantillas habilitadas para el usuario."
       );
       throw error;
     }
@@ -821,6 +826,7 @@ export default function useLayoutManagement() {
     selectedBankId,
     setSelectedBankId,
     selectedBank,
+    selectedUserAvailableTemplateIds,
     layoutCount,
     bankModalOpen,
     setBankModalOpen,
@@ -872,7 +878,7 @@ export default function useLayoutManagement() {
     saveTemplate,
     saveSystem,
     applyTemplateToSelectedBank,
-    setBankAvailableTemplates,
+    setUserAvailableTemplates,
     getBankDeletionPreview,
     deleteBank,
     deleteLayout,

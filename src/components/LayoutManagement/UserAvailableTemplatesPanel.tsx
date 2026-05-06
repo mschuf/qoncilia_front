@@ -1,28 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiCheckSquare, FiSave, FiSquare } from "react-icons/fi";
-import type { TemplateLayout, UserBankWithLayouts } from "../../types/conciliation";
+import type { AuthUser } from "../../types/auth";
+import type { TemplateLayout } from "../../types/conciliation";
 
-interface BankAvailableTemplatesPanelProps {
-  selectedBank: UserBankWithLayouts | null;
+interface UserAvailableTemplatesPanelProps {
+  selectedUser: AuthUser | null;
+  availableTemplateIds: number[];
   templates: TemplateLayout[];
   onSave: (templateLayoutIds: number[]) => Promise<void>;
 }
 
-export default function BankAvailableTemplatesPanel({
-  selectedBank,
+export default function UserAvailableTemplatesPanel({
+  selectedUser,
+  availableTemplateIds,
   templates,
   onSave,
-}: BankAvailableTemplatesPanelProps) {
+}: UserAvailableTemplatesPanelProps) {
   const initialIds = useMemo(
-    () => new Set(selectedBank?.availableTemplateIds ?? []),
-    [selectedBank?.availableTemplateIds, selectedBank?.id],
+    () => new Set(availableTemplateIds),
+    [availableTemplateIds],
   );
   const [selectedIds, setSelectedIds] = useState<Set<number>>(initialIds);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setSelectedIds(new Set(selectedBank?.availableTemplateIds ?? []));
-  }, [selectedBank?.id, selectedBank?.availableTemplateIds]);
+    setSelectedIds(new Set(availableTemplateIds));
+  }, [availableTemplateIds, selectedUser?.id]);
 
   const toggle = (templateId: number) => {
     setSelectedIds((prev) => {
@@ -40,7 +43,7 @@ export default function BankAvailableTemplatesPanel({
   }, [selectedIds, initialIds]);
 
   const handleSave = async () => {
-    if (!selectedBank) return;
+    if (!selectedUser) return;
     setSubmitting(true);
     try {
       await onSave(Array.from(selectedIds));
@@ -49,10 +52,10 @@ export default function BankAvailableTemplatesPanel({
     }
   };
 
-  if (!selectedBank) {
+  if (!selectedUser) {
     return (
       <section className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-500">
-        Selecciona un banco para habilitar plantillas base.
+        Selecciona un usuario para habilitar plantillas base.
       </section>
     );
   }
@@ -62,15 +65,14 @@ export default function BankAvailableTemplatesPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-            Catalogo del banco
+            Catalogo del usuario
           </p>
           <h3 className="mt-2 text-lg font-extrabold text-slate-900">
-            Plantillas habilitadas para que el admin pueda elegir
+            Plantillas habilitadas para el admin
           </h3>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Marca una o varias plantillas base. El admin del banco vera estas opciones y
-            podra aplicar la que mejor se ajuste, sin necesidad de pedirte que la copies
-            a mano.
+            Estas plantillas quedan habilitadas para {selectedUser.usrLogin} y se
+            pueden aplicar a cualquier banco que administre ese usuario.
           </p>
         </div>
 

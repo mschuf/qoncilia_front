@@ -17,11 +17,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AppModal from "../components/AppModal";
 import BankModal from "../components/LayoutManagement/BankModal";
-import BankAvailableTemplatesPanel from "../components/LayoutManagement/BankAvailableTemplatesPanel";
 import LayoutListSection from "../components/LayoutManagement/LayoutListSection";
 import LayoutModal from "../components/LayoutManagement/LayoutModal";
 import { MetricCard } from "../components/LayoutManagement/MetricCards";
 import TemplateLayoutSection from "../components/LayoutManagement/TemplateLayoutSection";
+import UserAvailableTemplatesPanel from "../components/LayoutManagement/UserAvailableTemplatesPanel";
 import UserBanksSection from "../components/LayoutManagement/UserBanksSection";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -121,6 +121,7 @@ function SuperadminLayoutManagementPage() {
     selectedBankId,
     setSelectedBankId,
     selectedBank,
+    selectedUserAvailableTemplateIds,
     layoutCount,
     bankModalOpen,
     setBankModalOpen,
@@ -171,7 +172,7 @@ function SuperadminLayoutManagementPage() {
     saveTemplate,
     saveSystem,
     applyTemplateToSelectedBank,
-    setBankAvailableTemplates,
+    setUserAvailableTemplates,
     getBankDeletionPreview,
     deleteBank,
     deleteLayout,
@@ -434,12 +435,13 @@ function SuperadminLayoutManagementPage() {
                       handleDeleteLayout(layout.name, () => deleteLayout(layout))
                     }
                   />
-                  <BankAvailableTemplatesPanel
-                    selectedBank={selectedBank}
+                  <UserAvailableTemplatesPanel
+                    selectedUser={selectedUser}
+                    availableTemplateIds={selectedUserAvailableTemplateIds}
                     templates={templates}
                     onSave={(ids) =>
-                      selectedBank
-                        ? setBankAvailableTemplates(selectedBank, ids)
+                      selectedUserId
+                        ? setUserAvailableTemplates(selectedUserId, ids)
                         : Promise.resolve()
                     }
                   />
