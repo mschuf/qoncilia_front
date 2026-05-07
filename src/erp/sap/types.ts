@@ -22,31 +22,39 @@ export interface SapLoginFormState {
   password: string
 }
 
-export interface SapCreditDepositLineInput {
-  absId?: number
+export type SapExternalReconciliationAccountType = "rat_GLAccount" | "rat_BusinessPartner"
+
+export interface SapExternalReconciliationMatchInput {
   systemRowId?: string
   bankRowId?: string
-  creditCard?: number
-  paymentMethodCode?: number
-  voucherNumber?: string
-  ref3?: string
-  payDate?: string
-  customer?: string
-  total?: number
-  creditCurrency?: string
-  reference?: string
+  transactionNumber?: number
+  lineNumber?: number
+  sequence?: number
+  bankStatementAccountCode?: string
 }
 
-export interface SapDepositRequest {
+export interface SapExternalReconciliationBankStatementLineInput {
+  bankStatementAccountCode?: string
+  sequence: number
+}
+
+export interface SapExternalReconciliationJournalEntryLineInput {
+  transactionNumber: number
+  lineNumber: number
+}
+
+export interface SapExternalReconciliationRequest {
   companyErpConfigId: number
+  reconciliationId?: number
   bankStatementId?: number
-  depositDate?: string
-  bankReference?: string
-  journalRemarks?: string
-  creditLines: SapCreditDepositLineInput[]
+  accountCode?: string
+  reconciliationAccountType?: SapExternalReconciliationAccountType
+  matches?: SapExternalReconciliationMatchInput[]
+  bankStatementLines: SapExternalReconciliationBankStatementLineInput[]
+  journalEntryLines: SapExternalReconciliationJournalEntryLineInput[]
 }
 
-export interface SapErpShipmentResult {
+export interface SapExternalReconciliationResult {
   id: number
   reconciliationId: number | null
   companyErpConfigId: number
@@ -57,8 +65,8 @@ export interface SapErpShipmentResult {
   httpStatus: number | null
   responsePayload: Record<string, unknown> | null
   errorMessage: string | null
-  externalDocEntry: string | null
-  externalDocNum: string | null
+  externalReconciliationNo: string | null
+  externalReference: string | null
   createdAt: string
   updatedAt: string
 }

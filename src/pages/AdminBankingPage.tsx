@@ -672,15 +672,23 @@ export default function AdminBankingPage({
                       name="bankErpId"
                       value={accountForm.bankErpId}
                       onChange={onAccountFieldChange}
+                      placeholder="Codigo banco/cuenta ERP"
                       required
                     />
                     <Field
-                      label="Cuenta mayor"
+                      label="Cuenta mayor SAP (MthAcctCod)"
                       name="majorAccountNumber"
                       value={accountForm.majorAccountNumber}
                       onChange={onAccountFieldChange}
+                      placeholder="1.01.02.001.002"
                       required
                     />
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
+                    Para conciliacion externa SAP, Qoncilia usa la Cuenta mayor SAP como
+                    BankStatementAccountCode. Debe coincidir con la cuenta de OMTH.MthAcctCod /
+                    OBNK.BnkAcctCode, por ejemplo 1.01.02.001.002.
                   </div>
 
                   <Field
@@ -688,6 +696,7 @@ export default function AdminBankingPage({
                     name="paymentAccountNumber"
                     value={accountForm.paymentAccountNumber}
                     onChange={onAccountFieldChange}
+                    placeholder="Opcional"
                   />
 
                   <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">

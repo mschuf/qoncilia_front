@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { FiRefreshCw, FiSearch, FiSend, FiUploadCloud } from "react-icons/fi";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
@@ -19,45 +20,51 @@ function resolveErpStatus(session: SapErpSession | null) {
     return {
       label: "ERP sin validar",
       title: "Todavia no se valido la sesion ERP.",
-      detail: "Presiona Validar para consultar si hay una sesion activa antes de conciliar.",
+      detail:
+        "Presiona Validar para consultar si hay una sesion activa antes de conciliar.",
       badgeClass: "bg-slate-100 text-slate-600",
-      panelClass: "border-slate-200 bg-slate-50 text-slate-600"
+      panelClass: "border-slate-200 bg-slate-50 text-slate-600",
     };
   }
 
   if (session.authenticated) {
     return {
       label: "ERP conectado",
-      title: session.username ? `Sesion activa para ${session.username}.` : "Sesion ERP activa.",
+      title: session.username
+        ? `Sesion activa para ${session.username}.`
+        : "Sesion ERP activa.",
       detail: session.lastValidatedAt
         ? `Validada el ${formatDateTime(session.lastValidatedAt)}.`
         : `Validada el ${formatDateTime(session.checkedAt)}.`,
       badgeClass: "bg-emerald-100 text-emerald-700",
-      panelClass: "border-emerald-200 bg-emerald-50 text-emerald-700"
+      panelClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
     };
   }
 
-  const messages: Record<SapErpSession["status"], { title: string; detail: string }> = {
+  const messages: Record<
+    SapErpSession["status"],
+    { title: string; detail: string }
+  > = {
     active: {
       title: "Sesion ERP activa.",
-      detail: "La sesion esta lista para conciliar."
+      detail: "La sesion esta lista para conciliar.",
     },
     not_authenticated: {
       title: "No hay una sesion ERP activa.",
-      detail: "Inicia sesion desde Configurar ERP y luego vuelve a validar."
+      detail: "Inicia sesion desde Configurar ERP y luego vuelve a validar.",
     },
     expired: {
       title: "La sesion ERP expiro.",
-      detail: "Inicia sesion nuevamente desde Configurar ERP."
+      detail: "Inicia sesion nuevamente desde Configurar ERP.",
     },
     invalid: {
       title: "La sesion ERP no es valida.",
-      detail: "Inicia sesion nuevamente desde Configurar ERP."
+      detail: "Inicia sesion nuevamente desde Configurar ERP.",
     },
     logged_out: {
       title: "La sesion ERP esta cerrada.",
-      detail: "Inicia sesion desde Configurar ERP para poder conciliar."
-    }
+      detail: "Inicia sesion desde Configurar ERP para poder conciliar.",
+    },
   };
 
   const message = messages[session.status] ?? messages.not_authenticated;
@@ -65,7 +72,7 @@ function resolveErpStatus(session: SapErpSession | null) {
     label: "ERP sin sesion",
     ...message,
     badgeClass: "bg-amber-100 text-amber-700",
-    panelClass: "border-amber-200 bg-amber-50 text-amber-700"
+    panelClass: "border-amber-200 bg-amber-50 text-amber-700",
   };
 }
 
@@ -93,9 +100,7 @@ export default function ConciliationWorkbenchPage() {
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
-    isSendingDeposit,
-    depositDate,
-    setDepositDate,
+    isSendingExternalReconciliation,
     preview,
     manualMatches,
     unmatchedSystemRows,
@@ -105,7 +110,7 @@ export default function ConciliationWorkbenchPage() {
     runComparison,
     onDragEnd,
     removeManualMatch,
-    sendDepositToErp,
+    sendExternalReconciliationToErp,
     clearAll,
     searchBankStatements,
     page,
@@ -117,9 +122,96 @@ export default function ConciliationWorkbenchPage() {
     setDateTo,
   } = useConciliationWorkbench();
 
-  const bankLabel = preview?.layout.bankLabel ?? selectedLayout?.bankLabel ?? "Banco";
-  const systemLabel = preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
+  const bankLabel =
+    preview?.layout.bankLabel ?? selectedLayout?.bankLabel ?? "Banco";
+  const systemLabel =
+    preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
   const erpStatus = resolveErpStatus(erpSession);
+  const matchedCount = preview
+    ? preview.autoMatches.length + manualMatches.length
+    : 0;
+  const canSendExternalReconciliation = isAdminRole(role);
+  const isExternalReconciliationPanelVisible = Boolean(preview && metrics);
+  const externalReconciliationPendingInfo = [
+    unmatchedSystemRows.length > 0
+      ? `Quedan ${unmatchedSystemRows.length} filas pendientes del sistema.`
+      : null,
+    unmatchedBankRows.length > 0
+      ? `Quedan ${unmatchedBankRows.length} filas pendientes del banco.`
+      : null,
+  ].filter(Boolean) as string[];
+  const externalReconciliationBlockers = [
+    !preview
+      ? "El panel/boton no se muestra porque todavia no hay resultado de comparacion."
+      : null,
+    preview && !metrics
+      ? "El panel/boton no se muestra porque todavia no hay metricas de comparacion."
+      : null,
+    !selectedErpConfigId ? "No hay ERP seleccionado." : null,
+    isSendingExternalReconciliation ? "Se esta enviando la conciliacion." : null,
+    !erpSession?.authenticated ? "La sesion ERP no esta autenticada." : null,
+    matchedCount === 0 ? "No hay coincidencias conciliadas." : null,
+    !canSendExternalReconciliation
+      ? `El rol actual (${role ?? "sin rol"}) no puede enviar conciliaciones al ERP.`
+      : null,
+  ].filter(Boolean) as string[];
+  const externalReconciliationBlockersText =
+    externalReconciliationBlockers.join(" | ") || "Sin bloqueos";
+  const externalReconciliationPendingInfoText =
+    externalReconciliationPendingInfo.join(" | ") ||
+    "Sin pendientes fuera del envio";
+  const isExternalReconciliationDisabled =
+    externalReconciliationBlockers.length > 0;
+
+  useEffect(() => {
+    if (!preview) return;
+
+    console.groupCollapsed(
+      `[Qoncilia] Boton Conciliar ERP ${
+        isExternalReconciliationDisabled ? "deshabilitado" : "habilitado"
+      }`
+    );
+    console.table({
+      panelVisible: isExternalReconciliationPanelVisible,
+      disabled: isExternalReconciliationDisabled,
+      blockers: externalReconciliationBlockersText,
+      pendingInfo: externalReconciliationPendingInfoText,
+      role,
+      canSendExternalReconciliation,
+      erpAuthenticated: Boolean(erpSession?.authenticated),
+      erpStatus: erpSession?.status ?? "sin sesion",
+      selectedErpConfigId,
+      erpConfigsCount: erpConfigs.length,
+      matchedCount,
+      autoMatches: preview.autoMatches.length,
+      manualMatches: manualMatches.length,
+      pendingSystemRows: unmatchedSystemRows.length,
+      pendingBankRows: unmatchedBankRows.length,
+      selectedBankStatementId,
+      selectedCompanyBankAccountId,
+      selectedLayout: selectedLayout?.name ?? "sin plantilla",
+    });
+    console.groupEnd();
+  }, [
+    canSendExternalReconciliation,
+    erpConfigs.length,
+    erpSession?.authenticated,
+    erpSession?.status,
+    externalReconciliationBlockersText,
+    externalReconciliationPendingInfoText,
+    isExternalReconciliationPanelVisible,
+    isExternalReconciliationDisabled,
+    manualMatches.length,
+    matchedCount,
+    preview,
+    role,
+    selectedBankStatementId,
+    selectedCompanyBankAccountId,
+    selectedErpConfigId,
+    selectedLayout?.name,
+    unmatchedBankRows.length,
+    unmatchedSystemRows.length,
+  ]);
 
   return (
     <section className="space-y-6">
@@ -131,7 +223,9 @@ export default function ConciliationWorkbenchPage() {
           Comparar contra un extracto bancario guardado
         </h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          Selecciona banco y cuenta, busca el extracto guardado, sube el Excel del sistema y revisa las coincidencias sin persistir datos del sistema.
+          Selecciona banco y cuenta, busca el extracto guardado, sube el Excel
+          del sistema y revisa las coincidencias sin persistir datos del
+          sistema.
         </p>
       </div>
 
@@ -160,14 +254,20 @@ export default function ConciliationWorkbenchPage() {
           />
 
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Cuenta bancaria</span>
+            <span className="text-sm font-semibold text-slate-700">
+              Cuenta bancaria
+            </span>
             <select
               value={selectedCompanyBankAccountId}
-              onChange={(event) => setSelectedCompanyBankAccountId(Number(event.target.value))}
+              onChange={(event) =>
+                setSelectedCompanyBankAccountId(Number(event.target.value))
+              }
               disabled={accounts.length === 0}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
             >
-              {accounts.length === 0 ? <option value={0}>Sin cuentas para este banco</option> : null}
+              {accounts.length === 0 ? (
+                <option value={0}>Sin cuentas para este banco</option>
+              ) : null}
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name} - {account.accountNumber} ({account.currency})
@@ -213,13 +313,19 @@ export default function ConciliationWorkbenchPage() {
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">ERP activo</span>
+            <span className="text-sm font-semibold text-slate-700">
+              ERP activo
+            </span>
             <select
               value={selectedErpConfigId}
-              onChange={(event) => setSelectedErpConfigId(Number(event.target.value))}
+              onChange={(event) =>
+                setSelectedErpConfigId(Number(event.target.value))
+              }
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             >
-              {erpConfigs.length === 0 ? <option value={0}>Sin ERPs activas</option> : null}
+              {erpConfigs.length === 0 ? (
+                <option value={0}>Sin ERPs activas</option>
+              ) : null}
               {erpConfigs.map((config) => (
                 <option key={config.id} value={config.id}>
                   {config.name} - {config.dbName ?? config.code}
@@ -244,7 +350,9 @@ export default function ConciliationWorkbenchPage() {
             </button>
           </div>
         </div>
-        <div className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${erpStatus.panelClass}`}>
+        <div
+          className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${erpStatus.panelClass}`}
+        >
           <p className="font-bold">{erpStatus.title}</p>
           <p className="mt-1 text-xs">{erpStatus.detail}</p>
         </div>
@@ -291,7 +399,10 @@ export default function ConciliationWorkbenchPage() {
                 ))}
                 {bankStatements.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                    <td
+                      colSpan={6}
+                      className="px-4 py-6 text-center text-sm text-slate-500"
+                    >
                       No hay extractos guardados para los filtros elegidos.
                     </td>
                   </tr>
@@ -303,7 +414,8 @@ export default function ConciliationWorkbenchPage() {
 
         <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
           <span>
-            Página <span className="font-semibold">{page}</span> de <span className="font-semibold">{totalPages}</span>
+            Página <span className="font-semibold">{page}</span> de{" "}
+            <span className="font-semibold">{totalPages}</span>
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -376,30 +488,30 @@ export default function ConciliationWorkbenchPage() {
                   Envio ERP
                 </p>
                 <h3 className="mt-2 text-lg font-extrabold text-slate-900">
-                  Deposito por tarjeta de credito
+                  Conciliacion externa SAP B1
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Se enviaran {preview.autoMatches.length + manualMatches.length} coincidencias en CreditLines.
+                  Se enviaran {matchedCount} coincidencias a
+                  ExternalReconciliationsService_Reconcile.
+                  {externalReconciliationPendingInfo.length > 0
+                    ? " Las filas pendientes no se enviaran al ERP."
+                    : ""}
+                  {!canSendExternalReconciliation
+                    ? " Disponible solo para admin y superadmin."
+                    : ""}
                 </p>
               </div>
               <div className="flex flex-wrap items-end gap-2">
-                <label className="space-y-1.5">
-                  <span className="text-sm font-semibold text-slate-700">Fecha deposito</span>
-                  <input
-                    type="date"
-                    value={depositDate}
-                    onChange={(event) => setDepositDate(event.target.value)}
-                    className="h-[46px] rounded-xl border border-slate-200 px-4 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                  />
-                </label>
                 <button
                   type="button"
-                  onClick={() => void sendDepositToErp()}
-                  disabled={isSendingDeposit || !erpSession?.authenticated || preview.autoMatches.length + manualMatches.length === 0}
+                  onClick={() => void sendExternalReconciliationToErp()}
+                  disabled={isExternalReconciliationDisabled}
                   className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiSend className="h-4 w-4" />
-                  {isSendingDeposit ? "Enviando..." : "Enviar al ERP"}
+                  {isSendingExternalReconciliation
+                    ? "Conciliando..."
+                    : "Conciliar"}
                 </button>
               </div>
             </div>
@@ -415,12 +527,31 @@ export default function ConciliationWorkbenchPage() {
           />
 
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
-            <Metric label={systemLabel} value={String(metrics.totalSystemRows)} />
+            <Metric
+              label={systemLabel}
+              value={String(metrics.totalSystemRows)}
+            />
             <Metric label={bankLabel} value={String(metrics.totalBankRows)} />
-            <Metric label="Auto" value={String(metrics.autoMatches)} tone="emerald" />
-            <Metric label="Manual" value={String(metrics.manualMatches)} tone="amber" />
-            <Metric label="Pend. sistema" value={String(metrics.unmatchedSystem)} tone="rose" />
-            <Metric label="Pend. banco" value={String(metrics.unmatchedBank)} tone="amber" />
+            <Metric
+              label="Auto"
+              value={String(metrics.autoMatches)}
+              tone="emerald"
+            />
+            <Metric
+              label="Manual"
+              value={String(metrics.manualMatches)}
+              tone="amber"
+            />
+            <Metric
+              label="Pend. sistema"
+              value={String(metrics.unmatchedSystem)}
+              tone="rose"
+            />
+            <Metric
+              label="Pend. banco"
+              value={String(metrics.unmatchedBank)}
+              tone="amber"
+            />
             <Metric label="Match %" value={`${metrics.matchPercentage}%`} />
           </div>
         </>
@@ -439,18 +570,29 @@ function StatementRow({
   onSelect: () => void;
 }) {
   return (
-    <tr className={`border-t border-slate-100 ${selected ? "bg-brand-50" : "bg-white hover:bg-slate-50"}`}>
-      <td className="px-3 py-3 text-slate-600">{formatDateTime(statement.createdAt)}</td>
+    <tr
+      className={`border-t border-slate-100 ${selected ? "bg-brand-50" : "bg-white hover:bg-slate-50"}`}
+    >
+      <td className="px-3 py-3 text-slate-600">
+        {formatDateTime(statement.createdAt)}
+      </td>
       <td className="px-3 py-3">
-        <p className="font-semibold text-slate-900">{statement.bankAlias ?? statement.bankName}</p>
-        <p className="mt-1 text-xs text-slate-500">{statement.companyBankAccountName} - {statement.companyBankAccountNumber}</p>
+        <p className="font-semibold text-slate-900">
+          {statement.bankAlias ?? statement.bankName}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          {statement.companyBankAccountName} -{" "}
+          {statement.companyBankAccountNumber}
+        </p>
       </td>
       <td className="px-3 py-3">
         <p className="font-semibold text-slate-900">{statement.name}</p>
         <p className="mt-1 text-xs text-slate-500">{statement.fileName}</p>
       </td>
       <td className="px-3 py-3 text-slate-600">{statement.layoutName}</td>
-      <td className="px-3 py-3 font-semibold text-slate-800">{statement.rowCount}</td>
+      <td className="px-3 py-3 font-semibold text-slate-800">
+        {statement.rowCount}
+      </td>
       <td className="px-3 py-3 text-right">
         <button
           type="button"

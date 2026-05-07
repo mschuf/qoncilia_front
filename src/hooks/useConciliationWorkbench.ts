@@ -7,9 +7,9 @@ import { useToast } from "../context/ToastContext"
 import {
   getStoredSapConfigId,
   storeSapConfigId,
-  type SapDepositRequest,
+  type SapExternalReconciliationRequest,
+  type SapExternalReconciliationResult,
   type SapErpSession,
-  type SapErpShipmentResult
 } from "../erp/sap"
 import type { AuthUser } from "../types/auth"
 import type {
@@ -25,12 +25,16 @@ import type {
 import type { CompanyErpConfig } from "../types/erp"
 import { isAdminRole } from "../utils/role"
 
+function hasComparableMapping(mapping: LayoutMapping) {
+  return Boolean(mapping.systemColumn?.trim() && mapping.bankColumn?.trim())
+}
+
 function createManualMatch(
   mappings: LayoutMapping[],
   systemRow: PreviewRow,
   bankRow: PreviewRow
 ): PreviewMatch {
-  const activeMappings = mappings.filter((item) => item.active)
+  const activeMappings = mappings.filter((item) => item.active && hasComparableMapping(item))
   let totalWeight = 0
   let matchedWeight = 0
   const ruleResults = activeMappings.map((mapping) => {
@@ -113,17 +117,27 @@ function sortRows(rows: PreviewRow[]) {
   return [...rows].sort((left, right) => left.rowNumber - right.rowNumber)
 }
 
+function normalizeLookupKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase()
+}
+
 function findRowValue(row: PreviewRow | undefined, keys: string[]) {
   if (!row) return null
   const sources = [row.normalized, row.values]
 
   for (const key of keys) {
+    const normalizedKey = normalizeLookupKey(key)
     for (const source of sources) {
       const direct = source[key]
       if (direct !== undefined && direct !== null && String(direct).trim()) return direct
 
-      const lowerKey = key.toLowerCase()
-      const foundEntry = Object.entries(source).find(([entryKey]) => entryKey.toLowerCase() === lowerKey)
+      const foundEntry = Object.entries(source).find(
+        ([entryKey]) => normalizeLookupKey(entryKey) === normalizedKey
+      )
       const foundValue = foundEntry?.[1]
       if (foundValue !== undefined && foundValue !== null && String(foundValue).trim()) return foundValue
     }
@@ -150,25 +164,6 @@ function parseRowNumber(row: PreviewRow | undefined, keys: string[]) {
     : Number(normalized)
 
   return Number.isFinite(numberValue) ? Math.abs(numberValue) : undefined
-}
-
-function toSapDate(value: string | number | undefined) {
-  if (value === undefined) return undefined
-  const text = String(value).trim()
-  if (!text) return undefined
-  const dateOnly = text.match(/^(\d{4}-\d{2}-\d{2})/)
-  if (dateOnly) return `${dateOnly[1]}T00:00:00Z`
-
-  const parsed = Date.parse(text)
-  if (Number.isNaN(parsed)) return undefined
-  return `${new Date(parsed).toISOString().slice(0, 10)}T00:00:00Z`
-}
-
-function todayDateInputValue() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  const day = String(now.getDate()).padStart(2, "0")
-  return `${now.getFullYear()}-${month}-${day}`
 }
 
 function sapSessionMessage(session: SapErpSession): string {
@@ -220,8 +215,7 @@ export default function useConciliationWorkbench() {
   const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
   const [selectedErpConfigId, setSelectedErpConfigId] = useState<number>(0)
   const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
-  const [isSendingDeposit, setIsSendingDeposit] = useState(false)
-  const [depositDate, setDepositDate] = useState(todayDateInputValue())
+  const [isSendingExternalReconciliation, setIsSendingExternalReconciliation] = useState(false)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [manualMatches, setManualMatches] = useState<PreviewMatch[]>([])
   const [unmatchedSystemRows, setUnmatchedSystemRows] = useState<PreviewRow[]>([])
@@ -432,6 +426,36 @@ export default function useConciliationWorkbench() {
     }
 
   const runComparison = async () => {
+    const compareBlockers = [
+      !selectedErpConfigId ? "No hay una configuracion ERP activa seleccionada." : null,
+      !erpSession?.authenticated ? "La sesion ERP no esta autenticada." : null,
+      !selectedBankStatementId ? "No hay extracto bancario guardado seleccionado." : null,
+      !systemFile ? "No hay Excel del sistema cargado." : null,
+      !selectedBankId ? "No hay banco seleccionado." : null,
+      !selectedCompanyBankAccountId ? "No hay cuenta bancaria seleccionada." : null,
+      !selectedLayoutId ? "No hay plantilla/layout seleccionada." : null
+    ].filter(Boolean) as string[]
+
+    console.groupCollapsed("[Qoncilia] Comparar - diagnostico para habilitar Conciliar ERP")
+    console.table({
+      puedeComparar: compareBlockers.length === 0,
+      faltantes: compareBlockers.join(" | ") || "Sin faltantes para comparar",
+      role,
+      selectedUserId,
+      selectedBankId,
+      selectedBankName: selectedBank?.alias ?? selectedBank?.bankName ?? "sin banco",
+      selectedCompanyBankAccountId,
+      selectedLayoutId,
+      selectedLayoutName: selectedLayout?.name ?? "sin plantilla",
+      selectedBankStatementId,
+      selectedBankStatementFile: selectedBankStatement?.fileName ?? "sin extracto",
+      selectedErpConfigId,
+      erpAuthenticated: Boolean(erpSession?.authenticated),
+      erpStatus: erpSession?.status ?? "sin sesion",
+      systemFileName: systemFile?.name ?? "sin archivo"
+    })
+    console.groupEnd()
+
     if (!selectedErpConfigId) {
       toast.error("No hay una configuracion ERP activa para conciliar.")
       return
@@ -465,8 +489,39 @@ export default function useConciliationWorkbench() {
       setManualMatches([])
       setUnmatchedSystemRows(response.unmatchedSystemRows)
       setUnmatchedBankRows(response.unmatchedBankRows)
+      const matchesCount = response.autoMatches.length
+      const pendingSystemRows = response.unmatchedSystemRows.length
+      const pendingBankRows = response.unmatchedBankRows.length
+      const conciliateBlockers = [
+        matchesCount === 0 ? "La comparacion no encontro coincidencias automaticas." : null,
+        !erpSession?.authenticated ? "La sesion ERP no esta autenticada." : null,
+        !isAdminRole(role) ? `El rol ${role ?? "sin rol"} no puede conciliar en ERP.` : null
+      ].filter(Boolean) as string[]
+      const pendingInfo = [
+        pendingSystemRows > 0 ? `Quedan ${pendingSystemRows} filas pendientes del sistema.` : null,
+        pendingBankRows > 0 ? `Quedan ${pendingBankRows} filas pendientes del banco.` : null
+      ].filter(Boolean) as string[]
+      console.groupCollapsed("[Qoncilia] Comparar - resultado y bloqueo del boton Conciliar ERP")
+      console.table({
+        botonVisible: true,
+        botonHabilitable: conciliateBlockers.length === 0,
+        bloqueos: conciliateBlockers.join(" | ") || "Sin bloqueos",
+        pendientesNoEnviados: pendingInfo.join(" | ") || "Sin pendientes",
+        autoMatches: response.autoMatches.length,
+        manualMatches: 0,
+        pendingSystemRows,
+        pendingBankRows,
+        totalSystemRows: response.systemRows.length,
+        totalBankRows: response.bankRows.length,
+        threshold: response.layout.autoMatchThreshold,
+        layoutName: response.layout.name
+      })
+      console.groupEnd()
       toast.success("Comparacion lista.")
     } catch (error) {
+      console.groupCollapsed("[Qoncilia] Comparar - error")
+      console.error(error)
+      console.groupEnd()
       toast.error(error instanceof Error ? error.message : "No se pudo comparar el extracto.")
     }
   }
@@ -499,14 +554,19 @@ export default function useConciliationWorkbench() {
     }
   }
 
-  const sendDepositToErp = async () => {
+  const sendExternalReconciliationToErp = async () => {
+    if (!isAdminRole(role)) {
+      toast.error("Solo usuarios admin o superadmin pueden conciliar en SAP.")
+      return
+    }
+
     if (!selectedErpConfigId) {
-      toast.error("No hay una configuracion ERP activa para enviar el deposito.")
+      toast.error("No hay una configuracion ERP activa para conciliar.")
       return
     }
 
     if (!erpSession?.authenticated) {
-      toast.error("Inicia sesion en el ERP antes de enviar el deposito.")
+      toast.error("Inicia sesion en el ERP antes de conciliar.")
       return
     }
 
@@ -517,71 +577,146 @@ export default function useConciliationWorkbench() {
 
     const matches = [...preview.autoMatches, ...manualMatches]
     if (matches.length === 0) {
-      toast.error("No hay coincidencias para enviar al ERP.")
+      toast.error("No hay coincidencias para conciliar en el ERP.")
       return
     }
 
-    const creditLines = matches.map((match) => {
+    const bankStatementLines: SapExternalReconciliationRequest["bankStatementLines"] = []
+    const journalEntryLines: SapExternalReconciliationRequest["journalEntryLines"] = []
+    const sapMatches: NonNullable<SapExternalReconciliationRequest["matches"]> = []
+    const defaultedLineNumbers: Array<{
+      match: number
+      systemRow: number | string
+      transactionNumber: number
+    }> = []
+
+    for (const [index, match] of matches.entries()) {
       const systemRow = preview.systemRows.find((item) => item.rowId === match.systemRowId)
       const bankRow = preview.bankRows.find((item) => item.rowId === match.bankRowId)
+      const transactionNumber = parseRowNumber(systemRow, [
+        "TransactionNumber",
+        "transactionNumber",
+        "TransId",
+        "transId",
+        "trans_id",
+        "numeroTransaccion",
+        "nroTransaccion",
+        "nroAsiento",
+        "numeroOperacion",
+        "nroOperacion",
+        "Número de operación",
+        "Numero de operacion",
+        "asiento"
+      ])
+      const rawLineNumber = parseRowNumber(systemRow, [
+        "LineNumber",
+        "lineNumber",
+        "Line_ID",
+        "lineId",
+        "LineNum",
+        "lineNum",
+        "lineaAsiento",
+        "linea",
+        "Ref.2 (fila)",
+        "Ref.2 fila",
+        "Ref2"
+      ])
+      const sequence =
+        parseRowNumber(bankRow, [
+          "Sequence",
+          "sequence",
+          "BankStatementLineSequence",
+          "bankStatementLineSequence",
+          "lineSequence",
+          "secuencia",
+          "lineaBanco",
+          "nroLineaBanco",
+          "linea"
+        ])
+      const bankStatementAccountCode = findRowText(bankRow, [
+        "BankStatementAccountCode",
+        "bankStatementAccountCode",
+        "AccountCode",
+        "accountCode",
+        "cuentaSap",
+        "cuentaSAP",
+        "codigoCuenta",
+        "codigoCuentaBanco"
+      ])
 
-      return {
+      if (!transactionNumber) {
+        toast.error(
+          `Falta TransactionNumber/TransId en la fila ${systemRow?.rowNumber ?? index + 1} del sistema.`
+        )
+        return
+      }
+
+      const lineNumber = rawLineNumber ?? 0
+      if (rawLineNumber === undefined) {
+        defaultedLineNumbers.push({
+          match: index + 1,
+          systemRow: systemRow?.rowNumber ?? "sin fila",
+          transactionNumber
+        })
+      }
+
+      if (!sequence) {
+        toast.error(
+          `Falta Sequence/OBNK en la fila ${bankRow?.rowNumber ?? index + 1} del banco.`
+        )
+        return
+      }
+
+      journalEntryLines.push({
+        transactionNumber,
+        lineNumber
+      })
+      bankStatementLines.push({
+        bankStatementAccountCode,
+        sequence
+      })
+      sapMatches.push({
         systemRowId: match.systemRowId,
         bankRowId: match.bankRowId,
-        absId: parseRowNumber(systemRow, ["absId", "AbsId", "paymentId", "idPago", "id_pago"]),
-        voucherNumber:
-          findRowText(bankRow, ["ref3", "voucherNumber", "comprobante", "referencia", "reference"]) ??
-          findRowText(systemRow, ["ref3", "voucherNumber", "comprobante", "referencia", "reference"]),
-        payDate: toSapDate(
-          findRowText(bankRow, ["fecha", "payDate", "date"]) ??
-            findRowText(systemRow, ["fecha", "payDate", "date"])
-        ),
-        customer:
-          findRowText(systemRow, [
-            "customer",
-            "cliente",
-            "cardCode",
-            "codigoCliente",
-            "codigo_cliente"
-          ]) ??
-          findRowText(bankRow, [
-            "customer",
-            "cliente",
-            "cardCode",
-            "codigoCliente",
-            "codigo_cliente"
-          ]),
-        total:
-          parseRowNumber(bankRow, ["monto", "amount", "total"]) ??
-          parseRowNumber(systemRow, ["monto", "amount", "total"]),
-        creditCurrency: selectedBankStatement?.companyBankAccountCurrency
-      }
-    })
+        transactionNumber,
+        lineNumber,
+        sequence,
+        bankStatementAccountCode
+      })
+    }
 
-    const request: SapDepositRequest = {
+    if (defaultedLineNumbers.length > 0) {
+      console.warn(
+        "[Qoncilia] SAP LineNumber no vino en el Excel. Se usara LineNumber = 0 para estos matches."
+      )
+      console.table(defaultedLineNumbers)
+    }
+
+    const request: SapExternalReconciliationRequest = {
       companyErpConfigId: selectedErpConfigId,
       bankStatementId: selectedBankStatementId,
-      depositDate: toSapDate(depositDate),
-      journalRemarks: selectedBankStatement
-        ? `Conciliacion ${selectedBankStatement.name}`
-        : "Conciliacion",
-      creditLines
+      reconciliationAccountType: "rat_GLAccount",
+      matches: sapMatches,
+      bankStatementLines,
+      journalEntryLines
     }
 
     try {
-      setIsSendingDeposit(true)
-      const response = await apiClient.post<SapErpShipmentResult>("/erp/sap/deposits", request, {
-        timeoutMs: 30000
-      })
+      setIsSendingExternalReconciliation(true)
+      const response = await apiClient.post<SapExternalReconciliationResult>(
+        "/erp/sap/external-reconciliations",
+        request,
+        { timeoutMs: 30000 }
+      )
       toast.success(
-        response.externalDocNum
-          ? `Deposito enviado al ERP. Nro ${response.externalDocNum}.`
-          : "Deposito enviado al ERP."
+        response.externalReconciliationNo
+          ? `Conciliacion enviada a SAP. Nro ${response.externalReconciliationNo}.`
+          : "Conciliacion enviada a SAP."
       )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo enviar el deposito al ERP.")
+      toast.error(error instanceof Error ? error.message : "No se pudo conciliar en SAP.")
     } finally {
-      setIsSendingDeposit(false)
+      setIsSendingExternalReconciliation(false)
     }
   }
 
@@ -631,9 +766,7 @@ export default function useConciliationWorkbench() {
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
-    isSendingDeposit,
-    depositDate,
-    setDepositDate,
+    isSendingExternalReconciliation,
     preview,
     manualMatches,
     unmatchedSystemRows,
@@ -643,7 +776,7 @@ export default function useConciliationWorkbench() {
     runComparison,
     onDragEnd,
     removeManualMatch,
-    sendDepositToErp,
+    sendExternalReconciliationToErp,
     clearAll,
     reloadBankStatements: loadBankStatements,
     searchBankStatements,

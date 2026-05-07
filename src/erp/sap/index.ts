@@ -1,9 +1,12 @@
 export { getStoredSapConfigId, storeSapConfigId } from "./sapSessionStorage"
 export type {
-  SapCreditDepositLineInput,
-  SapDepositRequest,
+  SapExternalReconciliationAccountType,
+  SapExternalReconciliationBankStatementLineInput,
+  SapExternalReconciliationJournalEntryLineInput,
+  SapExternalReconciliationMatchInput,
+  SapExternalReconciliationRequest,
+  SapExternalReconciliationResult,
   SapErpSession,
-  SapErpShipmentResult,
   SapLoginFormState,
   SapSessionStatus
 } from "./types"
