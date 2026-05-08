@@ -8,6 +8,7 @@ export interface AuthUser {
   usrCelular?: string | null;
   usrLogin?: string | null;
   usrLegajo?: string | null;
+  usrFoto?: string | null;
   roleId?: number | null;
   roleCode?: Role | string | null;
   roleName?: string | null;

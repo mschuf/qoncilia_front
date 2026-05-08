@@ -44,10 +44,10 @@ export function resolveRole(user: RoleUser | null | undefined): Role | null {
 
 export function roleLabel(role: Role | null | undefined): string {
   const labels: Record<Role, string> = {
-    gestor_cobranza: "Gestor Cobranza",
-    gestor_pagos: "Gestor Pagos",
-    admin: "Admin",
-    is_super_admin: "Super Admin"
+    gestor_cobranza: "Gestor de Cobranzas",
+    gestor_pagos: "Gestor de Pagos",
+    admin: "Administrador",
+    is_super_admin: "Súper Administrador"
   };
 
   if (!role) return labels.gestor_cobranza;

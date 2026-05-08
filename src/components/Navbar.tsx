@@ -281,9 +281,13 @@ export default function Navbar() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               aria-label="Abrir menu de perfil"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white">
-                <FiUser className="h-4 w-4" />
-              </span>
+              <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-900 text-white shadow-sm transition group-hover:border-brand-300">
+                {user?.usrFoto ? (
+                  <img src={user.usrFoto} alt="Perfil" className="h-full w-full object-cover" />
+                ) : (
+                  <FiUser className="h-4 w-4" />
+                )}
+              </div>
               <FiChevronDown className="hidden h-4 w-4 lg:block" />
             </button>
 
