@@ -14,6 +14,7 @@ export interface AuthUser {
   companyId?: number | null;
   companyCode?: string | null;
   companyName?: string | null;
+  companyLogo?: string | null;
   enabledModules?: string[] | null;
   role?: Role | string | null;
   activo?: boolean | null;

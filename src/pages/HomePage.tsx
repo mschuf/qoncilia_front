@@ -44,24 +44,13 @@ export default function HomePage() {
 
   return (
     <section className="space-y-8">
-      <div className="card-surface rounded-3xl border border-slate-200/60 p-8 sm:p-12 shadow-sm relative overflow-hidden bg-white">
-        <div className="relative z-10">
-          <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-3">Panel Principal</p>
-          <h2 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight">
-            Hola, {user?.usrNombre ? `${user.usrNombre} ${user?.usrApellido ?? ""}`.trim() : user?.usrLogin}
-          </h2>
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            {roleLabel(role)}
-          </div>
-          <p className="mt-3 max-w-2xl text-sm text-slate-600">
-            Qoncilia ahora trabaja con el modelo <strong>empresa + usuarios + bancos + plantillas</strong>.
-            Desde <strong>Extractos bancos</strong> guardas los Excel del banco por cuenta, desde <strong>Conciliar</strong> comparas contra el Excel del sistema sin guardarlo.
-          </p>
-        </div>
+      <div className="mb-2">
+        <h2 className="text-3xl font-extrabold text-slate-900">
+          Hola, {user?.usrNombre ? `${user.usrNombre} ${user?.usrApellido ?? ""}`.trim() : user?.usrLogin}
+        </h2>
+        <p className="mt-1 text-sm font-medium text-slate-500">
+          Resumen de tu actividad en {user?.companyName ?? "Qoncilia"}.
+        </p>
       </div>
 
 

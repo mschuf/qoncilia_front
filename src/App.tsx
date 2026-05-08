@@ -20,6 +20,7 @@ const UserManagementPage = lazy(() => import("./pages/UserManagementPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AccessControlPage = lazy(() => import("./pages/AccessControlPage"));
 const ErpManagementPage = lazy(() => import("./pages/ErpManagementPage"));
+const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage"));
 
 export default function App() {
   const { role } = useAuth();
@@ -59,6 +60,14 @@ export default function App() {
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.profile}>
                   <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="mi-empresa"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.profile}>
+                  <CompanyProfilePage />
                 </ProtectedRoute>
               }
             />

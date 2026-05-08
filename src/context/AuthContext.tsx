@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, configureApiClient } from "../api/apiClient";
 import { useTokenTimer } from "../hooks/useTokenTimer";
@@ -83,6 +83,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       onUnauthorizedFn: () => handleSessionExpired()
     });
   }, [token, startLoading, stopLoading, handleSessionExpired]);
+
+  useEffect(() => {
+    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    if (user?.companyLogo) {
+      link.href = user.companyLogo;
+    } else {
+      link.href = "/favicon.ico";
+    }
+  }, [user?.companyLogo]);
 
   const login = useCallback(
     async ({ identifier, password }: LoginPayload): Promise<LoginResponse> => {

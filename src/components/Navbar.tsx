@@ -180,12 +180,16 @@ export default function Navbar() {
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3">
         <Link to="/" className="flex items-center gap-3 transition hover:opacity-80">
-          <div className="rounded-xl bg-brand-100 p-2 text-brand-700">
-            <FiShield className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 p-1 text-brand-700">
+            {user?.companyLogo ? (
+              <img src={user.companyLogo} alt={user.companyName ?? "Logo Empresa"} className="h-full w-full object-contain" />
+            ) : (
+              <FiShield className="h-5 w-5" />
+            )}
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-600 font-black">
-              Qoncilia
+            <p className="text-xs uppercase tracking-[0.18em] text-brand-600 font-black truncate max-w-[150px]">
+              {user?.companyName ? user.companyName : "Qoncilia"}
             </p>
           </div>
         </Link>
@@ -293,7 +297,11 @@ export default function Navbar() {
                     {roleLabel(role)}
                   </p>
                   {user?.companyName ? (
-                    <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                    <NavLink
+                      to="/mi-empresa"
+                      onClick={() => setIsProfileMenuOpen(false)}
+                      className="mt-3 block rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50 hover:border-brand-300"
+                    >
                       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
                         Mi empresa
                       </p>
@@ -305,7 +313,7 @@ export default function Navbar() {
                           ID fiscal: {user.companyCode}
                         </p>
                       ) : null}
-                    </div>
+                    </NavLink>
                   ) : null}
                 </div>
 
