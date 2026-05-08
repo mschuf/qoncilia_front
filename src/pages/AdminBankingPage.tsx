@@ -26,7 +26,6 @@ export default function AdminBankingPage({
     useState<PublicCompanyBankAccount | null>(null)
   const [bankFormVisible, setBankFormVisible] = useState(false)
   const {
-    selectedCompany,
     selectedCompanyId,
     companies,
     changeCompany,
@@ -162,17 +161,7 @@ export default function AdminBankingPage({
                   ))}
                 </select>
               </label>
-            ) : (
-              <div className="min-w-[280px] flex-1 rounded-2xl bg-slate-50 px-4 py-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Mi empresa</p>
-                <p className="mt-2 text-lg font-extrabold text-slate-900">
-                  {selectedCompany?.name ?? "Sin empresa"}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  ID fiscal: {selectedCompany?.fiscalId ?? "-"}
-                </p>
-              </div>
-            )}
+            ) : null}
 
             <button
               type="button"
