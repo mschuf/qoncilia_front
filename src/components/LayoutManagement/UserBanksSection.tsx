@@ -119,7 +119,7 @@ export default function UserBanksSection({
                             <div className="flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-sm font-bold text-slate-900">
-                                  {bank.alias ?? bank.bankName}
+                                  {bank.bankName}
                                 </span>
                                 {bank.branch ? (
                                   <span className="text-xs text-slate-500">Sucursal {bank.branch}</span>

@@ -249,7 +249,7 @@ export default function ConciliationWorkbenchPage() {
             onChange={(value) => setSelectedBankId(Number(value))}
             options={banks.map((item) => ({
               value: item.id,
-              label: item.alias ?? item.bankName,
+              label: item.bankName,
             }))}
           />
 
@@ -578,7 +578,7 @@ function StatementRow({
       </td>
       <td className="px-3 py-3">
         <p className="font-semibold text-slate-900">
-          {statement.bankAlias ?? statement.bankName}
+          {statement.bankName}
         </p>
         <p className="mt-1 text-xs text-slate-500">
           {statement.companyBankAccountName} -{" "}

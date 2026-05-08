@@ -26,7 +26,6 @@ export type MappingFormRow = {
 
 export type BankFormState = {
   name: string;
-  alias: string;
   branch: string;
   description: string;
   active: boolean;
@@ -71,7 +70,6 @@ export const dataTypeOptions: Array<{ value: LayoutDataType; label: string }> = 
 
 export const defaultBankForm: BankFormState = {
   name: "",
-  alias: "",
   branch: "",
   description: "",
   active: true

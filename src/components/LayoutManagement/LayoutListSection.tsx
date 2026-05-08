@@ -41,7 +41,7 @@ export default function LayoutListSection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-extrabold text-slate-900">
-            {selectedBank ? `Plantillas de ${selectedBank.alias ?? selectedBank.bankName}` : "Plantillas"}
+            {selectedBank ? `Plantillas de ${selectedBank.bankName}` : "Plantillas"}
           </h3>
           <p className="mt-1 text-sm text-slate-500">
             Podes usar columnas como <code>E|F</code> para Debito/Credito.

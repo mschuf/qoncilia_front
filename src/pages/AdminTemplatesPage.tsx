@@ -88,7 +88,7 @@ export default function AdminTemplatesPage() {
         {},
       );
       toast.success(
-        `Plantilla "${pendingApply.template.name}" aplicada al banco ${pendingApply.bank.alias ?? pendingApply.bank.bankName}.`,
+        `Plantilla "${pendingApply.template.name}" aplicada al banco ${pendingApply.bank.bankName}.`,
       );
       setPendingApply(null);
       await reload();
@@ -202,7 +202,7 @@ export default function AdminTemplatesPage() {
                         }`}
                     >
                       <p className="text-sm font-bold">
-                        {bank.alias ?? bank.bankName}
+                        {bank.bankName}
                       </p>
                       <p
                         className={`mt-1 text-xs ${isSelected ? "text-white/70" : "text-slate-500"
@@ -397,7 +397,7 @@ export default function AdminTemplatesPage() {
         title="Aplicar plantilla al banco"
         message={
           pendingApply
-            ? `Vas a copiar la plantilla "${pendingApply.template.name}" al banco "${pendingApply.bank.alias ?? pendingApply.bank.bankName}". La plantilla nueva quedara activa y se desactivaran las otras del banco.`
+            ? `Vas a copiar la plantilla "${pendingApply.template.name}" al banco "${pendingApply.bank.bankName}". La plantilla nueva quedara activa y se desactivaran las otras del banco.`
             : ""
         }
         confirmLabel={submitting ? "Aplicando..." : "Aplicar plantilla"}

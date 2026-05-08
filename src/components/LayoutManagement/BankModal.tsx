@@ -31,7 +31,6 @@ export default function BankModal({
     >
       <form id="bank-layout-form" onSubmit={onSubmit} className="grid gap-3 md:grid-cols-2">
         <InputField label="Banco" name="name" value={bankForm.name} onChange={onFieldChange} required />
-        <InputField label="Alias" name="alias" value={bankForm.alias} onChange={onFieldChange} />
         <InputField label="Sucursal" name="branch" value={bankForm.branch} onChange={onFieldChange} />
         <label className="md:col-span-2 space-y-1.5">
           <span className="text-sm font-semibold text-slate-700">Descripcion</span>

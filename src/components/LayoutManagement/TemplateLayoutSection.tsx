@@ -78,7 +78,7 @@ export default function TemplateLayoutSection({
                   className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                 >
                   <FiCopy className="h-4 w-4" />
-                  {selectedBank ? `Copiar a ${selectedBank.alias ?? selectedBank.bankName}` : "Selecciona un banco"}
+                  {selectedBank ? `Copiar a ${selectedBank.bankName}` : "Selecciona un banco"}
                 </button>
                 <button
                   type="button"

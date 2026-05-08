@@ -17,7 +17,6 @@ import { isSuperAdminRole } from "../utils/role"
 const initialBankForm: BankFormState = {
   userId: "",
   name: "",
-  alias: "",
   description: "",
   branch: "",
   active: true
@@ -205,7 +204,6 @@ export default function useCompanyBanking() {
     setBankForm({
       userId: bank.userId,
       name: bank.name,
-      alias: bank.alias ?? "",
       description: bank.description ?? "",
       branch: bank.branch ?? "",
       active: bank.active
@@ -216,15 +214,14 @@ export default function useCompanyBanking() {
     event.preventDefault()
 
     if (!bankForm.userId) {
-      toast.error("Debes seleccionar un usuario responsable.")
-      return
+      toast.error("No hay un usuario responsable disponible para asignar el banco.")
+      return false
     }
 
     const payload = {
       companyId: selectedCompanyId || undefined,
       userId: Number(bankForm.userId),
       name: bankForm.name,
-      alias: bankForm.alias,
       description: bankForm.description,
       branch: bankForm.branch,
       active: bankForm.active
@@ -237,7 +234,7 @@ export default function useCompanyBanking() {
         resetBankForm()
         await loadReference(selectedCompanyId)
         setSelectedBankId(updated.id)
-        return
+        return true
       }
 
       const created = await apiClient.post<PublicBank>("/company-banking/banks", payload)
@@ -245,8 +242,10 @@ export default function useCompanyBanking() {
       resetBankForm()
       await loadReference(selectedCompanyId)
       setSelectedBankId(created.id)
+      return true
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar el banco.")
+      return false
     }
   }
 

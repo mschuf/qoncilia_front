@@ -152,7 +152,7 @@ export default function HomePage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={kpis.bankBreakdown.map((item) => ({
-                      name: item.alias ?? item.bankName,
+                      name: item.bankName,
                       extractos: item.totalReconciliations,
                       match: item.averageMatchPercentage,
                     }))}
@@ -216,7 +216,7 @@ export default function HomePage() {
                         >
                           <td className="px-4 py-3 font-semibold">{item.name}</td>
                           <td className="px-4 py-3">
-                            {item.alias ?? item.bankName}
+                            {item.bankName}
                           </td>
                           <td className="px-4 py-3">{item.layoutName}</td>
                           <td className="px-4 py-3">

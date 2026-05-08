@@ -372,7 +372,7 @@ function SuperadminLayoutManagementPage() {
                   <option value={0}>Selecciona un banco</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>
-                      {bank.alias ?? bank.bankName}
+                      {bank.bankName}
                       {bank.branch ? ` - ${bank.branch}` : ""}
                     </option>
                   ))}
@@ -696,7 +696,7 @@ function SuperadminLayoutManagementPage() {
         onClose={closeBankDeleteModal}
         title={
           pendingBankDelete
-            ? `Eliminar banco ${pendingBankDelete.bank.alias ?? pendingBankDelete.bank.bankName}`
+            ? `Eliminar banco ${pendingBankDelete.bank.bankName}`
             : "Eliminar banco"
         }
         footer={
@@ -775,10 +775,7 @@ function SuperadminLayoutManagementPage() {
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                 <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-slate-900 shadow-sm">
-                  {bankDeletePreview.bank.alias ?? bankDeletePreview.bank.bankName}
-                </span>
-                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">
-                  Responsable {bankDeletePreview.bank.userLogin}
+                  {bankDeletePreview.bank.bankName}
                 </span>
                 {bankDeletePreview.bank.branch ? (
                   <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">

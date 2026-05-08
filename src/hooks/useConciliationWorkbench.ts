@@ -443,7 +443,7 @@ export default function useConciliationWorkbench() {
       role,
       selectedUserId,
       selectedBankId,
-      selectedBankName: selectedBank?.alias ?? selectedBank?.bankName ?? "sin banco",
+      selectedBankName: selectedBank?.bankName ?? "sin banco",
       selectedCompanyBankAccountId,
       selectedLayoutId,
       selectedLayoutName: selectedLayout?.name ?? "sin plantilla",

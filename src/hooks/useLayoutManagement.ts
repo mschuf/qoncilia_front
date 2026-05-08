@@ -236,7 +236,6 @@ export default function useLayoutManagement() {
     setEditingBank(bank);
     setBankForm({
       name: bank.bankName,
-      alias: bank.alias ?? "",
       branch: bank.branch ?? "",
       description: bank.description ?? "",
       active: bank.active
@@ -248,7 +247,7 @@ export default function useLayoutManagement() {
     setSelectedUserId(userId);
     setSelectedBankId(bank.id);
     setEditingLayout(null);
-    setLayoutForm(createDefaultLayoutForm(bank.alias ?? bank.bankName, systems[0]?.id ?? ""));
+    setLayoutForm(createDefaultLayoutForm(bank.bankName, systems[0]?.id ?? ""));
     setLayoutModalOpen(true);
   }, [systems]);
 
@@ -348,7 +347,6 @@ export default function useLayoutManagement() {
     setEditingBank(bank);
     setBankForm({
       name: bank.bankName,
-      alias: bank.alias ?? "",
       branch: bank.branch ?? "",
       description: bank.description ?? "",
       active: bank.active
@@ -359,7 +357,7 @@ export default function useLayoutManagement() {
   const openCreateLayout = (bank: UserBankWithLayouts) => {
     setSelectedBankId(bank.id);
     setEditingLayout(null);
-    setLayoutForm(createDefaultLayoutForm(bank.alias ?? bank.bankName, systems[0]?.id ?? ""));
+    setLayoutForm(createDefaultLayoutForm(bank.bankName, systems[0]?.id ?? ""));
     setLayoutModalOpen(true);
   };
 
