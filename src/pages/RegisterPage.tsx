@@ -13,6 +13,7 @@ import { isValidInternationalPhoneNumber } from "../utils/phone";
 
 const initialState: RegisterPayload = {
   companyName: "",
+  companyFiscalId: "",
   usrNombre: "",
   usrApellido: "",
   usrEmail: "",
@@ -83,18 +84,18 @@ export default function RegisterPage() {
           <div className="mt-10 space-y-4">
             <InfoTile
               icon={<FiShield className="h-4 w-4" />}
-              title="Paso 1: Empresa"
-              description="Primero registras la empresa que quedara pendiente de aprobacion."
+              title="1. Empresa"
+              description="Registra los datos de tu empresa."
             />
             <InfoTile
               icon={<FiUserPlus className="h-4 w-4" />}
-              title="Paso 2: Usuario admin"
-              description="Despues cargas la persona que administrara la organizacion."
+              title="2. Admin"
+              description="Crea la cuenta del administrador."
             />
             <InfoTile
               icon={<FiCheckCircle className="h-4 w-4" />}
-              title="Activacion"
-              description="La empresa y su usuario admin quedan inactivos hasta aprobacion."
+              title="3. Activación"
+              description="Espera la aprobación de la cuenta."
             />
           </div>
         </section>
@@ -128,6 +129,16 @@ export default function RegisterPage() {
                     onChange={onChange}
                     required
                     autoComplete="organization"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <Field
+                    label="ID Fiscal"
+                    name="companyFiscalId"
+                    value={form.companyFiscalId ?? ""}
+                    onChange={onChange}
+                    required
                   />
                 </div>
 

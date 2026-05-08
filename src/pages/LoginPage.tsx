@@ -41,22 +41,15 @@ export default function LoginPage() {
               Plataforma
             </p>
             <h1 className="mt-3 text-4xl font-extrabold tracking-[-0.05em] text-slate-950 sm:text-5xl">
-              Automatiza tu conciliacion contable y gana claridad en cada cierre.
+              Automatiza tu Conciliación contable con IA
             </h1>
-            <p className="mt-5 text-sm leading-7 text-slate-600">
-              Ingresa con tu usuario o email para operar tu empresa dentro de Qoncilia.
-              El acceso respeta tus permisos, modulos y configuraciones activas.
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            <FeatureStat label="Empresas" value="1 acceso" helper="Administra tu operacion" />
-            <FeatureStat label="Bancos" value="ABM" helper="Catalogos y cuentas" />
-            <FeatureStat label="Plantillas" value="Match" helper="Tolerancias configurables" />
           </div>
         </section>
 
         <section className="rounded-[2rem] border border-slate-200/80 bg-white/95 p-6 text-slate-900 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.25)] backdrop-blur-sm sm:p-8">
+          <div className="mb-8 lg:hidden">
+            <BrandMark size="md" />
+          </div>
           <p className="text-xs font-black uppercase tracking-[0.24em] text-brand-600">
             Acceso
           </p>
@@ -112,29 +105,11 @@ export default function LoginPage() {
           <div className="mt-8 border-t border-slate-200 pt-6 text-center">
             <p className="text-sm text-slate-500">Todavia no tienes empresa registrada?</p>
             <Link to="/register" className="mt-3 inline-block font-bold text-brand-600 transition hover:text-brand-700">
-              Registrar empresa
+              Registra tu empresa
             </Link>
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-function FeatureStat({
-  label,
-  value,
-  helper
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{label}</p>
-      <p className="mt-3 text-2xl font-extrabold text-slate-950">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{helper}</p>
     </div>
   );
 }

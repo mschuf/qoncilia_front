@@ -28,6 +28,7 @@ export interface LoginPayload {
 
 export interface RegisterPayload {
   companyName?: string;
+  companyFiscalId: string;
   usrNombre?: string;
   usrApellido?: string;
   usrEmail?: string;

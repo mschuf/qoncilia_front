@@ -16,7 +16,7 @@ import {
   FiUser,
   FiX,
 } from "react-icons/fi";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import type { CompanyErpConfig } from "../types/erp";
@@ -45,12 +45,12 @@ export default function Navbar() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isBankMenuOpen, setIsBankMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [profileErpConfigs, setProfileErpConfigs] = useState<
     CompanyErpConfig[]
   >([]);
   const profileRef = useRef<HTMLDivElement | null>(null);
-  const bankMenuRef = useRef<HTMLDivElement | null>(null);
+  const navMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -63,11 +63,11 @@ export default function Navbar() {
       }
 
       if (
-        bankMenuRef.current &&
+        navMenuRef.current &&
         event.target instanceof Node &&
-        !bankMenuRef.current.contains(event.target)
+        !navMenuRef.current.contains(event.target)
       ) {
-        setIsBankMenuOpen(false);
+        setOpenDropdown(null);
       }
     };
 
@@ -87,40 +87,53 @@ export default function Navbar() {
       .catch(() => setProfileErpConfigs([]));
   }, [hasModule, isProfileMenuOpen]);
 
-  const bankManagementLinks: NavigationLink[] = [
+  const configurationLinks: NavigationLink[] = [
+    {
+      to: "/users",
+      icon: <FiUser className="h-4 w-4" />,
+      label: "Usuarios",
+      show: hasModule(APP_MODULE_VALUES.users),
+    },
+    {
+      to: "/layout-management",
+      icon: <FiSettings className="h-4 w-4" />,
+      label: "Plantillas",
+      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
+    },
+    {
+      to: "/admin-plantillas",
+      icon: <FiLayers className="h-4 w-4" />,
+      label: "Plantillas",
+      show: isAdminRole(role) && !isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
+    },
+    {
+      to: "/access-control",
+      icon: <FiGrid className="h-4 w-4" />,
+      label: "Accesos",
+      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.accessMatrix),
+    },
+  ];
+
+  const bankLinks: NavigationLink[] = [
     {
       to: "/banks",
       icon: <FiBriefcase className="h-4 w-4" />,
-      label: "Cargar Banco",
+      label: "Gestión Bancos",
       show: isAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
     },
     {
       to: "/bank-accounts",
       icon: <FiCreditCard className="h-4 w-4" />,
-      label: "Cuentas Bancarias",
+      label: "Cuentas",
       show: isAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
     },
   ];
-  const visibleBankManagementLinks = bankManagementLinks.filter(
-    (link) => link.show,
-  );
-  const isBankMenuActive = visibleBankManagementLinks.some(
-    (link) =>
-      location.pathname === link.to ||
-      location.pathname.startsWith(`${link.to}/`),
-  );
 
-  const navLinks: NavigationItem[] = [
-    {
-      to: "/",
-      icon: <FiHome className="h-4 w-4" />,
-      label: "Home",
-      show: hasModule(APP_MODULE_VALUES.home),
-    },
+  const conciliationLinks: NavigationLink[] = [
     {
       to: "/bank-statements",
       icon: <FiDatabase className="h-4 w-4" />,
-      label: "Extractos bancos",
+      label: "Cargar Extractos",
       show: hasModule(APP_MODULE_VALUES.conciliation),
     },
     {
@@ -129,40 +142,33 @@ export default function Navbar() {
       label: "Conciliar",
       show: hasModule(APP_MODULE_VALUES.conciliation),
     },
+  ];
+
+  const visibleConfigLinks = configurationLinks.filter((link) => link.show);
+  const visibleBankLinks = bankLinks.filter((link) => link.show);
+  const visibleConciliationLinks = conciliationLinks.filter((link) => link.show);
+
+  const navLinks: NavigationItem[] = [
     {
-      to: "/users",
-      icon: <FiShield className="h-4 w-4" />,
-      label: "Usuarios",
-      show: hasModule(APP_MODULE_VALUES.users),
-    },
-    {
-      key: "bank-management",
-      icon: <FiDatabase className="h-4 w-4" />,
-      label: "Banco",
-      show: visibleBankManagementLinks.length > 0,
-      children: visibleBankManagementLinks,
-    },
-    {
-      to: "/layout-management",
+      key: "configuracion",
       icon: <FiSettings className="h-4 w-4" />,
-      label: "Plantillas",
-      show:
-        isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
+      label: "Configuración",
+      show: visibleConfigLinks.length > 0,
+      children: visibleConfigLinks,
     },
     {
-      to: "/admin-plantillas",
-      icon: <FiLayers className="h-4 w-4" />,
-      label: "Plantillas",
-      show:
-        isAdminRole(role) &&
-        !isSuperAdminRole(role) &&
-        hasModule(APP_MODULE_VALUES.layoutManagement),
+      key: "bancos",
+      icon: <FiBriefcase className="h-4 w-4" />,
+      label: "Bancos",
+      show: visibleBankLinks.length > 0,
+      children: visibleBankLinks,
     },
     {
-      to: "/access-control",
-      icon: <FiGrid className="h-4 w-4" />,
-      label: "Accesos",
-      show: isSuperAdminRole(role) && hasModule(APP_MODULE_VALUES.accessMatrix),
+      key: "conciliaciones",
+      icon: <FiActivity className="h-4 w-4" />,
+      label: "Conciliaciones",
+      show: visibleConciliationLinks.length > 0,
+      children: visibleConciliationLinks,
     },
   ];
 
@@ -173,65 +179,76 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3 transition hover:opacity-80">
           <div className="rounded-xl bg-brand-100 p-2 text-brand-700">
             <FiShield className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-600">
+            <p className="text-xs uppercase tracking-[0.18em] text-brand-600 font-black">
               Qoncilia
             </p>
           </div>
-        </div>
+        </Link>
 
         <nav className="ml-4 mr-4 hidden flex-1 items-center justify-center lg:flex">
-          <div className="flex items-center gap-2">
+          <div ref={navMenuRef} className="flex items-center gap-2">
             {navLinks
               .filter((link) => link.show)
-              .map((link) =>
-                "children" in link ? (
-                  <div key={link.key} ref={bankMenuRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setIsBankMenuOpen((current) => !current)}
-                      className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
-                        isBankMenuActive
-                          ? "bg-slate-900 text-white shadow-md"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                      aria-expanded={isBankMenuOpen}
-                      aria-haspopup="menu"
-                    >
-                      <span className="flex items-center gap-2">
-                        {link.icon} {link.label}
-                        <FiChevronDown
-                          className={`h-4 w-4 transition ${isBankMenuOpen ? "rotate-180" : ""}`}
-                        />
-                      </span>
-                    </button>
+              .map((link) => {
+                if ("children" in link) {
+                  const isActiveMenu = link.children.some(
+                    (child) =>
+                      location.pathname === child.to ||
+                      location.pathname.startsWith(`${child.to}/`)
+                  );
+                  const isMenuOpen = openDropdown === link.key;
 
-                    {isBankMenuOpen ? (
-                      <div className="absolute left-0 top-[calc(100%+0.6rem)] z-40 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                        {link.children.map((child) => (
-                          <NavLink
-                            key={child.to}
-                            to={child.to}
-                            onClick={() => setIsBankMenuOpen(false)}
-                            className={({ isActive }) =>
-                              `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                                isActive
-                                  ? "bg-slate-900 text-white"
-                                  : "text-slate-700 hover:bg-slate-50"
-                              }`
-                            }
-                          >
-                            {child.icon} {child.label}
-                          </NavLink>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
+                  return (
+                    <div key={link.key} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setOpenDropdown(isMenuOpen ? null : link.key)}
+                        className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
+                          isActiveMenu
+                            ? "bg-slate-900 text-white shadow-md"
+                            : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                        aria-expanded={isMenuOpen}
+                        aria-haspopup="menu"
+                      >
+                        <span className="flex items-center gap-2">
+                          {link.icon} {link.label}
+                          <FiChevronDown
+                            className={`h-4 w-4 transition ${isMenuOpen ? "rotate-180" : ""}`}
+                          />
+                        </span>
+                      </button>
+
+                      {isMenuOpen ? (
+                        <div className="absolute left-0 top-[calc(100%+0.6rem)] z-40 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                          {link.children.map((child) => (
+                            <NavLink
+                              key={child.to}
+                              to={child.to}
+                              onClick={() => setOpenDropdown(null)}
+                              className={({ isActive }) =>
+                                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                                  isActive
+                                    ? "bg-slate-900 text-white"
+                                    : "text-slate-700 hover:bg-slate-50"
+                                }`
+                              }
+                            >
+                              {child.icon} {child.label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }
+
+                return (
                   <NavLink
                     key={link.to}
                     to={link.to}
@@ -247,8 +264,8 @@ export default function Navbar() {
                       {link.icon} {link.label}
                     </span>
                   </NavLink>
-                ),
-              )}
+                );
+              })}
           </div>
         </nav>
 
@@ -389,54 +406,65 @@ export default function Navbar() {
           <nav className="flex flex-col space-y-2 px-4 py-4">
             {navLinks
               .filter((link) => link.show)
-              .map((link) =>
-                "children" in link ? (
-                  <div key={link.key} className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsBankMenuOpen((current) => !current)}
-                      className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                        isBankMenuActive
-                          ? "bg-slate-900 text-white shadow-md"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                      aria-expanded={isBankMenuOpen || isBankMenuActive}
-                    >
-                      <span className="flex items-center gap-3">
-                        {link.icon} {link.label}
-                      </span>
-                      <FiChevronDown
-                        className={`h-4 w-4 transition ${
-                          isBankMenuOpen || isBankMenuActive ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
+              .map((link) => {
+                if ("children" in link) {
+                  const isActiveMenu = link.children.some(
+                    (child) =>
+                      location.pathname === child.to ||
+                      location.pathname.startsWith(`${child.to}/`)
+                  );
+                  const isMenuOpen = openDropdown === link.key || isActiveMenu;
 
-                    {isBankMenuOpen || isBankMenuActive ? (
-                      <div className="ml-4 space-y-2 border-l border-slate-200 pl-3">
-                        {link.children.map((child) => (
-                          <NavLink
-                            key={child.to}
-                            to={child.to}
-                            onClick={() => {
-                              setIsMobileMenuOpen(false);
-                              setIsBankMenuOpen(false);
-                            }}
-                            className={({ isActive }) =>
-                              `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                                isActive
-                                  ? "bg-slate-900 text-white shadow-md"
-                                  : "text-slate-600 hover:bg-slate-100"
-                              }`
-                            }
-                          >
-                            {child.icon} {child.label}
-                          </NavLink>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
+                  return (
+                    <div key={link.key} className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpenDropdown(isMenuOpen ? null : link.key)}
+                        className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                          isActiveMenu
+                            ? "bg-slate-900 text-white shadow-md"
+                            : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                        aria-expanded={isMenuOpen}
+                      >
+                        <span className="flex items-center gap-3">
+                          {link.icon} {link.label}
+                        </span>
+                        <FiChevronDown
+                          className={`h-4 w-4 transition ${
+                            isMenuOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {isMenuOpen ? (
+                        <div className="ml-4 space-y-2 border-l border-slate-200 pl-3">
+                          {link.children.map((child) => (
+                            <NavLink
+                              key={child.to}
+                              to={child.to}
+                              onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                setOpenDropdown(null);
+                              }}
+                              className={({ isActive }) =>
+                                `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                                  isActive
+                                    ? "bg-slate-900 text-white shadow-md"
+                                    : "text-slate-600 hover:bg-slate-100"
+                                }`
+                              }
+                            >
+                              {child.icon} {child.label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }
+
+                return (
                   <NavLink
                     key={link.to}
                     to={link.to}
@@ -453,8 +481,8 @@ export default function Navbar() {
                       {link.icon} {link.label}
                     </span>
                   </NavLink>
-                ),
-              )}
+                );
+              })}
           </nav>
         </div>
       ) : null}
