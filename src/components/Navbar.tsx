@@ -33,12 +33,12 @@ type NavigationLink = {
 type NavigationItem =
   | NavigationLink
   | {
-      key: string;
-      icon: ReactNode;
-      label: string;
-      show: boolean;
-      children: NavigationLink[];
-    };
+    key: string;
+    icon: ReactNode;
+    label: string;
+    show: boolean;
+    children: NavigationLink[];
+  };
 
 export default function Navbar() {
   const { user, role, logout, hasModule } = useAuth();
@@ -124,7 +124,7 @@ export default function Navbar() {
     {
       to: "/bank-accounts",
       icon: <FiCreditCard className="h-4 w-4" />,
-      label: "Cuentas",
+      label: "Cuentas Bancarias",
       show: isAdminRole(role) && hasModule(APP_MODULE_VALUES.layoutManagement),
     },
   ];
@@ -212,11 +212,10 @@ export default function Navbar() {
                       <button
                         type="button"
                         onClick={() => setOpenDropdown(isMenuOpen ? null : link.key)}
-                        className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
-                          isActiveMenu
-                            ? "bg-slate-900 text-white shadow-md"
-                            : "text-slate-600 hover:bg-slate-100"
-                        }`}
+                        className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${isActiveMenu
+                          ? "bg-slate-900 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                          }`}
                         aria-expanded={isMenuOpen}
                         aria-haspopup="menu"
                       >
@@ -236,10 +235,9 @@ export default function Navbar() {
                               to={child.to}
                               onClick={() => setOpenDropdown(null)}
                               className={({ isActive }) =>
-                                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                                  isActive
-                                    ? "bg-slate-900 text-white"
-                                    : "text-slate-700 hover:bg-slate-50"
+                                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${isActive
+                                  ? "bg-slate-900 text-white"
+                                  : "text-slate-700 hover:bg-slate-50"
                                 }`
                               }
                             >
@@ -257,10 +255,9 @@ export default function Navbar() {
                     key={link.to}
                     to={link.to}
                     className={({ isActive }) =>
-                      `whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
-                        isActive
-                          ? "bg-slate-900 text-white shadow-md"
-                          : "text-slate-600 hover:bg-slate-100"
+                      `whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${isActive
+                        ? "bg-slate-900 text-white shadow-md"
+                        : "text-slate-600 hover:bg-slate-100"
                       }`
                     }
                   >
@@ -334,10 +331,9 @@ export default function Navbar() {
                         to={`/erp-management?configId=${config.id}`}
                         onClick={() => setIsProfileMenuOpen(false)}
                         className={({ isActive }) =>
-                          `mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                            isActive
-                              ? "bg-slate-900 text-white"
-                              : "text-slate-700 hover:bg-slate-50"
+                          `mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${isActive
+                            ? "bg-slate-900 text-white"
+                            : "text-slate-700 hover:bg-slate-50"
                           }`
                         }
                       >
@@ -374,10 +370,9 @@ export default function Navbar() {
                     to="/mis-datos"
                     onClick={() => setIsProfileMenuOpen(false)}
                     className={({ isActive }) =>
-                      `mt-3 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                        isActive
-                          ? "bg-slate-900 text-white"
-                          : "text-slate-700 hover:bg-slate-50"
+                      `mt-3 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${isActive
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-700 hover:bg-slate-50"
                       }`
                     }
                   >
@@ -432,20 +427,18 @@ export default function Navbar() {
                       <button
                         type="button"
                         onClick={() => setOpenDropdown(isMenuOpen ? null : link.key)}
-                        className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                          isActiveMenu
-                            ? "bg-slate-900 text-white shadow-md"
-                            : "text-slate-600 hover:bg-slate-100"
-                        }`}
+                        className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all ${isActiveMenu
+                          ? "bg-slate-900 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                          }`}
                         aria-expanded={isMenuOpen}
                       >
                         <span className="flex items-center gap-3">
                           {link.icon} {link.label}
                         </span>
                         <FiChevronDown
-                          className={`h-4 w-4 transition ${
-                            isMenuOpen ? "rotate-180" : ""
-                          }`}
+                          className={`h-4 w-4 transition ${isMenuOpen ? "rotate-180" : ""
+                            }`}
                         />
                       </button>
 
@@ -460,10 +453,9 @@ export default function Navbar() {
                                 setOpenDropdown(null);
                               }}
                               className={({ isActive }) =>
-                                `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                                  isActive
-                                    ? "bg-slate-900 text-white shadow-md"
-                                    : "text-slate-600 hover:bg-slate-100"
+                                `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${isActive
+                                  ? "bg-slate-900 text-white shadow-md"
+                                  : "text-slate-600 hover:bg-slate-100"
                                 }`
                               }
                             >
@@ -482,10 +474,9 @@ export default function Navbar() {
                     to={link.to}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={({ isActive }) =>
-                      `rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                        isActive
-                          ? "bg-slate-900 text-white shadow-md"
-                          : "text-slate-600 hover:bg-slate-100"
+                      `rounded-xl px-4 py-3 text-sm font-semibold transition-all ${isActive
+                        ? "bg-slate-900 text-white shadow-md"
+                        : "text-slate-600 hover:bg-slate-100"
                       }`
                     }
                   >
