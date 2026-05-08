@@ -300,7 +300,7 @@ export default function Navbar() {
                   <p className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-500">
                     {roleLabel(role)}
                   </p>
-                  {user?.companyName ? (
+                  {user?.companyName && isAdminRole(role) ? (
                     <NavLink
                       to="/mi-empresa"
                       onClick={() => setIsProfileMenuOpen(false)}

@@ -1,19 +1,25 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
-import { FiBriefcase, FiCamera, FiSave, FiSettings } from "react-icons/fi";
+import { FiBriefcase, FiCamera, FiSave, FiSettings, FiDatabase, FiAlertCircle } from "react-icons/fi";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { isAdminRole, isSuperAdminRole } from "../utils/role";
-import type { PublicCompany } from "../types/auth"; // Need to make sure this type is correct
+import { isSuperAdminRole, isAdminRole } from "../utils/role";
+import type { PublicCompany } from "../types/access-control";
+import { Navigate } from "react-router-dom"; // Make sure it contains address and validityDate
 
 interface CompanyProfileForm {
   name: string;
-  fiscalId?: string;
+  fiscalId: string;
   logo: string | null;
+  address: string;
+  validityDate: string;
+  active: boolean;
+  webserviceErp: string;
+  schemeErp: string;
 }
 
 export default function CompanyProfilePage() {
-  const { user, role, setUser } = useAuth();
+  const { user, role, updateUser } = useAuth();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -25,9 +31,19 @@ export default function CompanyProfilePage() {
     name: "",
     fiscalId: "",
     logo: null,
+    address: "",
+    validityDate: "",
+    active: true,
+    webserviceErp: "",
+    schemeErp: "",
   });
 
   const isSuperAdmin = isSuperAdminRole(role);
+  const isAdmin = isAdminRole(role);
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -40,27 +56,18 @@ export default function CompanyProfilePage() {
             if (res.companies.length > 0) {
               const firstCompany = res.companies[0];
               setSelectedCompanyId(firstCompany.id);
-              setForm({
-                name: firstCompany.name,
-                fiscalId: firstCompany.fiscalId,
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                logo: (firstCompany as any).logo ?? null,
-              });
+              populateForm(firstCompany);
             }
           }
         } else {
           const company = await apiClient.get<any>("/access-control/company-profile");
           if (company) {
             setSelectedCompanyId(company.id);
-            setForm({
-              name: company.name,
-              fiscalId: company.fiscalId ?? company.code,
-              logo: company.logo ?? null,
-            });
+            populateForm(company);
           }
         }
       } catch (error) {
-        toast.error("Error al cargar la informacion de la empresa.");
+        toast.error("Error al cargar la información de la empresa.");
       } finally {
         setIsLoading(false);
       }
@@ -69,23 +76,38 @@ export default function CompanyProfilePage() {
     void fetchInitialData();
   }, [isSuperAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const populateForm = (company: any) => {
+    let dateStr = "";
+    if (company.validityDate) {
+      dateStr = new Date(company.validityDate).toISOString().split('T')[0];
+    }
+    setForm({
+      name: company.name || "",
+      fiscalId: company.fiscalId || company.code || "",
+      logo: company.logo || null,
+      address: company.address || "",
+      validityDate: dateStr,
+      active: company.active ?? true,
+      webserviceErp: company.webserviceErp || "",
+      schemeErp: company.schemeErp || "",
+    });
+  };
+
   const handleCompanySelect = (event: ChangeEvent<HTMLSelectElement>) => {
     const companyId = Number(event.target.value);
     setSelectedCompanyId(companyId);
     const company = companies.find((c) => c.id === companyId);
     if (company) {
-      setForm({
-        name: company.name,
-        fiscalId: company.fiscalId,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        logo: (company as any).logo ?? null,
-      });
+      populateForm(company);
     }
   };
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -114,30 +136,33 @@ export default function CompanyProfilePage() {
     event.preventDefault();
     if (!selectedCompanyId) return;
 
+    const payload = {
+      name: form.name,
+      fiscalId: form.fiscalId,
+      logo: form.logo,
+      address: form.address,
+      validityDate: form.validityDate || null,
+      active: form.active,
+      webserviceErp: form.webserviceErp,
+      schemeErp: form.schemeErp,
+    };
+
     try {
       if (isSuperAdmin) {
-        const updated = await apiClient.patch<any>(`/access-control/companies/${selectedCompanyId}`, {
-          name: form.name,
-          fiscalId: form.fiscalId,
-          logo: form.logo,
-        });
+        const updated = await apiClient.patch<any>(`/access-control/companies/${selectedCompanyId}`, payload);
         toast.success("Empresa actualizada correctamente.");
         
         // Update local companies list
         setCompanies((prev) =>
-          prev.map((c) => (c.id === selectedCompanyId ? { ...c, name: updated.name, fiscalId: updated.code, logo: updated.logo } as any : c))
+          prev.map((c) => (c.id === selectedCompanyId ? { ...c, ...updated, fiscalId: updated.code } : c))
         );
       } else {
-        const updated = await apiClient.put<any>("/access-control/company-profile", {
-          name: form.name,
-          fiscalId: form.fiscalId,
-          logo: form.logo,
-        });
+        const updated = await apiClient.put<any>("/access-control/company-profile", payload);
         toast.success("Perfil de empresa actualizado.");
         
         // Update context if it's the current user's company
         if (user && user.companyId === selectedCompanyId) {
-          setUser({
+          updateUser({
             ...user,
             companyName: updated.name,
             companyCode: updated.code,
@@ -155,7 +180,7 @@ export default function CompanyProfilePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-center gap-3">
         <div className="rounded-xl bg-brand-100 p-2 text-brand-700">
           <FiBriefcase className="h-5 w-5" />
@@ -163,7 +188,7 @@ export default function CompanyProfilePage() {
         <div>
           <h1 className="text-2xl font-black text-slate-900">Perfil de Empresa</h1>
           <p className="text-sm font-semibold text-slate-500">
-            Administra los datos y el logo de {isSuperAdmin ? "las empresas" : "tu empresa"}.
+            Administra los datos generales y la configuración de {isSuperAdmin ? "las empresas" : "tu empresa"}.
           </p>
         </div>
       </div>
@@ -188,7 +213,9 @@ export default function CompanyProfilePage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-6 sm:p-8">
+        <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
+          
+          {/* SECCION GENERAL */}
           <div className="grid gap-8 sm:grid-cols-12">
             <div className="sm:col-span-4 flex flex-col items-center gap-4">
               <div className="relative group">
@@ -222,42 +249,134 @@ export default function CompanyProfilePage() {
             </div>
 
             <div className="sm:col-span-8 space-y-5">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2 mb-4">
+                Información General
+              </h3>
+              
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block space-y-1.5 sm:col-span-2">
+                  <span className="text-sm font-semibold text-slate-700">Nombre de la Empresa</span>
+                  <input
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Ej: Qoncilia S.A."
+                  />
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">ID Fiscal / RUC</span>
+                  <input
+                    type="text"
+                    name="fiscalId"
+                    value={form.fiscalId}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Ej: 80012345-6"
+                  />
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Fecha de Vigencia</span>
+                  <input
+                    type="date"
+                    name="validityDate"
+                    value={form.validityDate}
+                    onChange={handleInputChange}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </label>
+
+                <label className="block space-y-1.5 sm:col-span-2">
+                  <span className="text-sm font-semibold text-slate-700">Dirección Física</span>
+                  <input
+                    type="text"
+                    name="address"
+                    value={form.address}
+                    onChange={handleInputChange}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Av. Principal 123, Ciudad"
+                  />
+                </label>
+              </div>
+
+              {isSuperAdmin && (
+                <label className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="active"
+                    checked={form.active}
+                    onChange={handleInputChange}
+                    className="h-5 w-5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 transition"
+                  />
+                  <div>
+                    <span className="block text-sm font-bold text-slate-800">
+                      {form.active ? "Empresa Activa" : "Empresa Inactiva"}
+                    </span>
+                    <span className="block text-xs text-slate-500 mt-0.5">
+                      Si se desactiva, los usuarios de esta empresa no podrán operar.
+                    </span>
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+
+          {/* SECCION INTEGRACION */}
+          <div className="pt-6 border-t border-slate-100">
+            <div className="flex items-center gap-2 mb-4">
+              <FiDatabase className="h-5 w-5 text-slate-400" />
+              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400">
+                Datos de Integración
+              </h3>
+            </div>
+            
+            <div className="grid gap-4 sm:grid-cols-2 rounded-2xl bg-slate-50 border border-slate-200 p-5">
               <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">Nombre de la Empresa</span>
+                <span className="text-sm font-semibold text-slate-700">Webservice ERP (URL)</span>
                 <input
                   type="text"
-                  name="name"
-                  value={form.name}
+                  name="webserviceErp"
+                  value={form.webserviceErp}
                   onChange={handleInputChange}
-                  required
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  placeholder="Ej: Qoncilia S.A."
+                  placeholder="https://api.empresa.com/erp"
                 />
               </label>
 
               <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">ID Fiscal</span>
+                <span className="text-sm font-semibold text-slate-700">Esquema BBDD (Scheme)</span>
                 <input
                   type="text"
-                  name="fiscalId"
-                  value={form.fiscalId}
+                  name="schemeErp"
+                  value={form.schemeErp}
                   onChange={handleInputChange}
-                  required
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  placeholder="Ej: 80012345-6"
+                  placeholder="dbo"
                 />
               </label>
-
-              <div className="pt-4 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={!selectedCompanyId}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-brand-700 disabled:opacity-50"
-                >
-                  <FiSave className="h-4 w-4" /> Guardar Cambios
-                </button>
+              
+              <div className="sm:col-span-2 mt-2 flex gap-2 items-start text-xs text-slate-500 bg-white p-3 rounded-lg border border-slate-100">
+                <FiAlertCircle className="h-4 w-4 text-brand-500 flex-shrink-0 mt-0.5" />
+                <p>
+                  Estos datos son utilizados internamente para sincronizar Qoncilia con el sistema central ERP y la Base de Datos subyacente. Asegúrate de ingresar parámetros válidos.
+                </p>
               </div>
             </div>
+          </div>
+
+          <div className="pt-6 flex justify-end border-t border-slate-100">
+            <button
+              type="submit"
+              disabled={!selectedCompanyId}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-brand-700 hover:shadow-lg disabled:opacity-50"
+            >
+              <FiSave className="h-4 w-4" /> Guardar Cambios de Empresa
+            </button>
           </div>
         </form>
       </div>

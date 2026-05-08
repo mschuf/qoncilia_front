@@ -13,11 +13,13 @@ export default function ProfilePage() {
   const { user, updateUser, role } = useAuth();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [formData, setFormData] = useState({
     usrNombre: "",
     usrApellido: "",
     usrCelular: "",
+    usrEmail: "",
+    usrLogin: "",
     usrFoto: null as string | null,
   });
 
@@ -33,6 +35,8 @@ export default function ProfilePage() {
         usrNombre: user.usrNombre || "",
         usrApellido: user.usrApellido || "",
         usrCelular: user.usrCelular || "",
+        usrEmail: user.usrEmail || "",
+        usrLogin: user.usrLogin || "",
         usrFoto: user.usrFoto || null,
       });
     }
@@ -74,7 +78,7 @@ export default function ProfilePage() {
 
   const updateProfile = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.usrCelular && !isValidInternationalPhoneNumber(formData.usrCelular)) {
       toast.error("El número de celular ingresado no es válido.");
       return;
@@ -85,13 +89,19 @@ export default function ProfilePage() {
         usrNombre: formData.usrNombre,
         usrApellido: formData.usrApellido,
         usrCelular: formData.usrCelular,
+        usrEmail: formData.usrEmail,
+        usrLogin: formData.usrLogin,
         usrFoto: formData.usrFoto,
       });
       // @ts-expect-error type override
       updateUser({ ...user, ...updatedUser, enabledModules: user?.enabledModules });
       toast.success("Perfil actualizado correctamente.");
-    } catch (error) {
-      toast.error("Error al actualizar el perfil.");
+    } catch (error: any) {
+      if (error?.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error("Error al actualizar el perfil.");
+      }
     }
   };
 
@@ -101,7 +111,7 @@ export default function ProfilePage() {
       toast.error("Las contraseñas no coinciden.");
       return;
     }
-    
+
     try {
       // Assuming conventional endpoint for password change
       await apiClient.post(`/users/${user?.id}/change-password`, {
@@ -130,7 +140,7 @@ export default function ProfilePage() {
             </div>
             <h3 className="text-lg font-bold text-slate-800">Información Personal</h3>
           </div>
-          
+
           <form onSubmit={updateProfile} className="space-y-6">
             <div className="flex flex-col sm:flex-row gap-6">
               {/* Foto de Perfil */}
@@ -167,26 +177,38 @@ export default function ProfilePage() {
 
               {/* Campos Editables */}
               <div className="space-y-4 sm:w-2/3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-semibold text-slate-700">Nombre</span>
+                    <input
+                      name="usrNombre"
+                      value={formData.usrNombre}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all outline-none"
+                    />
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-semibold text-slate-700">Apellido</span>
+                    <input
+                      name="usrApellido"
+                      value={formData.usrApellido}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all outline-none"
+                    />
+                  </label>
+                </div>
                 <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold text-slate-700">Nombre</span>
+                  <span className="text-sm font-semibold text-slate-700">Usuario Login</span>
                   <input
-                    name="usrNombre"
-                    value={formData.usrNombre}
+                    name="usrLogin"
+                    value={formData.usrLogin}
                     onChange={handleChange}
+                    required
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all outline-none"
                   />
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold text-slate-700">Apellido</span>
-                  <input
-                    name="usrApellido"
-                    value={formData.usrApellido}
-                    onChange={handleChange}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all outline-none"
-                  />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold text-slate-700">Celular (con código de país)</span>
+                  <span className="text-sm font-semibold text-slate-700">Celular</span>
                   <div className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500 transition-all bg-white">
                     <InternationalPhoneField
                       international
@@ -197,6 +219,16 @@ export default function ProfilePage() {
                       className="outline-none w-full"
                     />
                   </div>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Correo (Email)</span>
+                  <input
+                    name="usrEmail"
+                    type="email"
+                    value={formData.usrEmail}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all outline-none"
+                  />
                 </label>
                 <button
                   type="submit"
@@ -221,14 +253,6 @@ export default function ProfilePage() {
                 <p className="font-medium text-slate-800">{user?.id}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase">Usuario ERP</p>
-                <p className="font-medium text-slate-800">{user?.usrLogin || "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase">Correo (Email)</p>
-                <p className="font-medium text-slate-800">{user?.usrEmail || "-"}</p>
-              </div>
-              <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase">Rol</p>
                 <div className="mt-1 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700">
                   {roleLabel(role)}
@@ -244,7 +268,7 @@ export default function ProfilePage() {
               </div>
               <h3 className="text-sm font-bold text-slate-800">Seguridad</h3>
             </div>
-            
+
             <form onSubmit={updatePassword} className="space-y-4">
               <label className="block space-y-1.5">
                 <span className="text-xs font-semibold text-slate-700">Contraseña actual</span>
