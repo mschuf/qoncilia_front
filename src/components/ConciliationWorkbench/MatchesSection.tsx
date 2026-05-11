@@ -49,6 +49,20 @@ export default function MatchesSection({
     [manualMatches, preview.autoMatches],
   );
 
+  // Indices O(1) para los lookups por rowId. Sin esto, cada celda hace
+  // Array.find sobre potencialmente miles de filas en cada render.
+  const systemRowsById = useMemo(() => {
+    const map = new Map<string, PreviewRow>();
+    for (const row of preview.systemRows) map.set(row.rowId, row);
+    return map;
+  }, [preview.systemRows]);
+
+  const bankRowsById = useMemo(() => {
+    const map = new Map<string, PreviewRow>();
+    for (const row of preview.bankRows) map.set(row.rowId, row);
+    return map;
+  }, [preview.bankRows]);
+
   return (
     <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-5">
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -79,15 +93,13 @@ export default function MatchesSection({
                 >
                   <td className="px-4 py-3">
                     {summarizeRow(
-                      preview.systemRows.find(
-                        (item) => item.rowId === match.systemRowId,
-                      ),
+                      systemRowsById.get(match.systemRowId),
                       preview.layout.mappings,
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {summarizeRow(
-                      preview.bankRows.find((item) => item.rowId === match.bankRowId),
+                      bankRowsById.get(match.bankRowId),
                       preview.layout.mappings,
                     )}
                   </td>
@@ -107,15 +119,13 @@ export default function MatchesSection({
                 >
                   <td className="px-4 py-3">
                     {summarizeRow(
-                      preview.systemRows.find(
-                        (item) => item.rowId === match.systemRowId,
-                      ),
+                      systemRowsById.get(match.systemRowId),
                       preview.layout.mappings,
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {summarizeRow(
-                      preview.bankRows.find((item) => item.rowId === match.bankRowId),
+                      bankRowsById.get(match.bankRowId),
                       preview.layout.mappings,
                     )}
                   </td>

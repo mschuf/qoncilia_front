@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiEye, FiRefreshCw, FiSave } from "react-icons/fi";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FiChevronLeft,
+  FiChevronRight,
+  FiEye,
+  FiRefreshCw,
+  FiSave,
+} from "react-icons/fi";
 import {
   SelectBlock,
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
-import { apiClient } from "../api/apiClient";
+import { apiClient, ApiError } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useDebounce } from "../hooks/useDebounce";
 import type { AuthUser } from "../types/auth";
 import type {
   BankStatementDetail,
@@ -64,6 +71,12 @@ export default function BankStatementsPage() {
   const [selectedDetail, setSelectedDetail] =
     useState<BankStatementDetail | null>(null);
 
+  // Cache de catalogos por usuario para evitar refetch al cambiar de usuario
+  // (admin/superadmin) y volver a uno ya consultado.
+  const catalogCacheRef = useRef<Map<number, UserBankWithLayouts[]>>(new Map());
+  // AbortController para cancelar la request de catalogo en vuelo.
+  const catalogAbortRef = useRef<AbortController | null>(null);
+
   const loadUsers = useCallback(async () => {
     if (!isAdminRole(role)) return;
     const response = await apiClient.get<AuthUser[]>("/users/list");
@@ -72,12 +85,25 @@ export default function BankStatementsPage() {
   }, [role]);
 
   const loadCatalog = useCallback(
-    async (userId: number) => {
+    async (userId: number, signal?: AbortSignal) => {
+      const cached = catalogCacheRef.current.get(userId);
+      if (cached) {
+        setBanks(cached);
+        setSelectedBankId((current) => {
+          if (current > 0 && cached.some((item) => item.id === current))
+            return current;
+          return cached[0]?.id ?? 0;
+        });
+        return;
+      }
+
       const query = isAdminRole(role) && userId ? `?userId=${userId}` : "";
       const response = await apiClient.get<UserBankWithLayouts[]>(
         `/conciliation/catalog${query}`,
+        { signal },
       );
       const nextBanks = response ?? [];
+      catalogCacheRef.current.set(userId, nextBanks);
       setBanks(nextBanks);
       setSelectedBankId((current) => {
         if (current > 0 && nextBanks.some((item) => item.id === current))
@@ -100,13 +126,21 @@ export default function BankStatementsPage() {
 
   useEffect(() => {
     if (!selectedUserId) return;
-    void loadCatalog(selectedUserId).catch((error) => {
+
+    catalogAbortRef.current?.abort();
+    const controller = new AbortController();
+    catalogAbortRef.current = controller;
+
+    void loadCatalog(selectedUserId, controller.signal).catch((error) => {
+      if (error instanceof ApiError && error.code === "REQUEST_ABORTED") return;
       toast.error(
         error instanceof Error
           ? error.message
           : "No se pudo cargar el catalogo.",
       );
     });
+
+    return () => controller.abort();
   }, [loadCatalog, selectedUserId, toast]);
 
   const selectedBank = useMemo(
@@ -400,7 +434,8 @@ function buildStatementFormData({
   return formData;
 }
 
-function RowsTable({
+// Memo para evitar re-render por cada keystroke del search/cambio de pagina.
+const RowsTable = memo(function RowsTable({
   title,
   rows,
   layout,
@@ -409,10 +444,43 @@ function RowsTable({
   rows: PreviewRow[];
   layout: Layout | null;
 }) {
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const debouncedSearch = useDebounce(search, 300);
+
   const columns = useMemo(
     () =>
       (layout?.mappings ?? []).filter((mapping) => mapping.active).slice(0, 8),
     [layout],
+  );
+
+  const filteredRows = useMemo(() => {
+    const term = debouncedSearch.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((row) => {
+      if (String(row.rowNumber).includes(term)) return true;
+      for (const column of columns) {
+        const value = row.values[column.fieldKey];
+        if (value != null && String(value).toLowerCase().includes(term)) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [columns, debouncedSearch, rows]);
+
+  // Reset de paginacion ante cambios de input/filas/pageSize.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, rows, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const sliceStart = (safePage - 1) * pageSize;
+  const visibleRows = useMemo(
+    () => filteredRows.slice(sliceStart, sliceStart + pageSize),
+    [filteredRows, pageSize, sliceStart],
   );
 
   return (
@@ -427,9 +495,31 @@ function RowsTable({
           </h3>
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
-          {rows.length} filas
+          {filteredRows.length} de {rows.length} filas
         </span>
       </div>
+
+      {rows.length > 0 ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar en las filas..."
+            className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          />
+          <select
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm cursor-pointer"
+          >
+            <option value={25}>25 por página</option>
+            <option value={50}>50 por página</option>
+            <option value={100}>100 por página</option>
+            <option value={200}>200 por página</option>
+          </select>
+        </div>
+      ) : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
         <div className="overflow-x-auto">
@@ -445,7 +535,7 @@ function RowsTable({
               </tr>
             </thead>
             <tbody>
-              {rows.slice(0, 200).map((row) => (
+              {visibleRows.map((row) => (
                 <tr
                   key={row.rowId}
                   className="border-t border-slate-100 text-slate-700"
@@ -468,18 +558,57 @@ function RowsTable({
                   </td>
                 </tr>
               ) : null}
+              {rows.length > 0 && filteredRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={Math.max(columns.length + 1, 1)}
+                    className="px-4 py-6 text-center text-sm text-slate-500"
+                  >
+                    Sin resultados para "{debouncedSearch}".
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
       </div>
-      {rows.length > 200 ? (
-        <p className="mt-3 text-xs text-slate-500">
-          Se muestran las primeras 200 filas.
-        </p>
+
+      {filteredRows.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+          <span>
+            Mostrando {sliceStart + 1}-
+            {Math.min(sliceStart + pageSize, filteredRows.length)} de{" "}
+            {filteredRows.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+            >
+              <FiChevronLeft className="h-3.5 w-3.5" /> Anterior
+            </button>
+            <span>
+              Página <strong>{safePage}</strong> de{" "}
+              <strong>{totalPages}</strong>
+            </span>
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() =>
+                setPage((current) => Math.min(totalPages, current + 1))
+              }
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+            >
+              Siguiente <FiChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       ) : null}
     </section>
   );
-}
+});
 
 function formatCell(row: PreviewRow, column: LayoutMapping) {
   return row.values[column.fieldKey] ?? "-";

@@ -30,6 +30,11 @@ interface RequestOptions {
   headers?: HeadersInit;
   showBackdrop?: boolean;
   timeoutMs?: number;
+  /**
+   * AbortSignal para cancelar la request desde el caller (ej: cambios rapidos
+   * en filtros con debounce). Si se aborta, se lanza un ApiError "aborted".
+   */
+  signal?: AbortSignal;
 }
 
 interface ConfigureApiClientOptions {
@@ -84,14 +89,24 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     auth = true,
     headers = {},
     showBackdrop = true,
-    timeoutMs
+    timeoutMs,
+    signal: externalSignal
   } = options;
   const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
-  const controller =
-    typeof AbortController !== "undefined" && typeof timeoutMs === "number" && timeoutMs > 0
-      ? new AbortController()
-      : null;
-  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const hasAbort = typeof AbortController !== "undefined";
+  const useTimeout = hasAbort && typeof timeoutMs === "number" && timeoutMs > 0;
+  const useExternal = hasAbort && externalSignal != null;
+  const controller = useTimeout || useExternal ? new AbortController() : null;
+  const timeoutId =
+    controller && useTimeout ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+  if (controller && useExternal) {
+    if (externalSignal!.aborted) {
+      controller.abort();
+    } else {
+      externalSignal!.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+  }
 
   if (showBackdrop) onRequestStart();
 
@@ -135,6 +150,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     return payload as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
+      if (externalSignal?.aborted) {
+        throw new ApiError("La solicitud fue cancelada.", { code: "REQUEST_ABORTED" });
+      }
       throw new ApiError("La solicitud esta tardando demasiado. Intenta nuevamente.");
     }
 

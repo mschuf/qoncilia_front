@@ -1,9 +1,10 @@
 import type { ChangeEvent, Dispatch, SetStateAction } from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { DragEndEvent } from "@dnd-kit/core"
-import { apiClient } from "../api/apiClient"
+import { apiClient, ApiError } from "../api/apiClient"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
+import { useDebounce } from "./useDebounce"
 import {
   getStoredSapConfigId,
   storeSapConfigId,
@@ -207,9 +208,15 @@ export default function useConciliationWorkbench() {
   const [selectedLayoutId, setSelectedLayoutId] = useState<number>(0)
   const [bankStatements, setBankStatements] = useState<BankStatementSummary[]>([])
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalStatements, setTotalStatements] = useState(0)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const debouncedDateFrom = useDebounce(dateFrom, 350)
+  const debouncedDateTo = useDebounce(dateTo, 350)
+  const debouncedSearchTerm = useDebounce(searchTerm, 350)
   const [selectedBankStatementId, setSelectedBankStatementId] = useState<number>(0)
   const [systemFile, setSystemFile] = useState<File | null>(null)
   const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
@@ -228,11 +235,26 @@ export default function useConciliationWorkbench() {
     setSelectedUserId((current) => current || Number(response?.[0]?.id ?? 0))
   }, [role])
 
+  // Cache simple en memoria del catalogo por usuario para evitar refetch al
+  // cambiar de tab y volver. Se invalida explicitamente desde refreshCatalog.
+  const catalogCacheRef = useRef<Map<number, UserBankWithLayouts[]>>(new Map())
+
   const loadCatalog = useCallback(
-    async (userId: number) => {
+    async (userId: number, options?: { force?: boolean }) => {
+      const cached = catalogCacheRef.current.get(userId)
+      if (!options?.force && cached) {
+        setBanks(cached)
+        setSelectedBankId((current) => {
+          if (current > 0 && cached.some((item) => item.id === current)) return current
+          return cached[0]?.id ?? 0
+        })
+        return
+      }
+
       const query = isAdminRole(role) && userId ? `?userId=${userId}` : ""
       const response = await apiClient.get<UserBankWithLayouts[]>(`/conciliation/catalog${query}`)
       const nextBanks = response ?? []
+      catalogCacheRef.current.set(userId, nextBanks)
       setBanks(nextBanks)
       setSelectedBankId((current) => {
         if (current > 0 && nextBanks.some((item) => item.id === current)) return current
@@ -241,6 +263,11 @@ export default function useConciliationWorkbench() {
     },
     [role]
   )
+
+  const refreshCatalog = useCallback(() => {
+    catalogCacheRef.current.delete(selectedUserId)
+    return loadCatalog(selectedUserId, { force: true })
+  }, [loadCatalog, selectedUserId])
 
   useEffect(() => {
     void loadUsers().catch((error) => {
@@ -348,57 +375,94 @@ export default function useConciliationWorkbench() {
     }
   }, [selectedLayout])
 
-  const loadBankStatements = useCallback(async (targetPage = page) => {
-    if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
-      setBankStatements([])
-      setSelectedBankStatementId(0)
-      return
-    }
+  // AbortController para cancelar la request en vuelo cuando cambian filtros
+  // rapidamente o al desmontar el hook.
+  const statementsAbortRef = useRef<AbortController | null>(null)
 
-    const params = new URLSearchParams({
-      userBankId: String(selectedBankId),
-      companyBankAccountId: String(selectedCompanyBankAccountId),
-      layoutId: String(selectedLayoutId)
-    })
+  const loadBankStatements = useCallback(
+    async (targetPage = page, options?: { signal?: AbortSignal }) => {
+      if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
+        setBankStatements([])
+        setTotalPages(1)
+        setTotalStatements(0)
+        setSelectedBankStatementId(0)
+        return
+      }
 
-    if (isAdminRole(role) && selectedUserId) {
-      params.set("userId", String(selectedUserId))
-    }
-    if (dateFrom) params.set("dateFrom", dateFrom);
-    if (dateTo) params.set("dateTo", dateTo);
-    params.set("page", String(targetPage));
-    params.set("limit", "10");
+      const params = new URLSearchParams({
+        userBankId: String(selectedBankId),
+        companyBankAccountId: String(selectedCompanyBankAccountId),
+        layoutId: String(selectedLayoutId)
+      })
 
-    const response = await apiClient.get<PaginatedResponse<BankStatementSummary>>(
-      `/conciliation/bank-statements?${params.toString()}`
-    )
-    const nextStatements = response?.data ?? []
-    setBankStatements(nextStatements)
-    setTotalPages(response?.lastPage ?? 1)
-    setSelectedBankStatementId((current) => {
-      if (current > 0 && nextStatements.some((item) => item.id === current)) return current
-      return nextStatements[0]?.id ?? 0
-    })
-  }, [
-    role,
-    selectedBankId,
-    selectedCompanyBankAccountId,
-    selectedLayoutId,
-    selectedUserId,
-    dateFrom,
-    dateTo,
-    page
-  ])
+      if (isAdminRole(role) && selectedUserId) {
+        params.set("userId", String(selectedUserId))
+      }
+      if (debouncedDateFrom) params.set("dateFrom", debouncedDateFrom)
+      if (debouncedDateTo) params.set("dateTo", debouncedDateTo)
+      const trimmedSearch = debouncedSearchTerm.trim()
+      if (trimmedSearch) params.set("search", trimmedSearch)
+      params.set("page", String(targetPage))
+      params.set("limit", String(pageSize))
+
+      const response = await apiClient.get<PaginatedResponse<BankStatementSummary>>(
+        `/conciliation/bank-statements?${params.toString()}`,
+        { signal: options?.signal }
+      )
+      const nextStatements = response?.data ?? []
+      setBankStatements(nextStatements)
+      setTotalPages(response?.lastPage ?? 1)
+      setTotalStatements(response?.total ?? 0)
+      setSelectedBankStatementId((current) => {
+        if (current > 0 && nextStatements.some((item) => item.id === current)) return current
+        return nextStatements[0]?.id ?? 0
+      })
+    },
+    [
+      role,
+      selectedBankId,
+      selectedCompanyBankAccountId,
+      selectedLayoutId,
+      selectedUserId,
+      debouncedDateFrom,
+      debouncedDateTo,
+      debouncedSearchTerm,
+      pageSize,
+      page
+    ]
+  )
 
   useEffect(() => {
-    void loadBankStatements().catch((error) => {
+    // Cancela cualquier request en curso antes de disparar la nueva.
+    statementsAbortRef.current?.abort()
+    const controller = new AbortController()
+    statementsAbortRef.current = controller
+
+    void loadBankStatements(undefined, { signal: controller.signal }).catch((error) => {
+      if (error instanceof ApiError && error.code === "REQUEST_ABORTED") return
       toast.error(error instanceof Error ? error.message : "No se pudieron cargar extractos.")
     })
+
+    return () => controller.abort()
   }, [loadBankStatements, toast])
+
+  // Resetea a pagina 1 cuando cambian los filtros (y no es el primer render).
+  const isFirstFilterRender = useRef(true)
+  useEffect(() => {
+    if (isFirstFilterRender.current) {
+      isFirstFilterRender.current = false
+      return
+    }
+    setPage(1)
+  }, [debouncedDateFrom, debouncedDateTo, debouncedSearchTerm, pageSize])
 
   const searchBankStatements = useCallback(() => {
     if (page === 1) {
-      void loadBankStatements(1).catch((error) => {
+      statementsAbortRef.current?.abort()
+      const controller = new AbortController()
+      statementsAbortRef.current = controller
+      void loadBankStatements(1, { signal: controller.signal }).catch((error) => {
+        if (error instanceof ApiError && error.code === "REQUEST_ABORTED") return
         toast.error(error instanceof Error ? error.message : "No se pudieron cargar extractos.")
       })
       return
@@ -581,6 +645,10 @@ export default function useConciliationWorkbench() {
       return
     }
 
+    // Indices O(1) para evitar Array.find por match cuando hay miles de filas.
+    const systemRowsById = new Map(preview.systemRows.map((row) => [row.rowId, row]))
+    const bankRowsById = new Map(preview.bankRows.map((row) => [row.rowId, row]))
+
     const bankStatementLines: SapExternalReconciliationRequest["bankStatementLines"] = []
     const journalEntryLines: SapExternalReconciliationRequest["journalEntryLines"] = []
     const sapMatches: NonNullable<SapExternalReconciliationRequest["matches"]> = []
@@ -591,8 +659,8 @@ export default function useConciliationWorkbench() {
     }> = []
 
     for (const [index, match] of matches.entries()) {
-      const systemRow = preview.systemRows.find((item) => item.rowId === match.systemRowId)
-      const bankRow = preview.bankRows.find((item) => item.rowId === match.bankRowId)
+      const systemRow = systemRowsById.get(match.systemRowId)
+      const bankRow = bankRowsById.get(match.bankRowId)
       const transactionNumber = parseRowNumber(systemRow, [
         "TransactionNumber",
         "transactionNumber",
@@ -779,13 +847,19 @@ export default function useConciliationWorkbench() {
     sendExternalReconciliationToErp,
     clearAll,
     reloadBankStatements: loadBankStatements,
+    refreshCatalog,
     searchBankStatements,
     page,
     setPage,
+    pageSize,
+    setPageSize,
     totalPages,
+    totalStatements,
     dateFrom,
     setDateFrom,
     dateTo,
-    setDateTo
+    setDateTo,
+    searchTerm,
+    setSearchTerm
   }
 }

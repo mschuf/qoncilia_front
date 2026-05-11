@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { FiRefreshCw, FiSearch, FiSend, FiUploadCloud } from "react-icons/fi";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
@@ -115,11 +115,16 @@ export default function ConciliationWorkbenchPage() {
     searchBankStatements,
     page,
     setPage,
+    pageSize,
+    setPageSize,
     totalPages,
+    totalStatements,
     dateFrom,
     setDateFrom,
     dateTo,
     setDateTo,
+    searchTerm,
+    setSearchTerm,
   } = useConciliationWorkbench();
 
   const bankLabel =
@@ -290,11 +295,41 @@ export default function ConciliationWorkbenchPage() {
               onClick={searchBankStatements}
               aria-label="Buscar extractos"
               title="Buscar extractos"
-              className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700"
+              className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer"
             >
               <FiSearch className="h-4 w-4" />
             </button>
           </div>
+        </div>
+
+        <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">
+              Buscar (alias, archivo, banco, cuenta o layout)
+            </span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Escribe para filtrar..."
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">
+              Por pagina
+            </span>
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
         </div>
       </section>
 
@@ -382,7 +417,7 @@ export default function ConciliationWorkbenchPage() {
                     key={statement.id}
                     statement={statement}
                     selected={statement.id === selectedBankStatementId}
-                    onSelect={() => setSelectedBankStatementId(statement.id)}
+                    onSelect={setSelectedBankStatementId}
                   />
                 ))}
                 {bankStatements.length === 0 ? (
@@ -400,17 +435,25 @@ export default function ConciliationWorkbenchPage() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
           <span>
             Página <span className="font-semibold">{page}</span> de{" "}
             <span className="font-semibold">{totalPages}</span>
+            {totalStatements > 0 ? (
+              <>
+                {" "}
+                ·{" "}
+                <span className="font-semibold">{totalStatements}</span>{" "}
+                extractos
+              </>
+            ) : null}
           </span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
             >
               Anterior
             </button>
@@ -418,7 +461,7 @@ export default function ConciliationWorkbenchPage() {
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage(page + 1)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
             >
               Siguiente
             </button>
@@ -548,14 +591,16 @@ export default function ConciliationWorkbenchPage() {
   );
 }
 
-function StatementRow({
+// Memoized para evitar re-render de filas al cambiar filtros/paginacion sin
+// que las props de la fila cambien.
+const StatementRow = memo(function StatementRow({
   statement,
   selected,
   onSelect,
 }: {
   statement: BankStatementSummary;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (id: number) => void;
 }) {
   return (
     <tr
@@ -582,8 +627,8 @@ function StatementRow({
       <td className="px-3 py-3 text-right">
         <button
           type="button"
-          onClick={onSelect}
-          className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+          onClick={() => onSelect(statement.id)}
+          className={`rounded-xl px-3 py-2 text-sm font-semibold transition cursor-pointer ${
             selected
               ? "bg-slate-900 text-white"
               : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -594,4 +639,4 @@ function StatementRow({
       </td>
     </tr>
   );
-}
+});
