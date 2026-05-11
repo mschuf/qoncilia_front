@@ -251,6 +251,14 @@ export default function useConciliationWorkbench() {
         return
       }
 
+      // Limpiar datos previos del usuario anterior mientras carga
+      setBanks([])
+      setSelectedBankId(0)
+      setSelectedCompanyBankAccountId(0)
+      setSelectedLayoutId(0)
+      setBankStatements([])
+      setSelectedBankStatementId(0)
+
       const query = isAdminRole(role) && userId ? `?userId=${userId}` : ""
       const response = await apiClient.get<UserBankWithLayouts[]>(`/conciliation/catalog${query}`)
       const nextBanks = response ?? []
@@ -380,7 +388,7 @@ export default function useConciliationWorkbench() {
   const statementsAbortRef = useRef<AbortController | null>(null)
 
   const loadBankStatements = useCallback(
-    async (targetPage = page, options?: { signal?: AbortSignal }) => {
+    async (targetPage: number, options?: { signal?: AbortSignal }) => {
       if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
         setBankStatements([])
         setTotalPages(1)
@@ -427,49 +435,30 @@ export default function useConciliationWorkbench() {
       debouncedDateFrom,
       debouncedDateTo,
       debouncedSearchTerm,
-      pageSize,
-      page
+      pageSize
     ]
   )
 
-  useEffect(() => {
-    // Cancela cualquier request en curso antes de disparar la nueva.
+  const searchBankStatements = useCallback(() => {
     statementsAbortRef.current?.abort()
     const controller = new AbortController()
     statementsAbortRef.current = controller
-
-    void loadBankStatements(undefined, { signal: controller.signal }).catch((error) => {
+    void loadBankStatements(page, { signal: controller.signal }).catch((error) => {
       if (error instanceof ApiError && error.code === "REQUEST_ABORTED") return
       toast.error(error instanceof Error ? error.message : "No se pudieron cargar extractos.")
     })
-
-    return () => controller.abort()
-  }, [loadBankStatements, toast])
-
-  // Resetea a pagina 1 cuando cambian los filtros (y no es el primer render).
-  const isFirstFilterRender = useRef(true)
-  useEffect(() => {
-    if (isFirstFilterRender.current) {
-      isFirstFilterRender.current = false
-      return
-    }
-    setPage(1)
-  }, [debouncedDateFrom, debouncedDateTo, debouncedSearchTerm, pageSize])
-
-  const searchBankStatements = useCallback(() => {
-    if (page === 1) {
-      statementsAbortRef.current?.abort()
-      const controller = new AbortController()
-      statementsAbortRef.current = controller
-      void loadBankStatements(1, { signal: controller.signal }).catch((error) => {
-        if (error instanceof ApiError && error.code === "REQUEST_ABORTED") return
-        toast.error(error instanceof Error ? error.message : "No se pudieron cargar extractos.")
-      })
-      return
-    }
-
-    setPage(1)
   }, [loadBankStatements, page, toast])
+
+  const goToPage = useCallback((targetPage: number) => {
+    setPage(targetPage)
+    statementsAbortRef.current?.abort()
+    const controller = new AbortController()
+    statementsAbortRef.current = controller
+    void loadBankStatements(targetPage, { signal: controller.signal }).catch((error) => {
+      if (error instanceof ApiError && error.code === "REQUEST_ABORTED") return
+      toast.error(error instanceof Error ? error.message : "No se pudieron cargar extractos.")
+    })
+  }, [loadBankStatements, toast])
 
   const selectedBankStatement = useMemo(
     () => bankStatements.find((item) => item.id === selectedBankStatementId) ?? null,
@@ -851,8 +840,8 @@ export default function useConciliationWorkbench() {
     searchBankStatements,
     page,
     setPage,
+    goToPage,
     pageSize,
-    setPageSize,
     totalPages,
     totalStatements,
     dateFrom,

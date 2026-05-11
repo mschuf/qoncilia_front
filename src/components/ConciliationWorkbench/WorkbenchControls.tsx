@@ -32,11 +32,13 @@ export function SelectBlock({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   options: Array<{ value: number; label: string }>;
+  disabled?: boolean;
 }) {
   return (
     <label className="space-y-1.5">
@@ -44,7 +46,8 @@ export function SelectBlock({
       <select
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+        disabled={disabled}
+        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

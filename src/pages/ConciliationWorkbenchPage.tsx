@@ -114,9 +114,8 @@ export default function ConciliationWorkbenchPage() {
     clearAll,
     searchBankStatements,
     page,
-    setPage,
+    goToPage,
     pageSize,
-    setPageSize,
     totalPages,
     totalStatements,
     dateFrom,
@@ -223,7 +222,7 @@ export default function ConciliationWorkbenchPage() {
   return (
     <section className="space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_auto]">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto]">
           {isAdminRole(role) ? (
             <SelectBlock
               label="Usuario"
@@ -244,6 +243,7 @@ export default function ConciliationWorkbenchPage() {
               value: item.id,
               label: item.bankName,
             }))}
+            disabled={banks.length === 0}
           />
 
           <label className="space-y-1.5">
@@ -263,7 +263,8 @@ export default function ConciliationWorkbenchPage() {
               ) : null}
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.name} - {account.accountNumber} ({account.currency})
+                  {account.name} - {account.accountNumber} ({account.currency}
+                  )
                 </option>
               ))}
             </select>
@@ -289,6 +290,17 @@ export default function ConciliationWorkbenchPage() {
             />
           </label>
 
+          <label className="space-y-1.5">
+            <span className="text-sm font-semibold text-slate-700">Buscar</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Alias, archivo, banco..."
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </label>
+
           <div className="flex items-end">
             <button
               type="button"
@@ -300,36 +312,6 @@ export default function ConciliationWorkbenchPage() {
               <FiSearch className="h-4 w-4" />
             </button>
           </div>
-        </div>
-
-        <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">
-              Buscar (alias, archivo, banco, cuenta o layout)
-            </span>
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Escribe para filtrar..."
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">
-              Por pagina
-            </span>
-            <select
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm cursor-pointer"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </label>
         </div>
       </section>
 
@@ -452,7 +434,7 @@ export default function ConciliationWorkbenchPage() {
             <button
               type="button"
               disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
+              onClick={() => goToPage(page - 1)}
               className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
             >
               Anterior
@@ -460,7 +442,7 @@ export default function ConciliationWorkbenchPage() {
             <button
               type="button"
               disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
+              onClick={() => goToPage(page + 1)}
               className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
             >
               Siguiente

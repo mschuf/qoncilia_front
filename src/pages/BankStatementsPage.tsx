@@ -5,11 +5,14 @@ import {
   FiEye,
   FiRefreshCw,
   FiSave,
+  FiSearch,
+  FiX,
 } from "react-icons/fi";
 import {
   SelectBlock,
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
+import AppModal from "../components/AppModal";
 import { apiClient, ApiError } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -70,12 +73,12 @@ export default function BankStatementsPage() {
   );
   const [selectedDetail, setSelectedDetail] =
     useState<BankStatementDetail | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
 
   // Cache de catalogos por usuario para evitar refetch al cambiar de usuario
   // (admin/superadmin) y volver a uno ya consultado.
   const catalogCacheRef = useRef<Map<number, UserBankWithLayouts[]>>(new Map());
-  // AbortController para cancelar la request de catalogo en vuelo.
-  const catalogAbortRef = useRef<AbortController | null>(null);
 
   const loadUsers = useCallback(async () => {
     if (!isAdminRole(role)) return;
@@ -85,7 +88,7 @@ export default function BankStatementsPage() {
   }, [role]);
 
   const loadCatalog = useCallback(
-    async (userId: number, signal?: AbortSignal) => {
+    async (userId: number) => {
       const cached = catalogCacheRef.current.get(userId);
       if (cached) {
         setBanks(cached);
@@ -97,21 +100,31 @@ export default function BankStatementsPage() {
         return;
       }
 
-      const query = isAdminRole(role) && userId ? `?userId=${userId}` : "";
-      const response = await apiClient.get<UserBankWithLayouts[]>(
-        `/conciliation/catalog${query}`,
-        { signal },
-      );
-      const nextBanks = response ?? [];
-      catalogCacheRef.current.set(userId, nextBanks);
-      setBanks(nextBanks);
-      setSelectedBankId((current) => {
-        if (current > 0 && nextBanks.some((item) => item.id === current))
-          return current;
-        return nextBanks[0]?.id ?? 0;
-      });
+      setIsLoadingCatalog(true);
+      try {
+        const query = isAdminRole(role) && userId ? `?userId=${userId}` : "";
+        const response = await apiClient.get<UserBankWithLayouts[]>(
+          `/conciliation/catalog${query}`,
+        );
+        const nextBanks = response ?? [];
+        catalogCacheRef.current.set(userId, nextBanks);
+        setBanks(nextBanks);
+        setSelectedBankId((current) => {
+          if (current > 0 && nextBanks.some((item) => item.id === current))
+            return current;
+          return nextBanks[0]?.id ?? 0;
+        });
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo cargar el catalogo.",
+        );
+      } finally {
+        setIsLoadingCatalog(false);
+      }
     },
-    [role],
+    [role, toast],
   );
 
   useEffect(() => {
@@ -124,24 +137,12 @@ export default function BankStatementsPage() {
     });
   }, [loadUsers, toast]);
 
+  // Carga inicial del catalogo para usuarios no-admin (un solo usuario)
   useEffect(() => {
     if (!selectedUserId) return;
-
-    catalogAbortRef.current?.abort();
-    const controller = new AbortController();
-    catalogAbortRef.current = controller;
-
-    void loadCatalog(selectedUserId, controller.signal).catch((error) => {
-      if (error instanceof ApiError && error.code === "REQUEST_ABORTED") return;
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudo cargar el catalogo.",
-      );
-    });
-
-    return () => controller.abort();
-  }, [loadCatalog, selectedUserId, toast]);
+    if (isAdminRole(role)) return; // admin/superadmin debe hacer click en Buscar
+    void loadCatalog(selectedUserId);
+  }, [loadCatalog, role, selectedUserId, toast]);
 
   const selectedBank = useMemo(
     () => banks.find((item) => item.id === selectedBankId) ?? null,
@@ -195,6 +196,14 @@ export default function BankStatementsPage() {
     }
   }, [selectedLayout]);
 
+  const handleSearch = () => {
+    if (!selectedUserId) {
+      toast.error("Selecciona un usuario.");
+      return;
+    }
+    void loadCatalog(selectedUserId);
+  };
+
   const previewBankStatement = async () => {
     if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
       toast.error("Selecciona banco, cuenta bancaria y layout.");
@@ -224,6 +233,7 @@ export default function BankStatementsPage() {
       );
       setPreview(response);
       setSelectedDetail(null);
+      setIsPreviewModalOpen(true);
       toast.success("Vista previa lista.");
     } catch (error) {
       toast.error(
@@ -303,6 +313,7 @@ export default function BankStatementsPage() {
                 value: item.id,
                 label: item.bankName,
               }))}
+              disabled={banks.length === 0}
             />
 
             <label className="space-y-1.5">
@@ -329,27 +340,17 @@ export default function BankStatementsPage() {
               </select>
             </label>
 
-            <SelectBlock
-              label="Layout"
-              value={selectedLayoutId}
-              onChange={(value) => setSelectedLayoutId(Number(value))}
-              options={layouts.map((item) => ({
-                value: item.id,
-                label: `${item.name}${item.active ? " - activa" : ""}`,
-              }))}
-            />
-
-            <label className="space-y-1.5 xl:col-span-2">
-              <span className="text-sm font-semibold text-slate-700">
-                Alias del extracto
-              </span>
-              <input
-                value={statementName}
-                onChange={(event) => setStatementName(event.target.value)}
-                placeholder={suggestedStatementName || "Banco - cuenta - fecha"}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
-              />
-            </label>
+            {isAdminRole(role) ? (
+              <button
+                type="button"
+                onClick={handleSearch}
+                disabled={isLoadingCatalog}
+                title="Buscar"
+                className="inline-flex h-10 w-10 items-center justify-center self-end rounded-xl bg-slate-900 text-sm text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FiSearch className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
         </section>
 
@@ -371,7 +372,22 @@ export default function BankStatementsPage() {
                 Guardar vuelve a leer el archivo y persiste solo los registros
                 del banco.
               </p>
-              <div className="mt-5 flex flex-wrap gap-3">
+
+              <div className="mt-4">
+                <label className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                    Alias
+                  </span>
+                  <input
+                    value={statementName}
+                    onChange={(event) => setStatementName(event.target.value)}
+                    placeholder={suggestedStatementName || "Banco - cuenta - fecha"}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => void previewBankStatement()}
@@ -401,13 +417,15 @@ export default function BankStatementsPage() {
             </div>
           </div>
         </section>
-
-        <RowsTable
-          title={visibleTitle}
-          rows={visibleRows}
-          layout={visibleLayout}
-        />
       </section>
+
+      <AppModal
+        open={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        title={visibleTitle}
+      >
+        <RowsTable rows={visibleRows} layout={visibleLayout} />
+      </AppModal>
     </>
   );
 }
@@ -436,11 +454,9 @@ function buildStatementFormData({
 
 // Memo para evitar re-render por cada keystroke del search/cambio de pagina.
 const RowsTable = memo(function RowsTable({
-  title,
   rows,
   layout,
 }: {
-  title: string;
   rows: PreviewRow[];
   layout: Layout | null;
 }) {
@@ -484,23 +500,9 @@ const RowsTable = memo(function RowsTable({
   );
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-            Vista de datos
-          </p>
-          <h3 className="mt-2 text-lg font-extrabold text-slate-900">
-            {title}
-          </h3>
-        </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
-          {filteredRows.length} de {rows.length} filas
-        </span>
-      </div>
-
+    <section>
       {rows.length > 0 ? (
-        <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
           <input
             type="search"
             value={search}
@@ -521,7 +523,7 @@ const RowsTable = memo(function RowsTable({
         </div>
       ) : null}
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+      <div className="overflow-hidden rounded-2xl border border-slate-200">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
