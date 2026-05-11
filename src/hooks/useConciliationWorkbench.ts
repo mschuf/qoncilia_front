@@ -222,6 +222,7 @@ export default function useConciliationWorkbench() {
   const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
   const [selectedErpConfigId, setSelectedErpConfigId] = useState<number>(0)
   const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
   const [isSendingExternalReconciliation, setIsSendingExternalReconciliation] = useState(false)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [manualMatches, setManualMatches] = useState<PreviewMatch[]>([])
@@ -259,15 +260,20 @@ export default function useConciliationWorkbench() {
       setBankStatements([])
       setSelectedBankStatementId(0)
 
-      const query = isAdminRole(role) && userId ? `?userId=${userId}` : ""
-      const response = await apiClient.get<UserBankWithLayouts[]>(`/conciliation/catalog${query}`)
-      const nextBanks = response ?? []
-      catalogCacheRef.current.set(userId, nextBanks)
-      setBanks(nextBanks)
-      setSelectedBankId((current) => {
-        if (current > 0 && nextBanks.some((item) => item.id === current)) return current
-        return nextBanks[0]?.id ?? 0
-      })
+      setIsLoadingCatalog(true)
+      try {
+        const query = isAdminRole(role) && userId ? `?userId=${userId}` : ""
+        const response = await apiClient.get<UserBankWithLayouts[]>(`/conciliation/catalog${query}`)
+        const nextBanks = response ?? []
+        catalogCacheRef.current.set(userId, nextBanks)
+        setBanks(nextBanks)
+        setSelectedBankId((current) => {
+          if (current > 0 && nextBanks.some((item) => item.id === current)) return current
+          return nextBanks[0]?.id ?? 0
+        })
+      } finally {
+        setIsLoadingCatalog(false)
+      }
     },
     [role]
   )
@@ -348,12 +354,15 @@ export default function useConciliationWorkbench() {
     void checkErpSession().catch(() => setErpSession(null))
   }, [checkErpSession, selectedErpConfigId])
 
+  // Carga automatica del catalogo solo para usuarios no-admin (tienen un solo usuario).
+  // Admin/superadmin debe hacer click en Buscar para cargar el catalogo.
   useEffect(() => {
     if (!selectedUserId) return
+    if (isAdminRole(role)) return
     void loadCatalog(selectedUserId).catch((error) => {
       toast.error(error instanceof Error ? error.message : "No se pudo cargar el catalogo.")
     })
-  }, [loadCatalog, selectedUserId, toast])
+  }, [loadCatalog, role, selectedUserId, toast])
 
   const selectedBank = useMemo(
     () => banks.find((item) => item.id === selectedBankId) ?? null,
@@ -837,7 +846,9 @@ export default function useConciliationWorkbench() {
     clearAll,
     reloadBankStatements: loadBankStatements,
     refreshCatalog,
+    loadCatalog,
     searchBankStatements,
+    isLoadingCatalog,
     page,
     setPage,
     goToPage,

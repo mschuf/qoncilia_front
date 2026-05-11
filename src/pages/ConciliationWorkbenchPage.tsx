@@ -1,5 +1,11 @@
-import { memo, useEffect } from "react";
-import { FiRefreshCw, FiSearch, FiSend, FiUploadCloud } from "react-icons/fi";
+import { memo, useEffect, useState } from "react";
+import {
+  FiRefreshCw,
+  FiSearch,
+  FiSend,
+  FiUploadCloud,
+  FiX,
+} from "react-icons/fi";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
   Metric,
@@ -113,6 +119,8 @@ export default function ConciliationWorkbenchPage() {
     sendExternalReconciliationToErp,
     clearAll,
     searchBankStatements,
+    loadCatalog,
+    isLoadingCatalog,
     page,
     goToPage,
     pageSize,
@@ -131,6 +139,14 @@ export default function ConciliationWorkbenchPage() {
   const systemLabel =
     preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
   const erpStatus = resolveErpStatus(erpSession);
+  const [isErpPanelOpen, setIsErpPanelOpen] = useState(false);
+
+  const handleSearch = async () => {
+    if (isAdminRole(role) && banks.length === 0) {
+      await loadCatalog(selectedUserId);
+    }
+    searchBankStatements();
+  };
   const matchedCount = preview
     ? preview.autoMatches.length + manualMatches.length
     : 0;
@@ -304,62 +320,15 @@ export default function ConciliationWorkbenchPage() {
           <div className="flex items-end">
             <button
               type="button"
-              onClick={searchBankStatements}
+              onClick={handleSearch}
+              disabled={isLoadingCatalog}
               aria-label="Buscar extractos"
               title="Buscar extractos"
-              className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer"
+              className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FiSearch className="h-4 w-4" />
             </button>
           </div>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">
-              ERP activo
-            </span>
-            <select
-              value={selectedErpConfigId}
-              onChange={(event) =>
-                setSelectedErpConfigId(Number(event.target.value))
-              }
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-            >
-              {erpConfigs.length === 0 ? (
-                <option value={0}>Sin ERPs activas</option>
-              ) : null}
-              {erpConfigs.map((config) => (
-                <option key={config.id} value={config.id}>
-                  {config.name} - {config.dbName ?? config.code}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="flex flex-wrap items-end gap-2">
-            <span
-              className={`inline-flex h-[46px] items-center rounded-xl px-4 text-sm font-bold ${erpStatus.badgeClass}`}
-            >
-              {erpStatus.label}
-            </span>
-            <button
-              type="button"
-              onClick={() => void checkErpSession(true)}
-              disabled={!selectedErpConfigId}
-              className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              <FiRefreshCw className="h-4 w-4" /> Validar
-            </button>
-          </div>
-        </div>
-        <div
-          className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${erpStatus.panelClass}`}
-        >
-          <p className="font-bold">{erpStatus.title}</p>
-          <p className="mt-1 text-xs">{erpStatus.detail}</p>
         </div>
       </section>
 
@@ -569,6 +538,75 @@ export default function ConciliationWorkbenchPage() {
           </div>
         </>
       ) : null}
+
+      {/* ERP Floating Action Button */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        {isErpPanelOpen ? (
+          <div className="w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                ERP activo
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsErpPanelOpen(false)}
+                className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <FiX className="h-4 w-4" />
+              </button>
+            </div>
+            <select
+              value={selectedErpConfigId}
+              onChange={(event) =>
+                setSelectedErpConfigId(Number(event.target.value))
+              }
+              className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            >
+              {erpConfigs.length === 0 ? (
+                <option value={0}>Sin ERPs activas</option>
+              ) : null}
+              {erpConfigs.map((config) => (
+                <option key={config.id} value={config.id}>
+                  {config.name} - {config.dbName ?? config.code}
+                </option>
+              ))}
+            </select>
+            <div className="mt-2 flex items-center gap-2">
+              <span
+                className={`inline-flex flex-1 items-center justify-center rounded-xl px-3 py-2 text-xs font-bold ${erpStatus.badgeClass}`}
+              >
+                {erpStatus.label}
+              </span>
+              <button
+                type="button"
+                onClick={() => void checkErpSession(true)}
+                disabled={!selectedErpConfigId}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                <FiRefreshCw className="h-3.5 w-3.5" /> Validar
+              </button>
+            </div>
+            <div
+              className={`mt-2 rounded-xl border px-3 py-2 text-xs ${erpStatus.panelClass}`}
+            >
+              <p className="font-bold">{erpStatus.title}</p>
+              <p className="mt-0.5 text-[11px]">{erpStatus.detail}</p>
+            </div>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setIsErpPanelOpen((current) => !current)}
+          title="ERP"
+          className={`inline-flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition hover:scale-105 ${
+            erpSession?.authenticated
+              ? "bg-emerald-600 text-white shadow-emerald-600/30"
+              : "bg-slate-900 text-white shadow-slate-900/30"
+          }`}
+        >
+          <FiRefreshCw className="h-5 w-5" />
+        </button>
+      </div>
     </section>
   );
 }
