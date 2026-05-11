@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { FiInfo, FiRefreshCcw, FiSave, FiSettings } from "react-icons/fi";
 import AppModal from "../components/AppModal";
-import CompanyCountrySelect from "../components/forms/CompanyCountrySelect";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import accessDocsMarkdown from "../../docs/modulos-por-empresa-y-rol.md?raw";
@@ -15,10 +14,6 @@ export default function AccessControlPage() {
     setSelectedCompanyId,
     selectedCompany,
     matrix,
-    companyForm,
-    onCompanyFieldChange,
-    onCompanyCountryChange,
-    createCompany,
     toggleModule,
     saveRoleModules,
     reloadMatrix,
@@ -26,72 +21,27 @@ export default function AccessControlPage() {
 
   return (
     <section className="space-y-6">
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
-        <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
-              Superadmin Studio
-            </p>
-            <button
-              onClick={() => setIsDocsModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 transition hover:bg-brand-100"
-              title="Ver documentación"
-            >
-              <FiInfo className="h-4 w-4" /> INFO
-            </button>
-          </div>
-          <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-            Modulos por Empresa y Rol
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Activa o desactiva pantallas de forma dinamica. Cada cambio impacta
-            en rutas y menu del front para los usuarios de la empresa y rol
-            seleccionados.
+      <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
+            Superadmin Studio
           </p>
-        </div>
-
-        <form
-          onSubmit={createCompany}
-          className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-3"
-        >
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-            Nueva Empresa
-          </p>
-          <input
-            name="fiscalId"
-            value={companyForm.fiscalId}
-            onChange={onCompanyFieldChange}
-            placeholder="ID fiscal (ej: 80012345-6)"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
-            required
-          />
-          <input
-            name="name"
-            value={companyForm.name}
-            onChange={onCompanyFieldChange}
-            placeholder="Nombre de empresa"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
-            required
-          />
-          <input
-            name="region"
-            value={companyForm.region}
-            onChange={onCompanyFieldChange}
-            placeholder="Región"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
-          />
-          <CompanyCountrySelect
-            value={companyForm.country}
-            onChange={onCompanyCountryChange}
-            placeholder="País"
-          />
           <button
-            type="submit"
-            className="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
+            onClick={() => setIsDocsModalOpen(true)}
+            className="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 transition hover:bg-brand-100"
+            title="Ver documentación"
           >
-            Crear empresa
+            <FiInfo className="h-4 w-4" /> INFO
           </button>
-        </form>
+        </div>
+        <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
+          Modulos por Empresa y Rol
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+          Activa o desactiva pantallas de forma dinamica. Cada cambio impacta
+          en rutas y menu del front para los usuarios de la empresa y rol
+          seleccionados.
+        </p>
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
