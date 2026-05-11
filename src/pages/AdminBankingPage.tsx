@@ -7,15 +7,16 @@ import {
   FiCreditCard,
   FiEdit3,
   FiPlus,
-  FiRefreshCcw,
   FiSave,
   FiSearch,
   FiShield,
   FiTrash2,
 } from "react-icons/fi";
 import ConfirmModal from "../components/ConfirmModal";
+import { useAuth } from "../context/AuthContext";
 import useCompanyBanking from "../hooks/useCompanyBanking";
 import type { PublicBank, PublicCompanyBankAccount } from "../types/banking";
+import { isSuperAdminRole } from "../utils/role";
 
 type BankingWorkspaceMode = "combined" | "banks" | "accounts";
 
@@ -31,6 +32,7 @@ export default function AdminBankingPage({
     useState<PublicCompanyBankAccount | null>(null);
   const [bankFormVisible, setBankFormVisible] = useState(false);
   const [accountFormVisible, setAccountFormVisible] = useState(false);
+  const { role } = useAuth();
   const showBanks = mode !== "accounts";
   const showAccounts = mode !== "banks";
   const {
@@ -134,85 +136,73 @@ export default function AdminBankingPage({
   return (
     <>
       <section className="space-y-6">
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-end gap-3">
-            {companies.length > 1 ? (
-              <label className="min-w-[280px] flex-1 space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">
-                  Empresa
-                </span>
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => {
-                    setAccountFormVisible(false);
-                    changeCompany(Number(e.target.value));
-                  }}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-                >
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.name} (ID: {company.fiscalId})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-
-            {mode === "accounts" ? (
-              <>
-                <SearchField
-                  label="Buscar banco"
-                  value={bankSearch}
-                  onChange={setBankSearch}
-                  placeholder="Nombre o sucursal"
-                />
-
+        {mode === "accounts" ? (
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-end gap-3">
+              {isSuperAdminRole(role) && companies.length > 1 ? (
                 <label className="min-w-[280px] flex-1 space-y-1.5">
                   <span className="text-sm font-semibold text-slate-700">
-                    Banco
+                    Empresa
                   </span>
                   <select
-                    value={selectedBankId || ""}
-                    onChange={(event) => {
+                    value={selectedCompanyId}
+                    onChange={(e) => {
                       setAccountFormVisible(false);
-                      selectBank(
-                        event.target.value ? Number(event.target.value) : 0,
-                      );
+                      changeCompany(Number(e.target.value));
                     }}
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                   >
-                    <option value="">Selecciona un banco</option>
-                    {banks.map((bank) => (
-                      <option key={bank.id} value={bank.id}>
-                        {bank.name}
-                        {bank.branch ? ` - ${bank.branch}` : ""}
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name} (ID: {company.fiscalId})
                       </option>
                     ))}
                   </select>
                 </label>
+              ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => void reload(selectedCompanyId)}
-                  disabled={isLoadingReference || isLoadingBanks || isLoadingAccounts}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              <SearchField
+                label="Buscar banco"
+                value={bankSearch}
+                onChange={setBankSearch}
+                placeholder="Nombre o sucursal"
+              />
+
+              <label className="min-w-[280px] flex-1 space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700">
+                  Banco
+                </span>
+                <select
+                  value={selectedBankId || ""}
+                  onChange={(event) => {
+                    setAccountFormVisible(false);
+                    selectBank(
+                      event.target.value ? Number(event.target.value) : 0,
+                    );
+                  }}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 >
-                  <FiSearch className="h-4 w-4" /> Buscar
-                </button>
-              </>
-            ) : (
+                  <option value="">Selecciona un banco</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.name}
+                      {bank.branch ? ` - ${bank.branch}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <button
                 type="button"
                 onClick={() => void reload(selectedCompanyId)}
                 disabled={isLoadingReference || isLoadingBanks || isLoadingAccounts}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <FiRefreshCcw className="h-4 w-4" />{" "}
-                {isLoadingReference ? "Recargando" : "Recargar"}
+                <FiSearch className="h-4 w-4" /> Buscar
               </button>
-            )}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div
           className={
@@ -239,13 +229,31 @@ export default function AdminBankingPage({
                       Bancos de la empresa
                     </h3>
                   </div>
-                  <button
-                    type="button"
-                    onClick={openNewBankForm}
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
-                  >
-                    <FiPlus className="h-4 w-4" /> Nuevo
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {isSuperAdminRole(role) && companies.length > 1 ? (
+                      <select
+                        value={selectedCompanyId}
+                        onChange={(e) => {
+                          setAccountFormVisible(false);
+                          changeCompany(Number(e.target.value));
+                        }}
+                        className="min-w-[200px] rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                      >
+                        {companies.map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.name} (ID: {company.fiscalId})
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={openNewBankForm}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+                    >
+                      <FiPlus className="h-4 w-4" /> Nuevo
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-end gap-3">

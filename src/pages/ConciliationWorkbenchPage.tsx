@@ -15,7 +15,7 @@ import {
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
 import type { BankStatementSummary } from "../types/conciliation";
 import type { SapErpSession } from "../erp/sap";
-import { isAdminRole } from "../utils/role";
+import { isAdminRole, isSuperAdminRole } from "../utils/role";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
@@ -142,7 +142,7 @@ export default function ConciliationWorkbenchPage() {
   const [isErpPanelOpen, setIsErpPanelOpen] = useState(false);
 
   const handleSearch = async () => {
-    if (isAdminRole(role) && banks.length === 0) {
+    if (isSuperAdminRole(role) && banks.length === 0) {
       await loadCatalog(selectedUserId);
     }
     searchBankStatements();
@@ -239,7 +239,7 @@ export default function ConciliationWorkbenchPage() {
     <section className="space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto]">
-          {isAdminRole(role) ? (
+          {isSuperAdminRole(role) ? (
             <SelectBlock
               label="Usuario"
               value={selectedUserId}
@@ -279,8 +279,7 @@ export default function ConciliationWorkbenchPage() {
               ) : null}
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.name} - {account.accountNumber} ({account.currency}
-                  )
+                  {account.name} - {account.accountNumber} ({account.currency})
                 </option>
               ))}
             </select>
@@ -393,8 +392,7 @@ export default function ConciliationWorkbenchPage() {
             {totalStatements > 0 ? (
               <>
                 {" "}
-                ·{" "}
-                <span className="font-semibold">{totalStatements}</span>{" "}
+                · <span className="font-semibold">{totalStatements}</span>{" "}
                 extractos
               </>
             ) : null}
@@ -545,7 +543,7 @@ export default function ConciliationWorkbenchPage() {
           <div className="w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                ERP activo
+                ERP
               </p>
               <button
                 type="button"

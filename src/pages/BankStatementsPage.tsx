@@ -26,7 +26,7 @@ import type {
   PreviewRow,
   UserBankWithLayouts,
 } from "../types/conciliation";
-import { isAdminRole } from "../utils/role";
+import { isAdminRole, isSuperAdminRole } from "../utils/role";
 
 function formatDateTimeTag(value: Date) {
   const year = value.getFullYear();
@@ -81,7 +81,7 @@ export default function BankStatementsPage() {
   const catalogCacheRef = useRef<Map<number, UserBankWithLayouts[]>>(new Map());
 
   const loadUsers = useCallback(async () => {
-    if (!isAdminRole(role)) return;
+    if (!isSuperAdminRole(role)) return;
     const response = await apiClient.get<AuthUser[]>("/users/list");
     setUsers(response ?? []);
     setSelectedUserId((current) => current || Number(response?.[0]?.id ?? 0));
@@ -137,10 +137,10 @@ export default function BankStatementsPage() {
     });
   }, [loadUsers, toast]);
 
-  // Carga inicial del catalogo para usuarios no-admin (un solo usuario)
+  // Carga automatica del catalogo para todos excepto superadmin
   useEffect(() => {
     if (!selectedUserId) return;
-    if (isAdminRole(role)) return; // admin/superadmin debe hacer click en Buscar
+    if (isSuperAdminRole(role)) return; // solo superadmin usa busqueda manual
     void loadCatalog(selectedUserId);
   }, [loadCatalog, role, selectedUserId, toast]);
 
@@ -293,7 +293,7 @@ export default function BankStatementsPage() {
       <section className="space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-5">
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-            {isAdminRole(role) ? (
+            {isSuperAdminRole(role) ? (
               <SelectBlock
                 label="Usuario"
                 value={selectedUserId}
@@ -340,7 +340,7 @@ export default function BankStatementsPage() {
               </select>
             </label>
 
-            {isAdminRole(role) ? (
+            {isSuperAdminRole(role) ? (
               <button
                 type="button"
                 onClick={handleSearch}

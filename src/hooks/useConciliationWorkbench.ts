@@ -24,7 +24,7 @@ import type {
   PaginatedResponse
 } from "../types/conciliation"
 import type { CompanyErpConfig } from "../types/erp"
-import { isAdminRole } from "../utils/role"
+import { isAdminRole, isSuperAdminRole } from "../utils/role"
 
 function hasComparableMapping(mapping: LayoutMapping) {
   return Boolean(mapping.systemColumn?.trim() && mapping.bankColumn?.trim())
@@ -230,7 +230,7 @@ export default function useConciliationWorkbench() {
   const [unmatchedBankRows, setUnmatchedBankRows] = useState<PreviewRow[]>([])
 
   const loadUsers = useCallback(async () => {
-    if (!isAdminRole(role)) return
+    if (!isSuperAdminRole(role)) return
     const response = await apiClient.get<AuthUser[]>("/users/list")
     setUsers(response ?? [])
     setSelectedUserId((current) => current || Number(response?.[0]?.id ?? 0))
@@ -262,8 +262,8 @@ export default function useConciliationWorkbench() {
 
       setIsLoadingCatalog(true)
       try {
-        const query = isAdminRole(role) && userId ? `?userId=${userId}` : ""
-        const response = await apiClient.get<UserBankWithLayouts[]>(`/conciliation/catalog${query}`)
+      const query = isSuperAdminRole(role) && userId ? `?userId=${userId}` : ""
+      const response = await apiClient.get<UserBankWithLayouts[]>(`/conciliation/catalog${query}`)
         const nextBanks = response ?? []
         catalogCacheRef.current.set(userId, nextBanks)
         setBanks(nextBanks)
@@ -354,11 +354,10 @@ export default function useConciliationWorkbench() {
     void checkErpSession().catch(() => setErpSession(null))
   }, [checkErpSession, selectedErpConfigId])
 
-  // Carga automatica del catalogo solo para usuarios no-admin (tienen un solo usuario).
-  // Admin/superadmin debe hacer click en Buscar para cargar el catalogo.
+  // Carga automatica del catalogo para todos excepto superadmin.
   useEffect(() => {
     if (!selectedUserId) return
-    if (isAdminRole(role)) return
+    if (isSuperAdminRole(role)) return
     void loadCatalog(selectedUserId).catch((error) => {
       toast.error(error instanceof Error ? error.message : "No se pudo cargar el catalogo.")
     })
@@ -412,7 +411,7 @@ export default function useConciliationWorkbench() {
         layoutId: String(selectedLayoutId)
       })
 
-      if (isAdminRole(role) && selectedUserId) {
+      if (isSuperAdminRole(role) && selectedUserId) {
         params.set("userId", String(selectedUserId))
       }
       if (debouncedDateFrom) params.set("dateFrom", debouncedDateFrom)
