@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiEye, FiRefreshCw, FiSave, FiSearch, FiTrash2 } from "react-icons/fi";
-import ConfirmModal from "../components/ConfirmModal";
+import { FiEye, FiRefreshCw, FiSave } from "react-icons/fi";
 import {
   SelectBlock,
   UploadCard,
@@ -12,19 +11,12 @@ import type { AuthUser } from "../types/auth";
 import type {
   BankStatementDetail,
   BankStatementPreviewResponse,
-  BankStatementSummary,
-  DeleteBankStatementResponse,
-  PaginatedResponse,
   Layout,
   LayoutMapping,
   PreviewRow,
   UserBankWithLayouts,
 } from "../types/conciliation";
 import { isAdminRole } from "../utils/role";
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
-}
 
 function formatDateTimeTag(value: Date) {
   const year = value.getFullYear();
@@ -69,16 +61,8 @@ export default function BankStatementsPage() {
   const [preview, setPreview] = useState<BankStatementPreviewResponse | null>(
     null,
   );
-  const [statements, setStatements] = useState<BankStatementSummary[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [selectedDetail, setSelectedDetail] =
     useState<BankStatementDetail | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<BankStatementSummary | null>(
-    null,
-  );
 
   const loadUsers = useCallback(async () => {
     if (!isAdminRole(role)) return;
@@ -177,61 +161,6 @@ export default function BankStatementsPage() {
     }
   }, [selectedLayout]);
 
-  const loadStatements = useCallback(async (targetPage = page) => {
-    const params = new URLSearchParams();
-    if (isAdminRole(role) && selectedUserId)
-      params.set("userId", String(selectedUserId));
-    if (selectedBankId) params.set("userBankId", String(selectedBankId));
-    if (selectedCompanyBankAccountId) {
-      params.set("companyBankAccountId", String(selectedCompanyBankAccountId));
-    }
-    if (selectedLayoutId) params.set("layoutId", String(selectedLayoutId));
-    if (dateFrom) params.set("dateFrom", dateFrom);
-    if (dateTo) params.set("dateTo", dateTo);
-    params.set("page", String(targetPage));
-    params.set("limit", "10");
-
-    const response = await apiClient.get<PaginatedResponse<BankStatementSummary>>(
-      `/conciliation/bank-statements?${params.toString()}`,
-    );
-    setStatements(response?.data ?? []);
-    setTotalPages(response?.lastPage ?? 1);
-  }, [
-    role,
-    selectedBankId,
-    selectedCompanyBankAccountId,
-    selectedLayoutId,
-    selectedUserId,
-    dateFrom,
-    dateTo,
-    page,
-  ]);
-
-  useEffect(() => {
-    void loadStatements().catch((error) => {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudieron cargar extractos.",
-      );
-    });
-  }, [loadStatements, toast]);
-
-  const searchStatements = useCallback(() => {
-    if (page === 1) {
-      void loadStatements(1).catch((error) => {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar extractos.",
-        );
-      });
-      return;
-    }
-
-    setPage(1);
-  }, [loadStatements, page, toast]);
-
   const previewBankStatement = async () => {
     if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
       toast.error("Selecciona banco, cuenta bancaria y layout.");
@@ -296,51 +225,12 @@ export default function BankStatementsPage() {
       setPreview(null);
       setBankFile(null);
       setStatementSuggestionSeed((current) => current + 1);
-      await loadStatements();
       toast.success("Extracto bancario guardado.");
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : "No se pudo guardar el extracto.",
-      );
-    }
-  };
-
-  const loadDetail = async (statementId: number) => {
-    try {
-      const response = await apiClient.get<BankStatementDetail>(
-        `/conciliation/bank-statements/${statementId}`,
-      );
-      setSelectedDetail(response);
-      setPreview(null);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudo cargar el extracto.",
-      );
-    }
-  };
-
-  const deleteStatement = async () => {
-    if (!deleteTarget) return;
-
-    try {
-      const response = await apiClient.delete<DeleteBankStatementResponse>(
-        `/conciliation/bank-statements/${deleteTarget.id}`,
-      );
-      if (selectedDetail?.id === deleteTarget.id) {
-        setSelectedDetail(null);
-      }
-      setDeleteTarget(null);
-      await loadStatements();
-      toast.success(response.message);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "No se pudo eliminar el extracto.",
       );
     }
   };
@@ -372,7 +262,7 @@ export default function BankStatementsPage() {
         </div>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_auto]">
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
             {isAdminRole(role) ? (
               <SelectBlock
                 label="Usuario"
@@ -428,38 +318,6 @@ export default function BankStatementsPage() {
                 label: `${item.name}${item.active ? " - activa" : ""}`,
               }))}
             />
-
-            <label className="space-y-1.5">
-              <span className="text-sm font-semibold text-slate-700">Desde</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(event) => setDateFrom(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-sm font-semibold text-slate-700">Hasta</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(event) => setDateTo(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </label>
-
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={searchStatements}
-                aria-label="Buscar extractos"
-                title="Buscar extractos"
-                className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700"
-              >
-                <FiSearch className="h-4 w-4" />
-              </button>
-            </div>
 
             <label className="space-y-1.5 xl:col-span-2">
               <span className="text-sm font-semibold text-slate-700">
@@ -524,136 +382,12 @@ export default function BankStatementsPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                Extractos guardados
-              </p>
-              <h3 className="mt-2 text-lg font-extrabold text-slate-900">
-                Archivos del banco por cuenta y layout
-              </h3>
-            </div>
-          </div>
-
-          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                  <tr>
-                    <th className="px-3 py-2">Fecha</th>
-                    <th className="px-3 py-2">Banco y Cuenta</th>
-                    <th className="px-3 py-2">Alias del Extracto</th>
-                    <th className="px-3 py-2">Layout</th>
-                    <th className="px-3 py-2">Filas</th>
-                    <th className="px-3 py-2 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statements.map((statement) => (
-                    <tr
-                      key={statement.id}
-                      className="border-t border-slate-100 text-slate-700 hover:bg-slate-50"
-                    >
-                      <td className="px-3 py-3">
-                        {formatDateTime(statement.createdAt)}
-                      </td>
-                      <td className="px-3 py-3">
-                        <p className="font-semibold text-slate-900">
-                          {statement.bankName}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {statement.companyBankAccountName} - {statement.companyBankAccountNumber}
-                        </p>
-                      </td>
-                      <td className="px-3 py-3">
-                        <p className="font-semibold text-slate-900">
-                          {statement.name}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {statement.fileName}
-                        </p>
-                      </td>
-                      <td className="px-3 py-3">{statement.layoutName}</td>
-                      <td className="px-3 py-3 font-semibold">
-                        {statement.rowCount}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void loadDetail(statement.id)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                          >
-                            <FiEye className="h-4 w-4" /> Ver
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(statement)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                          >
-                            <FiTrash2 className="h-4 w-4" /> Eliminar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {statements.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-4 py-6 text-center text-sm text-slate-500"
-                      >
-                        No hay extractos guardados para los filtros elegidos.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          
-          <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-            <span>
-              Página <span className="font-semibold">{page}</span> de <span className="font-semibold">{totalPages}</span>
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
-              >
-                Anterior
-              </button>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        </section>
-
         <RowsTable
           title={visibleTitle}
           rows={visibleRows}
           layout={visibleLayout}
         />
       </section>
-
-      <ConfirmModal
-        open={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
-        title="Eliminar extracto"
-        message={`¿Seguro que quieres eliminar el extracto "${deleteTarget?.name ?? ""}"? Esta accion no se puede deshacer.`}
-        confirmLabel="Eliminar extracto"
-        confirmVariant="danger"
-        onConfirm={() => void deleteStatement()}
-      />
     </>
   );
 }
@@ -744,8 +478,7 @@ function RowsTable({
                     colSpan={Math.max(columns.length + 1, 1)}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
-                    Sube un Excel y pulsa Visualizar, o abre un extracto
-                    guardado.
+                    Sube un Excel y pulsa Visualizar.
                   </td>
                 </tr>
               ) : null}

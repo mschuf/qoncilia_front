@@ -11,12 +11,16 @@ import type {
 type CompanyFormState = {
   fiscalId: string;
   name: string;
+  region: string;
+  country: string;
   active: boolean;
 };
 
 const initialCompanyForm: CompanyFormState = {
   fiscalId: "",
   name: "",
+  region: "",
+  country: "",
   active: true
 };
 

@@ -1,6 +1,6 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
-import { FiCamera, FiCheck, FiLock, FiUser } from "react-icons/fi";
+import { FiCamera, FiCheck, FiLock, FiTrash2, FiUser } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { apiClient } from "../api/apiClient";
@@ -70,6 +70,13 @@ export default function ProfilePage() {
       setFormData((prev) => ({ ...prev, usrFoto: base64 }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleClearPhoto = () => {
+    setFormData((prev) => ({ ...prev, usrFoto: null }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -157,7 +164,7 @@ export default function ProfilePage() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition hover:scale-105 hover:bg-slate-800"
-                    title="Subir foto"
+                    title="Cambiar foto"
                   >
                     <FiCamera className="h-4 w-4" />
                   </button>
@@ -173,6 +180,15 @@ export default function ProfilePage() {
                   Formatos: JPG, PNG<br />
                   Max: 2MB
                 </p>
+                {formData.usrFoto ? (
+                  <button
+                    type="button"
+                    onClick={handleClearPhoto}
+                    className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    <FiTrash2 className="h-3.5 w-3.5" /> Quitar foto
+                  </button>
+                ) : null}
               </div>
 
               {/* Campos Editables */}

@@ -150,25 +150,25 @@ export default function Navbar() {
 
   const navLinks: NavigationItem[] = [
     {
-      key: "configuracion",
-      icon: <FiSettings className="h-4 w-4" />,
-      label: "Configuración",
-      show: visibleConfigLinks.length > 0,
-      children: visibleConfigLinks,
+      key: "conciliaciones",
+      icon: <FiActivity className="h-4 w-4" />,
+      label: "Conciliacion",
+      show: visibleConciliationLinks.length > 0,
+      children: visibleConciliationLinks,
     },
     {
       key: "bancos",
       icon: <FiBriefcase className="h-4 w-4" />,
-      label: "Bancos",
+      label: "Banco",
       show: visibleBankLinks.length > 0,
       children: visibleBankLinks,
     },
     {
-      key: "conciliaciones",
-      icon: <FiActivity className="h-4 w-4" />,
-      label: "Conciliaciones",
-      show: visibleConciliationLinks.length > 0,
-      children: visibleConciliationLinks,
+      key: "configuracion",
+      icon: <FiSettings className="h-4 w-4" />,
+      label: "Configuracion",
+      show: visibleConfigLinks.length > 0,
+      children: visibleConfigLinks,
     },
   ];
 

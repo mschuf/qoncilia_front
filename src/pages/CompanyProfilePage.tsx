@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
-import { FiBriefcase, FiCamera, FiSave, FiSettings, FiDatabase, FiAlertCircle } from "react-icons/fi";
+import { FiBriefcase, FiCamera, FiSave, FiSettings, FiDatabase, FiAlertCircle, FiTrash2 } from "react-icons/fi";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -12,6 +12,8 @@ interface CompanyProfileForm {
   fiscalId: string;
   logo: string | null;
   address: string;
+  region: string;
+  country: string;
   validityDate: string;
   active: boolean;
   webserviceErp: string;
@@ -32,6 +34,8 @@ export default function CompanyProfilePage() {
     fiscalId: "",
     logo: null,
     address: "",
+    region: "",
+    country: "",
     validityDate: "",
     active: true,
     webserviceErp: "",
@@ -86,6 +90,8 @@ export default function CompanyProfilePage() {
       fiscalId: company.fiscalId || company.code || "",
       logo: company.logo || null,
       address: company.address || "",
+      region: company.region || "",
+      country: company.country || "",
       validityDate: dateStr,
       active: company.active ?? true,
       webserviceErp: company.webserviceErp || "",
@@ -132,6 +138,13 @@ export default function CompanyProfilePage() {
     reader.readAsDataURL(file);
   };
 
+  const handleClearLogo = () => {
+    setForm((prev) => ({ ...prev, logo: null }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedCompanyId) return;
@@ -141,15 +154,23 @@ export default function CompanyProfilePage() {
       fiscalId: form.fiscalId,
       logo: form.logo,
       address: form.address,
+      region: form.region,
+      country: form.country,
       validityDate: form.validityDate || null,
       active: form.active,
-      webserviceErp: form.webserviceErp,
-      schemeErp: form.schemeErp,
     };
+
+    const superAdminPayload = isSuperAdmin
+      ? {
+        ...payload,
+        webserviceErp: form.webserviceErp,
+        schemeErp: form.schemeErp,
+      }
+      : payload;
 
     try {
       if (isSuperAdmin) {
-        const updated = await apiClient.patch<any>(`/access-control/companies/${selectedCompanyId}`, payload);
+        const updated = await apiClient.patch<any>(`/access-control/companies/${selectedCompanyId}`, superAdminPayload);
         toast.success("Empresa actualizada correctamente.");
         
         // Update local companies list
@@ -157,7 +178,7 @@ export default function CompanyProfilePage() {
           prev.map((c) => (c.id === selectedCompanyId ? { ...c, ...updated, fiscalId: updated.code } : c))
         );
       } else {
-        const updated = await apiClient.put<any>("/access-control/company-profile", payload);
+        const updated = await apiClient.put<any>("/access-control/company-profile", superAdminPayload);
         toast.success("Perfil de empresa actualizado.");
         
         // Update context if it's the current user's company
@@ -230,7 +251,7 @@ export default function CompanyProfilePage() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute -bottom-3 -right-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition hover:scale-105 hover:bg-slate-800"
-                  aria-label="Subir logo"
+                  aria-label="Cambiar logo"
                 >
                   <FiCamera className="h-4 w-4" />
                 </button>
@@ -246,6 +267,15 @@ export default function CompanyProfilePage() {
                 Formatos: JPG, PNG, SVG<br />
                 Max: 2MB
               </p>
+              {form.logo ? (
+                <button
+                  type="button"
+                  onClick={handleClearLogo}
+                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
+                >
+                  <FiTrash2 className="h-3.5 w-3.5" /> Quitar logo
+                </button>
+              ) : null}
             </div>
 
             <div className="sm:col-span-8 space-y-5">
@@ -268,7 +298,7 @@ export default function CompanyProfilePage() {
                 </label>
 
                 <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold text-slate-700">ID Fiscal / RUC</span>
+                  <span className="text-sm font-semibold text-slate-700">ID fiscal</span>
                   <input
                     type="text"
                     name="fiscalId"
@@ -302,6 +332,30 @@ export default function CompanyProfilePage() {
                     placeholder="Av. Principal 123, Ciudad"
                   />
                 </label>
+
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Región</span>
+                  <input
+                    type="text"
+                    name="region"
+                    value={form.region}
+                    onChange={handleInputChange}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Ej: Central"
+                  />
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">País</span>
+                  <input
+                    type="text"
+                    name="country"
+                    value={form.country}
+                    onChange={handleInputChange}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Ej: Paraguay"
+                  />
+                </label>
               </div>
 
               {isSuperAdmin && (
@@ -327,6 +381,7 @@ export default function CompanyProfilePage() {
           </div>
 
           {/* SECCION INTEGRACION */}
+          {isSuperAdmin && (
           <div className="pt-6 border-t border-slate-100">
             <div className="flex items-center gap-2 mb-4">
               <FiDatabase className="h-5 w-5 text-slate-400" />
@@ -368,6 +423,7 @@ export default function CompanyProfilePage() {
               </div>
             </div>
           </div>
+          )}
 
           <div className="pt-6 flex justify-end border-t border-slate-100">
             <button

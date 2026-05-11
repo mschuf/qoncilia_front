@@ -70,6 +70,20 @@ export default function AccessControlPage() {
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
             required
           />
+          <input
+            name="region"
+            value={companyForm.region}
+            onChange={onCompanyFieldChange}
+            placeholder="Región"
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
+          />
+          <input
+            name="country"
+            value={companyForm.country}
+            onChange={onCompanyFieldChange}
+            placeholder="País"
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
+          />
           <button
             type="submit"
             className="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700"
