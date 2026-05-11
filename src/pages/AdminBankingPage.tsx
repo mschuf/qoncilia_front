@@ -25,6 +25,7 @@ export default function AdminBankingPage({
   const [deleteAccountTarget, setDeleteAccountTarget] =
     useState<PublicCompanyBankAccount | null>(null)
   const [bankFormVisible, setBankFormVisible] = useState(false)
+  const [accountFormVisible, setAccountFormVisible] = useState(false)
   const {
     selectedCompanyId,
     companies,
@@ -88,6 +89,7 @@ export default function AdminBankingPage({
     if (!deleteAccountTarget) return
     await deleteAccount(deleteAccountTarget.id)
     setDeleteAccountTarget(null)
+    setAccountFormVisible(false)
   }
 
   const openNewBankForm = () => {
@@ -109,6 +111,28 @@ export default function AdminBankingPage({
     const saved = await saveBank(event)
     if (saved) {
       setBankFormVisible(false)
+    }
+  }
+
+  const openNewAccountForm = () => {
+    resetAccountForm()
+    setAccountFormVisible(true)
+  }
+
+  const openEditAccountForm = (account: PublicCompanyBankAccount) => {
+    startEditAccount(account)
+    setAccountFormVisible(true)
+  }
+
+  const closeAccountForm = () => {
+    resetAccountForm()
+    setAccountFormVisible(false)
+  }
+
+  const handleSaveAccount = async (event: FormEvent<HTMLFormElement>) => {
+    const saved = await saveAccount(event)
+    if (saved) {
+      setAccountFormVisible(false)
     }
   }
 
@@ -151,12 +175,37 @@ export default function AdminBankingPage({
                 <span className="text-sm font-semibold text-slate-700">Empresa</span>
                 <select
                   value={selectedCompanyId}
-                  onChange={(e) => changeCompany(Number(e.target.value))}
+                  onChange={(e) => {
+                    setAccountFormVisible(false)
+                    changeCompany(Number(e.target.value))
+                  }}
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 >
                   {companies.map((company) => (
                     <option key={company.id} value={company.id}>
                       {company.name} (ID: {company.fiscalId})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            {mode === "accounts" ? (
+              <label className="min-w-[280px] flex-1 space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700">Banco</span>
+                <select
+                  value={selectedBankId || ""}
+                  onChange={(event) => {
+                    setAccountFormVisible(false)
+                    selectBank(event.target.value ? Number(event.target.value) : 0)
+                  }}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                >
+                  <option value="">Selecciona un banco</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.name}
+                      {bank.branch ? ` - ${bank.branch}` : ""}
                     </option>
                   ))}
                 </select>
@@ -354,7 +403,7 @@ export default function AdminBankingPage({
           {showAccounts ? (
             <section
               className={
-                mode === "accounts"
+                mode === "accounts" && accountFormVisible
                   ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start"
                   : "space-y-4"
               }
@@ -432,206 +481,125 @@ export default function AdminBankingPage({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                          Bancos
-                        </p>
-                        <h3 className="mt-2 text-xl font-extrabold text-slate-900">
-                          Elige un banco para ver sus cuentas
-                        </h3>
-                      </div>
-
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
-                        {banks.length} banco(s)
-                      </span>
+                <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                        Cuentas bancarias
+                      </p>
+                      <h3 className="mt-2 text-xl font-extrabold text-slate-900">
+                        {selectedBank ? selectedBank.name : "Selecciona un banco"}
+                      </h3>
                     </div>
 
-                    <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                            <tr>
-                              <th className="px-3 py-2">Banco</th>
-                              <th className="px-3 py-2">Sucursal</th>
-                              <th className="px-3 py-2">Cuentas</th>
-                              <th className="px-3 py-2">Estado</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {banks.map((bank) => {
-                              const isSelected = bank.id === selectedBankId
-                              const accountCount = accountCountByBank.get(bank.id) ?? 0
-
-                              return (
-                                <tr
-                                  key={bank.id}
-                                  onClick={() => selectBank(bank.id)}
-                                  className={`cursor-pointer border-t border-slate-100 transition ${isSelected ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"}`}
-                                >
-                                  <td className="px-3 py-3">
-                                    <p className={`font-semibold ${isSelected ? "text-white" : "text-slate-900"}`}>
-                                      {bank.name}
-                                    </p>
-                                  </td>
-                                  <td className="px-3 py-3">{bank.branch ?? "-"}</td>
-                                  <td className="px-3 py-3 font-semibold">{accountCount}</td>
-                                  <td className="px-3 py-3">
-                                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${bank.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                                      {bank.active ? "Activo" : "Inactivo"}
-                                    </span>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                            {banks.length === 0 ? (
-                              <tr>
-                                <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
-                                  Todavia no hay bancos cargados para esta empresa.
-                                </td>
-                              </tr>
-                            ) : null}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                          Cuentas bancarias
-                        </p>
-                        <h3 className="mt-2 text-xl font-extrabold text-slate-900">
-                          {selectedBank ? selectedBank.name : "Selecciona un banco"}
-                        </h3>
-                      </div>
-
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
                         {visibleAccounts.length} cuenta(s)
                       </span>
+                      <button
+                        type="button"
+                        onClick={openNewAccountForm}
+                        disabled={!selectedBank}
+                        className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        <FiPlus className="h-4 w-4" /> Nuevo
+                      </button>
                     </div>
+                  </div>
 
-                    <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                            <tr>
-                              <th className="px-3 py-2">Cuenta</th>
-                              <th className="px-3 py-2">Moneda</th>
-                              <th className="px-3 py-2">Numero</th>
-                              <th className="px-3 py-2">ERP</th>
-                              <th className="px-3 py-2">Mayor</th>
-                              <th className="px-3 py-2">Estado</th>
-                              <th className="px-3 py-2 text-right">Acciones</th>
+                  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2">Nro Cuenta</th>
+                            <th className="px-3 py-2">Moneda</th>
+                            <th className="px-3 py-2">Descripcion</th>
+                            <th className="px-3 py-2">ID Banco ERP</th>
+                            <th className="px-3 py-2">Cuenta Mayor</th>
+                            <th className="px-3 py-2">Cuenta Pago</th>
+                            <th className="px-3 py-2">Estado</th>
+                            <th className="px-3 py-2 text-right">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleAccounts.map((account) => (
+                            <tr key={account.id} className="border-t border-slate-100 text-slate-700 hover:bg-slate-50">
+                              <td className="px-3 py-3 font-semibold text-slate-900">{account.accountNumber}</td>
+                              <td className="px-3 py-3">{account.currency}</td>
+                              <td className="px-3 py-3">{account.name}</td>
+                              <td className="px-3 py-3">{account.bankErpId}</td>
+                              <td className="px-3 py-3">{account.majorAccountNumber}</td>
+                              <td className="px-3 py-3">{account.paymentAccountNumber ?? "-"}</td>
+                              <td className="px-3 py-3">
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                  {account.active ? "Activa" : "Inactiva"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditAccountForm(account)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                                  >
+                                    <FiEdit3 className="h-4 w-4" /> Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteAccountTarget(account)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                                  >
+                                    <FiTrash2 className="h-4 w-4" /> Eliminar
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {visibleAccounts.map((account) => (
-                              <tr key={account.id} className="border-t border-slate-100 text-slate-700 hover:bg-slate-50">
-                                <td className="px-3 py-3 font-semibold text-slate-900">{account.name}</td>
-                                <td className="px-3 py-3">{account.currency}</td>
-                                <td className="px-3 py-3">{account.accountNumber}</td>
-                                <td className="px-3 py-3">{account.bankErpId}</td>
-                                <td className="px-3 py-3">
-                                  <p>{account.majorAccountNumber}</p>
-                                  {account.paymentAccountNumber ? (
-                                    <p className="mt-1 text-xs text-slate-500">Pago: {account.paymentAccountNumber}</p>
-                                  ) : null}
-                                </td>
-                                <td className="px-3 py-3">
-                                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                                    {account.active ? "Activa" : "Inactiva"}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="flex justify-end gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => startEditAccount(account)}
-                                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
-                                    >
-                                      <FiEdit3 className="h-4 w-4" /> Editar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setDeleteAccountTarget(account)}
-                                      className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                                    >
-                                      <FiTrash2 className="h-4 w-4" /> Eliminar
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                            {visibleAccounts.length === 0 ? (
-                              <tr>
-                                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
-                                  {selectedBank ? "Este banco todavia no tiene cuentas cargadas." : "Selecciona un banco para ver sus cuentas."}
-                                </td>
-                              </tr>
-                            ) : null}
-                          </tbody>
-                        </table>
-                      </div>
+                          ))}
+                          {visibleAccounts.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
+                                {selectedBank ? "Este banco todavia no tiene cuentas cargadas." : "Selecciona un banco para ver sus cuentas."}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
               )}
 
-              <form onSubmit={saveAccount} className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                      {editingAccountId ? "Edicion" : "Alta"}
-                    </p>
-                    <h3 className="mt-2 text-xl font-extrabold text-slate-900">
-                      {editingAccountId ? "Editar cuenta bancaria" : "Crear cuenta bancaria"}
-                    </h3>
-                  </div>
+              {accountFormVisible ? (
+                <form onSubmit={handleSaveAccount} className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                        {editingAccountId ? "Edicion" : "Alta"}
+                      </p>
+                      <h3 className="mt-2 text-xl font-extrabold text-slate-900">
+                        {editingAccountId ? "Editar cuenta bancaria" : "Crear cuenta bancaria"}
+                      </h3>
+                    </div>
 
-                  {editingAccountId ? (
                     <button
                       type="button"
-                      onClick={resetAccountForm}
+                      onClick={closeAccountForm}
                       className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                     >
                       Cancelar
                     </button>
-                  ) : null}
-                </div>
+                  </div>
 
-                <div className="mt-6 space-y-4">
-                  <label className="space-y-1.5">
-                    <span className="text-sm font-semibold text-slate-700">Banco</span>
-                    <select
-                      name="bankId"
-                      value={accountForm.bankId}
-                      onChange={onAccountFieldChange}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
-                      required
-                    >
-                      <option value="">Selecciona un banco</option>
-                      {banks.map((bank) => (
-                        <option key={bank.id} value={bank.id}>
-                          {bank.name}
-                          {bank.branch ? ` - ${bank.branch}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="mt-6 space-y-4">
                     <Field
-                      label="Nombre de la cuenta"
-                      name="name"
-                      value={accountForm.name}
+                      label="Nro Cuenta"
+                      name="accountNumber"
+                      value={accountForm.accountNumber}
                       onChange={onAccountFieldChange}
                       required
                     />
+
                     <label className="space-y-1.5">
                       <span className="text-sm font-semibold text-slate-700">Moneda</span>
                       <select
@@ -649,69 +617,61 @@ export default function AdminBankingPage({
                         ))}
                       </select>
                     </label>
-                  </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
                     <Field
-                      label="Numero de cuenta"
-                      name="accountNumber"
-                      value={accountForm.accountNumber}
+                      label="Descripcion"
+                      name="name"
+                      value={accountForm.name}
                       onChange={onAccountFieldChange}
+                      readOnly
                       required
                     />
-                  </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
                     <Field
-                      label="ID banco ERP"
+                      label="ID Banco ERP"
                       name="bankErpId"
                       value={accountForm.bankErpId}
                       onChange={onAccountFieldChange}
                       placeholder="Codigo banco/cuenta ERP"
                       required
                     />
+
                     <Field
-                      label="Cuenta mayor SAP (MthAcctCod)"
+                      label="Cuenta Mayor"
                       name="majorAccountNumber"
                       value={accountForm.majorAccountNumber}
                       onChange={onAccountFieldChange}
                       placeholder="1.01.02.001.002"
                       required
                     />
-                  </div>
 
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
-                    Para conciliacion externa SAP, Qoncilia usa la Cuenta mayor SAP como
-                    BankStatementAccountCode. Debe coincidir con la cuenta de OMTH.MthAcctCod /
-                    OBNK.BnkAcctCode, por ejemplo 1.01.02.001.002.
-                  </div>
-
-                  <Field
-                    label="Cuenta de pago"
-                    name="paymentAccountNumber"
-                    value={accountForm.paymentAccountNumber}
-                    onChange={onAccountFieldChange}
-                    placeholder="Opcional"
-                  />
-
-                  <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
-                    <input
-                      type="checkbox"
-                      name="active"
-                      checked={accountForm.active}
+                    <Field
+                      label="Cuenta Pago ERP"
+                      name="paymentAccountNumber"
+                      value={accountForm.paymentAccountNumber}
                       onChange={onAccountFieldChange}
+                      placeholder="Opcional"
                     />
-                    Cuenta activa
-                  </label>
 
-                  <button
-                    type="submit"
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
-                  >
-                    <FiSave className="h-4 w-4" /> {editingAccountId ? "Guardar cuenta" : "Crear cuenta"}
-                  </button>
-                </div>
-              </form>
+                    <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        name="active"
+                        checked={accountForm.active}
+                        onChange={onAccountFieldChange}
+                      />
+                      Cuenta activa
+                    </label>
+
+                    <button
+                      type="submit"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+                    >
+                      <FiSave className="h-4 w-4" /> {editingAccountId ? "Guardar cuenta" : "Crear cuenta"}
+                    </button>
+                  </div>
+                </form>
+              ) : null}
             </section>
           ) : null}
         </div>

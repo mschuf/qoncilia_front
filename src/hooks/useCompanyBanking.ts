@@ -119,6 +119,20 @@ export default function useCompanyBanking() {
     return counts
   }, [accounts])
 
+  const buildAccountName = useCallback(
+    (form: CompanyBankAccountFormState) => {
+      const bank = banks.find((item) => item.id === Number(form.bankId || 0))
+      const parts = [bank?.name ?? "Cuenta bancaria"]
+      const accountNumber = form.accountNumber.trim()
+
+      if (accountNumber) parts.push(accountNumber)
+      if (form.currency) parts.push(form.currency)
+
+      return parts.join(" | ")
+    },
+    [banks]
+  )
+
   useEffect(() => {
     if (editingBankId) return
 
@@ -140,12 +154,17 @@ export default function useCompanyBanking() {
       const currentBankIsAvailable = banks.some((bank) => bank.id === currentBankId)
       const nextBankId = currentBankIsAvailable ? currentBankId : selectedBankId || banks[0]?.id || ""
 
-      return {
+      const nextForm = {
         ...current,
         bankId: nextBankId
       }
+
+      return {
+        ...nextForm,
+        name: nextForm.name || buildAccountName(nextForm)
+      }
     })
-  }, [banks, editingAccountId, selectedBankId])
+  }, [banks, buildAccountName, editingAccountId, selectedBankId])
 
   const selectBank = (bankId: number) => {
     setSelectedBankId(bankId)
@@ -184,10 +203,18 @@ export default function useCompanyBanking() {
           ? (value ? Number(value) : "")
           : value
 
-    setAccountForm((current) => ({
-      ...current,
-      [name]: nextValue
-    }))
+    setAccountForm((current) => {
+      const nextForm = {
+        ...current,
+        [name]: nextValue
+      }
+
+      if (name === "bankId" || name === "accountNumber" || name === "currency") {
+        nextForm.name = buildAccountName(nextForm)
+      }
+
+      return nextForm
+    })
   }
 
   const resetBankForm = () => {
@@ -270,10 +297,15 @@ export default function useCompanyBanking() {
   }
 
   const resetAccountForm = () => {
-    setEditingAccountId(null)
-    setAccountForm({
+    const nextForm = {
       ...initialAccountForm,
       bankId: selectedBankId || banks[0]?.id || ""
+    }
+
+    setEditingAccountId(null)
+    setAccountForm({
+      ...nextForm,
+      name: buildAccountName(nextForm)
     })
   }
 
@@ -297,13 +329,13 @@ export default function useCompanyBanking() {
 
     if (!accountForm.bankId) {
       toast.error("Debes seleccionar un banco.")
-      return
+      return false
     }
 
     const payload = {
       companyId: selectedCompanyId || undefined,
       bankId: Number(accountForm.bankId),
-      name: accountForm.name,
+      name: accountForm.name || buildAccountName(accountForm),
       currency: accountForm.currency,
       accountNumber: accountForm.accountNumber,
       bankErpId: accountForm.bankErpId,
@@ -324,8 +356,10 @@ export default function useCompanyBanking() {
       resetAccountForm()
       await loadReference(selectedCompanyId)
       setSelectedBankId(payload.bankId)
+      return true
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar la cuenta bancaria.")
+      return false
     }
   }
 
