@@ -63,6 +63,7 @@ type LoadAccountsOptions = {
 
 type UseCompanyBankingOptions = {
   loadAccounts?: boolean
+  manualLoad?: boolean
 }
 
 const EMPTY_COMPANIES: PublicCompany[] = []
@@ -124,7 +125,8 @@ function useDebouncedValue<T>(value: T, delayMs = 300): T {
 }
 
 export default function useCompanyBanking({
-  loadAccounts = true
+  loadAccounts = true,
+  manualLoad = false
 }: UseCompanyBankingOptions = {}) {
   const toast = useToast()
   const { role, user } = useAuth()
@@ -334,6 +336,8 @@ export default function useCompanyBanking({
       return
     }
 
+    if (manualLoad) return
+
     void loadBanksPage({
       companyId: selectedCompanyId,
       page: bankPagination.page,
@@ -347,6 +351,7 @@ export default function useCompanyBanking({
     bankPagination.page,
     debouncedBankSearch,
     loadBanksPage,
+    manualLoad,
     selectedCompanyId,
     toast
   ])
@@ -358,6 +363,8 @@ export default function useCompanyBanking({
       setAccountPaginationState(emptyPagination())
       return
     }
+
+    if (manualLoad) return
 
     void loadAccountsPage({
       companyId: selectedCompanyId,
@@ -374,6 +381,7 @@ export default function useCompanyBanking({
     debouncedAccountSearch,
     loadAccounts,
     loadAccountsPage,
+    manualLoad,
     selectedBankId,
     selectedCompanyId,
     toast

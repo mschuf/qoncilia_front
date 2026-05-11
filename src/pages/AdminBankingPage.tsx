@@ -71,7 +71,7 @@ export default function AdminBankingPage({
     resetAccountForm,
     reload,
     stats,
-  } = useCompanyBanking({ loadAccounts: showAccounts });
+  } = useCompanyBanking({ loadAccounts: showAccounts, manualLoad: mode === "accounts" });
 
   const handleDeleteBank = async () => {
     if (!deleteBankTarget) return;
@@ -191,25 +191,26 @@ export default function AdminBankingPage({
                   </select>
                 </label>
 
-                <PaginationControls
-                  compact
-                  label="Bancos"
-                  pagination={bankPagination}
-                  loading={isLoadingBanks}
-                  onPageChange={setBankPage}
-                />
+                <button
+                  type="button"
+                  onClick={() => void reload(selectedCompanyId)}
+                  disabled={isLoadingReference || isLoadingBanks || isLoadingAccounts}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FiSearch className="h-4 w-4" /> Buscar
+                </button>
               </>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={() => void reload(selectedCompanyId)}
-              disabled={isLoadingReference || isLoadingBanks || isLoadingAccounts}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <FiRefreshCcw className="h-4 w-4" />{" "}
-              {isLoadingReference ? "Recargando" : "Recargar"}
-            </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void reload(selectedCompanyId)}
+                disabled={isLoadingReference || isLoadingBanks || isLoadingAccounts}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FiRefreshCcw className="h-4 w-4" />{" "}
+                {isLoadingReference ? "Recargando" : "Recargar"}
+              </button>
+            )}
           </div>
         </div>
 
