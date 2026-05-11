@@ -5,7 +5,6 @@ import { useToast } from "../context/ToastContext";
 import type { AuthUser } from "../types/auth";
 import type {
   BankDeletionPreview,
-  ConciliationSystem,
   CompareOperator,
   DeleteBankResponse,
   Layout,
@@ -18,10 +17,9 @@ import type {
   BankFormState,
   LayoutFormState,
   MappingFormRow,
-  SystemFormState,
   TemplateLayoutFormState
 } from "../types/pages/layout-management.types";
-import { defaultBankForm, defaultSystemForm } from "../types/pages/layout-management.types";
+import { defaultBankForm } from "../types/pages/layout-management.types";
 
 function createMappingRow(
   fieldKey = "",
@@ -62,9 +60,8 @@ function createDefaultMappings(): MappingFormRow[] {
   ];
 }
 
-function createDefaultLayoutForm(bankName = "Banco", systemId: number | "" = ""): LayoutFormState {
+function createDefaultLayoutForm(bankName = "Banco"): LayoutFormState {
   return {
-    systemId,
     name: "",
     description: "",
     systemLabel: "Sistema / ERP",
@@ -76,11 +73,9 @@ function createDefaultLayoutForm(bankName = "Banco", systemId: number | "" = "")
 }
 
 function createDefaultTemplateLayoutForm(
-  referenceBankName = "",
-  systemId: number | "" = ""
+  referenceBankName = ""
 ): TemplateLayoutFormState {
   return {
-    systemId,
     name: "",
     description: "",
     referenceBankName,
@@ -118,7 +113,6 @@ function mappingToForm(mapping: LayoutMapping): MappingFormRow {
 
 function templateToForm(template: TemplateLayout): TemplateLayoutFormState {
   return {
-    systemId: template.systemId,
     name: template.name,
     description: template.description ?? "",
     referenceBankName: template.referenceBankName ?? "",
@@ -130,18 +124,9 @@ function templateToForm(template: TemplateLayout): TemplateLayoutFormState {
   };
 }
 
-function systemToForm(system: ConciliationSystem): SystemFormState {
-  return {
-    name: system.name,
-    description: system.description ?? "",
-    active: system.active
-  };
-}
-
 export default function useLayoutManagement() {
   const toast = useToast();
   const [users, setUsers] = useState<AuthUser[]>([]);
-  const [systems, setSystems] = useState<ConciliationSystem[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number>(0);
   const [templates, setTemplates] = useState<TemplateLayout[]>([]);
   const [banks, setBanks] = useState<UserBankWithLayouts[]>([]);
@@ -150,17 +135,14 @@ export default function useLayoutManagement() {
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [layoutModalOpen, setLayoutModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [systemModalOpen, setSystemModalOpen] = useState(false);
   const [editingBank, setEditingBank] = useState<UserBankWithLayouts | null>(null);
   const [editingLayout, setEditingLayout] = useState<Layout | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<TemplateLayout | null>(null);
-  const [editingSystem, setEditingSystem] = useState<ConciliationSystem | null>(null);
   const [bankForm, setBankForm] = useState<BankFormState>(defaultBankForm);
   const [layoutForm, setLayoutForm] = useState<LayoutFormState>(createDefaultLayoutForm());
   const [templateForm, setTemplateForm] = useState<TemplateLayoutFormState>(
     createDefaultTemplateLayoutForm()
   );
-  const [systemForm, setSystemForm] = useState<SystemFormState>(defaultSystemForm);
 
   const loadUsers = useCallback(async () => {
     const response = await apiClient.get<AuthUser[]>("/users/list");
@@ -219,11 +201,6 @@ export default function useLayoutManagement() {
     setAllUserCatalogs(nextMap);
   }, [users]);
 
-  const loadSystems = useCallback(async () => {
-    const response = await apiClient.get<ConciliationSystem[]>("/conciliation/sistemas");
-    setSystems(response ?? []);
-  }, []);
-
   const prepareCreateBank = useCallback((userId: number) => {
     setSelectedUserId(userId);
     setEditingBank(null);
@@ -247,16 +224,15 @@ export default function useLayoutManagement() {
     setSelectedUserId(userId);
     setSelectedBankId(bank.id);
     setEditingLayout(null);
-    setLayoutForm(createDefaultLayoutForm(bank.bankName, systems[0]?.id ?? ""));
+    setLayoutForm(createDefaultLayoutForm(bank.bankName));
     setLayoutModalOpen(true);
-  }, [systems]);
+  }, []);
 
   const prepareEditLayout = useCallback((userId: number, bank: UserBankWithLayouts, layout: Layout) => {
     setSelectedUserId(userId);
     setSelectedBankId(bank.id);
     setEditingLayout(layout);
     setLayoutForm({
-      systemId: layout.systemId,
       name: layout.name,
       description: layout.description ?? "",
       systemLabel: layout.systemLabel,
@@ -294,12 +270,6 @@ export default function useLayoutManagement() {
   }, [loadTemplates, toast]);
 
   useEffect(() => {
-    void loadSystems().catch((error) => {
-      toast.error(error instanceof Error ? error.message : "No se pudieron cargar los sistemas.");
-    });
-  }, [loadSystems, toast]);
-
-  useEffect(() => {
     if (users.length === 0) {
       setAllUserCatalogs(new Map());
       return;
@@ -335,7 +305,6 @@ export default function useLayoutManagement() {
   );
 
   const templateCount = templates.length;
-  const systemCount = systems.length;
 
   const openCreateBank = () => {
     setEditingBank(null);
@@ -357,15 +326,13 @@ export default function useLayoutManagement() {
   const openCreateLayout = (bank: UserBankWithLayouts) => {
     setSelectedBankId(bank.id);
     setEditingLayout(null);
-    setLayoutForm(createDefaultLayoutForm(bank.bankName, systems[0]?.id ?? ""));
+    setLayoutForm(createDefaultLayoutForm(bank.bankName));
     setLayoutModalOpen(true);
   };
 
   const openCreateTemplate = () => {
     setEditingTemplate(null);
-    setTemplateForm(
-      createDefaultTemplateLayoutForm(selectedBank?.bankName ?? "", systems[0]?.id ?? "")
-    );
+    setTemplateForm(createDefaultTemplateLayoutForm(selectedBank?.bankName ?? ""));
     setTemplateModalOpen(true);
   };
 
@@ -373,7 +340,6 @@ export default function useLayoutManagement() {
     setSelectedBankId(bank.id);
     setEditingLayout(layout);
     setLayoutForm({
-      systemId: layout.systemId,
       name: layout.name,
       description: layout.description ?? "",
       systemLabel: layout.systemLabel,
@@ -391,18 +357,6 @@ export default function useLayoutManagement() {
     setTemplateModalOpen(true);
   };
 
-  const openCreateSystem = () => {
-    setEditingSystem(null);
-    setSystemForm(defaultSystemForm);
-    setSystemModalOpen(true);
-  };
-
-  const openEditSystem = (system: ConciliationSystem) => {
-    setEditingSystem(system);
-    setSystemForm(systemToForm(system));
-    setSystemModalOpen(true);
-  };
-
   const onBankFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
     const key = event.target.name as keyof BankFormState;
     const value =
@@ -415,17 +369,8 @@ export default function useLayoutManagement() {
     const value =
       event.target instanceof HTMLInputElement && event.target.type === "checkbox"
         ? event.target.checked
-        : key === "systemId"
-          ? (event.target.value ? Number(event.target.value) : "")
-          : event.target.value;
-    setLayoutForm((prev) => {
-      const next = { ...prev, [key]: value } as LayoutFormState;
-      if (key === "systemId") {
-        const system = systems.find((item) => item.id === Number(value));
-        next.systemLabel = system?.name ?? prev.systemLabel;
-      }
-      return next;
-    });
+        : event.target.value;
+    setLayoutForm((prev) => ({ ...prev, [key]: value }) as LayoutFormState);
   };
 
   const onTemplateFieldChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -433,24 +378,8 @@ export default function useLayoutManagement() {
     const value =
       event.target instanceof HTMLInputElement && event.target.type === "checkbox"
         ? event.target.checked
-        : key === "systemId"
-          ? (event.target.value ? Number(event.target.value) : "")
-          : event.target.value;
-    setTemplateForm((prev) => {
-      const next = { ...prev, [key]: value } as TemplateLayoutFormState;
-      if (key === "systemId") {
-        const system = systems.find((item) => item.id === Number(value));
-        next.systemLabel = system?.name ?? prev.systemLabel;
-      }
-      return next;
-    });
-  };
-
-  const onSystemFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const key = event.target.name as keyof SystemFormState;
-    const value =
-      event.target.type === "checkbox" ? event.target.checked : event.target.value;
-    setSystemForm((prev) => ({ ...prev, [key]: value }) as SystemFormState);
+        : event.target.value;
+    setTemplateForm((prev) => ({ ...prev, [key]: value }) as TemplateLayoutFormState);
   };
 
   const updateMappings = useCallback(
@@ -558,16 +487,11 @@ export default function useLayoutManagement() {
       toast.error("Debes seleccionar usuario y banco.");
       return;
     }
-    if (!layoutForm.systemId) {
-      toast.error("Debes seleccionar un sistema.");
-      return;
-    }
     if (layoutForm.mappings.length === 0) {
       toast.error("Debes cargar al menos un mapping.");
       return;
     }
     const payload = {
-      systemId: Number(layoutForm.systemId),
       name: layoutForm.name,
       description: layoutForm.description,
       systemLabel: layoutForm.systemLabel,
@@ -618,17 +542,12 @@ export default function useLayoutManagement() {
 
   const saveTemplate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!templateForm.systemId) {
-      toast.error("Debes seleccionar un sistema.");
-      return;
-    }
     if (templateForm.mappings.length === 0) {
       toast.error("Debes cargar al menos un mapping.");
       return;
     }
 
     const payload = {
-      systemId: Number(templateForm.systemId),
       name: templateForm.name,
       description: templateForm.description,
       referenceBankName: templateForm.referenceBankName,
@@ -673,25 +592,6 @@ export default function useLayoutManagement() {
       toast.error(
         error instanceof Error ? error.message : "No se pudo guardar la plantilla base."
       );
-    }
-  };
-
-  const saveSystem = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    try {
-      if (editingSystem) {
-        await apiClient.patch(`/conciliation/sistemas/${editingSystem.id}`, systemForm);
-        toast.success("Sistema actualizado.");
-      } else {
-        await apiClient.post("/conciliation/sistemas", systemForm);
-        toast.success("Sistema creado.");
-      }
-
-      setSystemModalOpen(false);
-      await loadSystems();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo guardar el sistema.");
     }
   };
 
@@ -771,16 +671,6 @@ export default function useLayoutManagement() {
     }
   };
 
-  const deleteSystem = async (system: ConciliationSystem) => {
-    try {
-      await apiClient.delete(`/conciliation/sistemas/${system.id}`);
-      toast.success("Sistema eliminado.");
-      await loadSystems();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo eliminar el sistema.");
-    }
-  };
-
   const getBankDeletionPreview = async (
     userId: number,
     bankId: number
@@ -816,8 +706,6 @@ export default function useLayoutManagement() {
     selectedUserId,
     setSelectedUserId,
     selectedUser,
-    systems,
-    systemCount,
     templates,
     templateCount,
     banks,
@@ -832,27 +720,20 @@ export default function useLayoutManagement() {
     setLayoutModalOpen,
     templateModalOpen,
     setTemplateModalOpen,
-    systemModalOpen,
-    setSystemModalOpen,
     editingBank,
     editingLayout,
     editingTemplate,
-    editingSystem,
     bankForm,
     layoutForm,
     templateForm,
-    systemForm,
     allUserCatalogs,
     loadCatalog,
     loadAllCatalogs,
-    loadSystems,
     loadTemplates,
     openCreateBank,
     openEditBank,
     openCreateLayout,
     openEditLayout,
-    openCreateSystem,
-    openEditSystem,
     openCreateTemplate,
     openEditTemplate,
     prepareCreateBank,
@@ -862,7 +743,6 @@ export default function useLayoutManagement() {
     onBankFieldChange,
     onLayoutFieldChange,
     onTemplateFieldChange,
-    onSystemFieldChange,
     onMappingFieldChange,
     onTemplateMappingFieldChange,
     addMappingRow,
@@ -874,13 +754,11 @@ export default function useLayoutManagement() {
     saveBank,
     saveLayout,
     saveTemplate,
-    saveSystem,
     applyTemplateToSelectedBank,
     setUserAvailableTemplates,
     getBankDeletionPreview,
     deleteBank,
     deleteLayout,
-    deleteTemplate,
-    deleteSystem
+    deleteTemplate
   };
 }

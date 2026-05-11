@@ -21,10 +21,9 @@ export interface CompanyErpConfig {
   code: string
   name: string
   erpType: string
-  description: string | null
   active: boolean
   isDefault: boolean
-  sapUsername: string | null
+  userSystem: string | null
   dbName: string | null
   cmpName: string | null
   serverNode: string | null
@@ -33,6 +32,7 @@ export interface CompanyErpConfig {
   tlsVersion: string | null
   allowSelfSigned: boolean
   settings: Record<string, unknown> | null
+  hasUserPass: boolean
   hasPassword: boolean
   createdAt: string
   updatedAt: string
@@ -43,10 +43,10 @@ export interface CompanyErpConfigFormState {
   code: string
   name: string
   erpType: string
-  description: string
   active: boolean
   isDefault: boolean
-  sapUsername: string
+  userSystem: string
+  userPass: string
   dbName: string
   cmpName: string
   serverNode: string

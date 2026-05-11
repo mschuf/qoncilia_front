@@ -31,14 +31,7 @@ export type BankFormState = {
   active: boolean;
 };
 
-export type SystemFormState = {
-  name: string;
-  description: string;
-  active: boolean;
-};
-
 export type LayoutFormState = {
-  systemId: number | "";
   name: string;
   description: string;
   systemLabel: string;
@@ -71,12 +64,6 @@ export const dataTypeOptions: Array<{ value: LayoutDataType; label: string }> = 
 export const defaultBankForm: BankFormState = {
   name: "",
   branch: "",
-  description: "",
-  active: true
-};
-
-export const defaultSystemForm: SystemFormState = {
-  name: "",
   description: "",
   active: true
 };

@@ -15,17 +15,17 @@ import type {
   CompanyErpConfigFormState,
   ErpReferenceResponse
 } from "../types/erp"
-import { isSuperAdminRole } from "../utils/role"
+import { isAdminRole, isSuperAdminRole } from "../utils/role"
 
 const initialConfigForm: CompanyErpConfigFormState = {
   companyId: 0,
   code: "SAP_B1",
   name: "SAP Business One",
   erpType: "sap_b1",
-  description: "",
   active: true,
   isDefault: true,
-  sapUsername: "",
+  userSystem: "",
+  userPass: "",
   dbName: "",
   cmpName: "",
   serverNode: "",
@@ -47,10 +47,10 @@ function configToForm(config: CompanyErpConfig): CompanyErpConfigFormState {
     code: config.code,
     name: config.name,
     erpType: config.erpType,
-    description: config.description ?? "",
     active: config.active,
     isDefault: config.isDefault,
-    sapUsername: config.sapUsername ?? "",
+    userSystem: config.userSystem ?? "",
+    userPass: "",
     dbName: config.dbName ?? "",
     cmpName: config.cmpName ?? "",
     serverNode: config.serverNode ?? "",
@@ -90,6 +90,7 @@ export default function useErpManagement() {
   const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const isSuperAdmin = isSuperAdminRole(role)
+  const canEditConfig = isAdminRole(role)
   const [reference, setReference] = useState<ErpReferenceResponse | null>(null)
   const [configs, setConfigs] = useState<CompanyErpConfig[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<number>(0)
@@ -185,7 +186,7 @@ export default function useErpManagement() {
       setConfigForm(configToForm(selectedConfig))
       setLoginForm((current) => ({
         ...current,
-        username: current.username || selectedConfig.sapUsername || ""
+        username: current.username || selectedConfig.userSystem || ""
       }))
       return
     }
@@ -261,25 +262,35 @@ export default function useErpManagement() {
 
   const saveConfig = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!isSuperAdmin) return
+    if (!canEditConfig) return
 
-    const payload = {
-      companyId: configForm.companyId || selectedCompanyId,
-      code: configForm.code,
-      name: configForm.name,
-      erpType: configForm.erpType,
-      description: configForm.description || undefined,
-      active: configForm.active,
-      isDefault: configForm.isDefault,
-      sapUsername: configForm.sapUsername || undefined,
+    const editableCredentials = {
+      userSystem: configForm.userSystem || undefined,
+      userPass: configForm.userPass || undefined,
       dbName: configForm.dbName,
       cmpName: configForm.cmpName || undefined,
-      serverNode: configForm.serverNode || undefined,
       dbUser: configForm.dbUser || undefined,
       password: configForm.password || undefined,
       serviceLayerUrl: configForm.serviceLayerUrl,
-      tlsVersion: configForm.tlsVersion,
-      allowSelfSigned: configForm.allowSelfSigned
+      tlsVersion: configForm.tlsVersion
+    }
+
+    const payload = isSuperAdmin
+      ? {
+          companyId: configForm.companyId || selectedCompanyId,
+          code: configForm.code,
+          name: configForm.name,
+          active: configForm.active,
+          isDefault: configForm.isDefault,
+          serverNode: configForm.serverNode || undefined,
+          allowSelfSigned: configForm.allowSelfSigned,
+          ...editableCredentials
+        }
+      : editableCredentials
+
+    if (!isSuperAdmin && !selectedConfigId) {
+      toast.error("Selecciona una configuracion ERP para editar.")
+      return
     }
 
     try {
@@ -310,8 +321,8 @@ export default function useErpManagement() {
         "/erp/sap/sessions/login",
         {
           companyErpConfigId: selectedConfigId,
-          username: loginForm.username,
-          password: loginForm.password
+          username: loginForm.username || undefined,
+          password: loginForm.password || undefined
         },
         { timeoutMs: 20000 }
       )
@@ -349,6 +360,7 @@ export default function useErpManagement() {
 
   return {
     isSuperAdmin,
+    canEditConfig,
     reference,
     companies: reference?.companies ?? [],
     configs,

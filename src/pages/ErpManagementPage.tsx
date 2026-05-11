@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react"
+import type { InputHTMLAttributes, SelectHTMLAttributes } from "react";
 import {
   FiCheckCircle,
   FiDatabase,
@@ -8,14 +8,15 @@ import {
   FiRefreshCcw,
   FiSave,
   FiServer,
-  FiShield
-} from "react-icons/fi"
-import useErpManagement from "../hooks/useErpManagement"
-import type { CompanyErpConfig } from "../types/erp"
+  FiShield,
+} from "react-icons/fi";
+import useErpManagement from "../hooks/useErpManagement";
+import type { CompanyErpConfig } from "../types/erp";
 
 export default function ErpManagementPage() {
   const {
     isSuperAdmin,
+    canEditConfig,
     companies,
     configs,
     selectedCompanyId,
@@ -36,8 +37,8 @@ export default function ErpManagementPage() {
     checkSapSession,
     sapSession,
     sessionLabel,
-    reload
-  } = useErpManagement()
+    reload,
+  } = useErpManagement();
 
   return (
     <section className="space-y-6">
@@ -45,12 +46,14 @@ export default function ErpManagementPage() {
         <div className="flex flex-wrap items-end gap-3">
           {isSuperAdmin ? (
             <label className="min-w-[260px] flex-1 space-y-1.5">
-              <span className="text-sm font-semibold text-slate-700">Empresa</span>
+              <span className="text-sm font-semibold text-slate-700">
+                Empresa
+              </span>
               <select
                 value={selectedCompanyId}
                 onChange={(event) => {
-                  setSelectedCompanyId(Number(event.target.value))
-                  cancelCreateConfig()
+                  setSelectedCompanyId(Number(event.target.value));
+                  cancelCreateConfig();
                 }}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
               >
@@ -95,7 +98,9 @@ export default function ErpManagementPage() {
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                 ERPs activas
               </p>
-              <h3 className="mt-2 text-xl font-extrabold text-slate-900">Integraciones disponibles</h3>
+              <h3 className="mt-2 text-xl font-extrabold text-slate-900">
+                Integraciones disponibles
+              </h3>
             </div>
             <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
               <FiDatabase className="h-5 w-5" />
@@ -108,9 +113,12 @@ export default function ErpManagementPage() {
                 key={config.id}
                 config={config}
                 selected={config.id === selectedConfigId}
-                connected={sapSession?.companyErpConfigId === config.id && sapSession.authenticated}
+                connected={
+                  sapSession?.companyErpConfigId === config.id &&
+                  sapSession.authenticated
+                }
                 onSelect={() => {
-                  setSelectedConfigId(config.id)
+                  setSelectedConfigId(config.id);
                 }}
               />
             ))}
@@ -123,12 +131,16 @@ export default function ErpManagementPage() {
         </section>
 
         <section className="space-y-6">
-          {isSuperAdmin ? (
+          {canEditConfig ? (
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                    {isCreatingConfig ? "Nueva configuracion" : "ABM superadmin"}
+                    {isSuperAdmin
+                      ? isCreatingConfig
+                        ? "Nueva configuracion"
+                        : "ABM superadmin"
+                      : "Configuracion de tu empresa"}
                   </p>
                   <h3 className="mt-2 text-xl font-extrabold text-slate-900">
                     Configuracion SAP Business One
@@ -140,42 +152,140 @@ export default function ErpManagementPage() {
               </div>
 
               <form onSubmit={saveConfig} className="mt-6 space-y-4">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Codigo" name="code" value={configForm.code} onChange={onConfigFormChange} required />
-                  <Field label="Nombre" name="name" value={configForm.name} onChange={onConfigFormChange} required />
-                </div>
+                {isSuperAdmin ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field
+                      label="Codigo"
+                      name="code"
+                      value={configForm.code}
+                      onChange={onConfigFormChange}
+                      required
+                    />
+                    <Field
+                      label="Nombre"
+                      name="name"
+                      value={configForm.name}
+                      onChange={onConfigFormChange}
+                      required
+                    />
+                  </div>
+                ) : null}
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="CompanyDB" name="dbName" value={configForm.dbName} onChange={onConfigFormChange} placeholder="ESQUEMA_PROD" required />
-                  <Field label="Service Layer URL" name="serviceLayerUrl" value={configForm.serviceLayerUrl} onChange={onConfigFormChange} placeholder="https://172.19.0.88:50000/b1s/v2" required />
+                  <Field
+                    label="CompanyDB"
+                    name="dbName"
+                    value={configForm.dbName}
+                    onChange={onConfigFormChange}
+                    placeholder="ESQUEMA_PROD"
+                    required
+                  />
+                  <Field
+                    label="Service Layer URL"
+                    name="serviceLayerUrl"
+                    value={configForm.serviceLayerUrl}
+                    onChange={onConfigFormChange}
+                    placeholder="https://172.19.0.88:50000/b1s/v2"
+                    required
+                  />
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">
-                  <SelectField label="Tipo ERP" name="erpType" value={configForm.erpType} onChange={onConfigFormChange}>
-                    <option value="sap_b1">SAP Business One</option>
-                  </SelectField>
-                  <SelectField label="TLS" name="tlsVersion" value={configForm.tlsVersion} onChange={onConfigFormChange}>
+                  <Field
+                    label="Usuario sistema"
+                    name="userSystem"
+                    value={configForm.userSystem}
+                    onChange={onConfigFormChange}
+                    placeholder="Usuario SAP"
+                  />
+                  <Field
+                    label="Password sistema"
+                    name="userPass"
+                    type="password"
+                    value={configForm.userPass}
+                    onChange={onConfigFormChange}
+                    placeholder={
+                      selectedConfig?.hasUserPass
+                        ? "Dejar en blanco para conservar"
+                        : "Opcional"
+                    }
+                  />
+                  <SelectField
+                    label="TLS"
+                    name="tlsVersion"
+                    value={configForm.tlsVersion}
+                    onChange={onConfigFormChange}
+                  >
                     <option value="1.0">1.0</option>
                     <option value="1.1">1.1</option>
                     <option value="1.2">1.2</option>
                     <option value="1.3">1.3</option>
                   </SelectField>
-                  <Field label="Usuario sugerido" name="sapUsername" value={configForm.sapUsername} onChange={onConfigFormChange} placeholder="Opcional" />
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Field label="Compania" name="cmpName" value={configForm.cmpName} onChange={onConfigFormChange} placeholder="Opcional" />
-                  <Field label="Server node" name="serverNode" value={configForm.serverNode} onChange={onConfigFormChange} placeholder="Opcional" />
-                  <Field label="DB user" name="dbUser" value={configForm.dbUser} onChange={onConfigFormChange} placeholder="Opcional" />
+                  <Field
+                    label="Esquema"
+                    name="cmpName"
+                    value={configForm.cmpName}
+                    onChange={onConfigFormChange}
+                    placeholder="Opcional"
+                  />
+                  <Field
+                    label="DB user"
+                    name="dbUser"
+                    value={configForm.dbUser}
+                    onChange={onConfigFormChange}
+                    placeholder="Opcional"
+                  />
+                  <Field
+                    label="DB password"
+                    name="password"
+                    type="password"
+                    value={configForm.password}
+                    onChange={onConfigFormChange}
+                    placeholder={
+                      selectedConfig?.hasPassword
+                        ? "Dejar en blanco para conservar"
+                        : "Opcional"
+                    }
+                  />
                 </div>
 
-                <TextAreaField label="Descripcion" name="description" value={configForm.description} onChange={onConfigFormChange} rows={3} />
+                {isSuperAdmin ? (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Field
+                      label="Server node"
+                      name="serverNode"
+                      value={configForm.serverNode}
+                      onChange={onConfigFormChange}
+                      placeholder="Opcional"
+                    />
+                  </div>
+                ) : null}
 
-                <div className="flex flex-wrap gap-3">
-                  <CheckField label="Activa" name="active" checked={configForm.active} onChange={onConfigFormChange} />
-                  <CheckField label="Predeterminada" name="isDefault" checked={configForm.isDefault} onChange={onConfigFormChange} />
-                  <CheckField label="Certificado self-signed" name="allowSelfSigned" checked={configForm.allowSelfSigned} onChange={onConfigFormChange} />
-                </div>
+                {isSuperAdmin ? (
+                  <div className="flex flex-wrap gap-3">
+                    <CheckField
+                      label="Activa"
+                      name="active"
+                      checked={configForm.active}
+                      onChange={onConfigFormChange}
+                    />
+                    <CheckField
+                      label="Predeterminada"
+                      name="isDefault"
+                      checked={configForm.isDefault}
+                      onChange={onConfigFormChange}
+                    />
+                    <CheckField
+                      label="Certificado self-signed"
+                      name="allowSelfSigned"
+                      checked={configForm.allowSelfSigned}
+                      onChange={onConfigFormChange}
+                    />
+                  </div>
+                ) : null}
 
                 <div className="flex flex-wrap justify-end gap-2">
                   {isCreatingConfig ? (
@@ -190,10 +300,13 @@ export default function ErpManagementPage() {
 
                   <button
                     type="submit"
+                    disabled={!isSuperAdmin && !selectedConfig}
                     className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
                   >
                     <FiSave className="h-4 w-4" />
-                    {isCreatingConfig ? "Crear configuracion" : "Guardar configuracion"}
+                    {isCreatingConfig
+                      ? "Crear configuracion"
+                      : "Guardar configuracion"}
                   </button>
                 </div>
               </form>
@@ -210,18 +323,27 @@ export default function ErpManagementPage() {
                   {selectedConfig?.name ?? "Selecciona una integracion"}
                 </h3>
               </div>
-              <SessionBadge connected={Boolean(sapSession?.authenticated)} label={sessionLabel} />
+              <SessionBadge
+                connected={Boolean(sapSession?.authenticated)}
+                label={sessionLabel}
+              />
             </div>
 
-            <form onSubmit={loginSap} className="mt-6 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <form
+              onSubmit={loginSap}
+              className="mt-6 grid gap-3 md:grid-cols-[1fr_1fr_auto]"
+            >
               <Field
                 label="Usuario"
                 name="username"
                 value={loginForm.username}
                 onChange={onLoginFormChange}
-                placeholder="prueba"
+                placeholder={
+                  selectedConfig?.userSystem
+                    ? "Usa el usuario guardado"
+                    : "Usuario SAP"
+                }
                 disabled={!selectedConfig}
-                required
               />
               <Field
                 label="Password"
@@ -229,8 +351,12 @@ export default function ErpManagementPage() {
                 type="password"
                 value={loginForm.password}
                 onChange={onLoginFormChange}
+                placeholder={
+                  selectedConfig?.hasUserPass
+                    ? "Usa la password guardada"
+                    : "Password SAP"
+                }
                 disabled={!selectedConfig}
-                required
               />
               <div className="flex items-end">
                 <button
@@ -272,19 +398,19 @@ export default function ErpManagementPage() {
         </section>
       </div>
     </section>
-  )
+  );
 }
 
 function ConfigTile({
   config,
   selected,
   connected,
-  onSelect
+  onSelect,
 }: {
-  config: CompanyErpConfig
-  selected: boolean
-  connected: boolean
-  onSelect: () => void
+  config: CompanyErpConfig;
+  selected: boolean;
+  connected: boolean;
+  onSelect: () => void;
 }) {
   return (
     <button
@@ -299,14 +425,20 @@ function ConfigTile({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-extrabold">{config.name}</p>
-          <p className={`mt-1 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
+          <p
+            className={`mt-1 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}
+          >
             {config.dbName ?? "-"} | {config.serviceLayerUrl ?? "-"}
           </p>
         </div>
-        {connected ? <FiCheckCircle className="h-5 w-5 text-emerald-400" /> : null}
+        {connected ? (
+          <FiCheckCircle className="h-5 w-5 text-emerald-400" />
+        ) : null}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <span className={`rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${config.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+        <span
+          className={`rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${config.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+        >
           {config.active ? "Activa" : "Inactiva"}
         </span>
         {config.isDefault ? (
@@ -316,20 +448,30 @@ function ConfigTile({
         ) : null}
       </div>
     </button>
-  )
+  );
 }
 
-function SessionBadge({ connected, label }: { connected: boolean; label: string }) {
+function SessionBadge({
+  connected,
+  label,
+}: {
+  connected: boolean;
+  label: string;
+}) {
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${
-        connected ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+        connected
+          ? "bg-emerald-100 text-emerald-700"
+          : "bg-slate-100 text-slate-500"
       }`}
     >
-      <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-slate-400"}`} />
+      <span
+        className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-slate-400"}`}
+      />
       {label}
     </span>
-  )
+  );
 }
 
 function Field({
@@ -344,7 +486,7 @@ function Field({
         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
       />
     </label>
-  )
+  );
 }
 
 function SelectField({
@@ -362,22 +504,7 @@ function SelectField({
         {children}
       </select>
     </label>
-  )
-}
-
-function TextAreaField({
-  label,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) {
-  return (
-    <label className="space-y-1.5">
-      <span className="text-sm font-semibold text-slate-700">{label}</span>
-      <textarea
-        {...props}
-        className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
-      />
-    </label>
-  )
+  );
 }
 
 function CheckField({
@@ -389,5 +516,5 @@ function CheckField({
       <input type="checkbox" {...props} />
       {label}
     </label>
-  )
+  );
 }
