@@ -29,34 +29,8 @@ export default function UserManagementPage() {
 
   return (
     <section className="space-y-6">
-      {/* Header + Stats */}
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
-        <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
-            Seguridad Operativa
-          </p>
-          <h2 className="mt-3 text-3xl font-extrabold text-slate-900">ABM de Usuarios</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Crea accesos y controla activaciones. El admin de empresa gestiona sus usuarios y el
-            superadmin mantiene la vista global del sistema.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <StatCard label="Usuarios" value={stats.total} />
-          <StatCard label="Activos" value={stats.active} accent="emerald" />
-          <StatCard label="Admins" value={stats.admins} />
-          <StatCard label="Superadmins" value={stats.superadmins} />
-        </div>
-      </div>
-
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600">
-          Tu rol actual es <strong>{roleLabel(role)}</strong>. Los permisos se aplican automaticamente
-          por rol.
-        </p>
-
         <button
           type="button"
           onClick={openCreateModal}

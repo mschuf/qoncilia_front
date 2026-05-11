@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FiInfo, FiRefreshCcw, FiSave, FiSettings } from "react-icons/fi";
 import AppModal from "../components/AppModal";
+import CompanyCountrySelect from "../components/forms/CompanyCountrySelect";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import accessDocsMarkdown from "../../docs/modulos-por-empresa-y-rol.md?raw";
@@ -16,10 +17,11 @@ export default function AccessControlPage() {
     matrix,
     companyForm,
     onCompanyFieldChange,
+    onCompanyCountryChange,
     createCompany,
     toggleModule,
     saveRoleModules,
-    reloadMatrix
+    reloadMatrix,
   } = useAccessControl();
 
   return (
@@ -42,8 +44,9 @@ export default function AccessControlPage() {
             Modulos por Empresa y Rol
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Activa o desactiva pantallas de forma dinamica. Cada cambio impacta en rutas y menu
-            del front para los usuarios de la empresa y rol seleccionados.
+            Activa o desactiva pantallas de forma dinamica. Cada cambio impacta
+            en rutas y menu del front para los usuarios de la empresa y rol
+            seleccionados.
           </p>
         </div>
 
@@ -77,12 +80,10 @@ export default function AccessControlPage() {
             placeholder="Región"
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
           />
-          <input
-            name="country"
+          <CompanyCountrySelect
             value={companyForm.country}
-            onChange={onCompanyFieldChange}
+            onChange={onCompanyCountryChange}
             placeholder="País"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
           />
           <button
             type="submit"
@@ -96,10 +97,14 @@ export default function AccessControlPage() {
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[280px] flex-1 space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Empresa</span>
+            <span className="text-sm font-semibold text-slate-700">
+              Empresa
+            </span>
             <select
               value={selectedCompanyId}
-              onChange={(event) => setSelectedCompanyId(Number(event.target.value))}
+              onChange={(event) =>
+                setSelectedCompanyId(Number(event.target.value))
+              }
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             >
               {(reference?.companies ?? []).map((company) => (
@@ -120,7 +125,9 @@ export default function AccessControlPage() {
 
           <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
             <FiSettings className="h-4 w-4" />
-            {selectedCompany ? selectedCompany.name : "Sin empresa seleccionada"}
+            {selectedCompany
+              ? selectedCompany.name
+              : "Sin empresa seleccionada"}
           </div>
         </div>
       </div>
@@ -141,17 +148,29 @@ export default function AccessControlPage() {
             </thead>
             <tbody>
               {(matrix?.rows ?? []).map((row) => (
-                <tr key={row.role.id} className="border-t border-slate-100 text-slate-700">
-                  <td className="px-4 py-3 font-semibold whitespace-nowrap">{row.role.name}</td>
+                <tr
+                  key={row.role.id}
+                  className="border-t border-slate-100 text-slate-700"
+                >
+                  <td className="px-4 py-3 font-semibold whitespace-nowrap">
+                    {row.role.name}
+                  </td>
                   {row.modules.map((moduleState) => (
-                    <td key={`${row.role.id}-${moduleState.moduleId}`} className="px-4 py-3">
+                    <td
+                      key={`${row.role.id}-${moduleState.moduleId}`}
+                      className="px-4 py-3"
+                    >
                       <label className="inline-flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={moduleState.enabled}
-                          onChange={() => toggleModule(row.role.id, moduleState.moduleId)}
+                          onChange={() =>
+                            toggleModule(row.role.id, moduleState.moduleId)
+                          }
                         />
-                        <span className="text-xs text-slate-500">{moduleState.moduleCode}</span>
+                        <span className="text-xs text-slate-500">
+                          {moduleState.moduleCode}
+                        </span>
                       </label>
                     </td>
                   ))}
@@ -188,7 +207,9 @@ export default function AccessControlPage() {
         title="Documentación: Módulos por Empresa y Rol"
       >
         <div className="prose prose-slate prose-sm max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{accessDocsMarkdown}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {accessDocsMarkdown}
+          </ReactMarkdown>
         </div>
       </AppModal>
     </section>

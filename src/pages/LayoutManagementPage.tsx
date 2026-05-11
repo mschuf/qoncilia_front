@@ -57,13 +57,15 @@ const workspaceOptions: Array<{
   {
     key: "users",
     label: "Usuarios y Bancos",
-    description: "Vista global de todos los usuarios con sus bancos y plantillas.",
+    description:
+      "Vista global de todos los usuarios con sus bancos y plantillas.",
     icon: FiUsers,
   },
   {
     key: "banks",
     label: "Bancos y Plantillas",
-    description: "Asignacion por usuario y administracion de la plantilla aplicada.",
+    description:
+      "Asignacion por usuario y administracion de la plantilla aplicada.",
     icon: FiGrid,
   },
   {
@@ -75,7 +77,8 @@ const workspaceOptions: Array<{
   {
     key: "templates",
     label: "Plantillas Base",
-    description: "Base reutilizable para copiar plantillas a bancos en segundos.",
+    description:
+      "Base reutilizable para copiar plantillas a bancos en segundos.",
     icon: FiLayers,
   },
   {
@@ -101,9 +104,8 @@ function SuperadminLayoutManagementPage() {
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceKey>("users");
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
-  const [pendingBankDelete, setPendingBankDelete] = useState<PendingBankDelete>(
-    null,
-  );
+  const [pendingBankDelete, setPendingBankDelete] =
+    useState<PendingBankDelete>(null);
   const [bankDeletePreview, setBankDeletePreview] =
     useState<BankDeletionPreview | null>(null);
   const [bankDeleteLoading, setBankDeleteLoading] = useState(false);
@@ -218,7 +220,10 @@ function SuperadminLayoutManagementPage() {
     setBankDeleteLoading(false);
   };
 
-  const handleDeleteBank = async (userId: number, bank: UserBankWithLayouts) => {
+  const handleDeleteBank = async (
+    userId: number,
+    bank: UserBankWithLayouts,
+  ) => {
     setPendingBankDelete({ userId, bank });
     setBankDeletePreview(null);
     setBankDeleteLoading(true);
@@ -249,7 +254,9 @@ function SuperadminLayoutManagementPage() {
       setBankDeletePreview(null);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "No se pudo eliminar el banco.",
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar el banco.",
       );
     } finally {
       setBankDeleteSubmitting(false);
@@ -276,64 +283,6 @@ function SuperadminLayoutManagementPage() {
 
   return (
     <section className="space-y-6">
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
-        <div className="rounded-[2rem] border border-slate-200/70 bg-white/90 p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
-                Superadmin Studio
-              </p>
-              <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-                Bancos, Plantillas y Sistemas en un solo flujo
-              </h2>
-            </div>
-
-            <button
-              onClick={() => setIsDocsModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-xs font-bold text-brand-700 transition hover:bg-brand-100"
-              title="Ver documentacion"
-            >
-              <FiInfo className="h-4 w-4" /> INFO
-            </button>
-          </div>
-
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600">
-            Organiza el trabajo por usuario, banco y plantilla, y usa plantillas base
-            como base para copiar configuraciones repetidas. La vista cambia con
-            animacion para que sea mas clara en desktop y mucho mas comoda en
-            mobile.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-          <MetricCard
-            icon={FiShield}
-            label="Usuario"
-            value={selectedUser?.usrLogin ?? "-"}
-          />
-          <MetricCard
-            icon={FiLayers}
-            label="Bases"
-            value={String(templateCount)}
-          />
-          <MetricCard
-            icon={FiSettings}
-            label="Sistemas"
-            value={String(systemCount)}
-          />
-          <MetricCard
-            icon={FiSettings}
-            label="Bancos"
-            value={String(banks.length)}
-          />
-          <MetricCard
-            icon={FiSliders}
-            label="Plantillas"
-            value={String(layoutCount)}
-          />
-        </div>
-      </div>
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-6">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5">
@@ -432,7 +381,9 @@ function SuperadminLayoutManagementPage() {
                     onCreateLayout={openCreateLayout}
                     onEditLayout={openEditLayout}
                     onDeleteLayout={(_bank, layout) =>
-                      handleDeleteLayout(layout.name, () => deleteLayout(layout))
+                      handleDeleteLayout(layout.name, () =>
+                        deleteLayout(layout),
+                      )
                     }
                   />
                   <UserAvailableTemplatesPanel
@@ -470,8 +421,8 @@ function SuperadminLayoutManagementPage() {
                         ABM de sistemas dinamicos
                       </h3>
                       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                        Cada plantilla queda asociada a un sistema, por ejemplo SAP, Softland o el
-                        que necesites incorporar luego.
+                        Cada plantilla queda asociada a un sistema, por ejemplo
+                        SAP, Softland o el que necesites incorporar luego.
                       </p>
                     </div>
 
@@ -501,7 +452,9 @@ function SuperadminLayoutManagementPage() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-bold text-slate-900">{system.name}</p>
+                            <p className="text-sm font-bold text-slate-900">
+                              {system.name}
+                            </p>
                             <p className="mt-1 text-xs leading-5 text-slate-500">
                               {system.description ?? "Sin descripcion"}
                             </p>
@@ -529,11 +482,11 @@ function SuperadminLayoutManagementPage() {
                             type="button"
                             onClick={() =>
                               setPendingDelete({
-                        title: "Eliminar sistema",
-                        description: `Vas a eliminar el sistema "${system.name}". Solo se puede borrar si no tiene plantillas ni plantillas base asociadas.`,
-                        confirmLabel: "Eliminar sistema",
-                        onConfirm: () => deleteSystem(system),
-                      })
+                                title: "Eliminar sistema",
+                                description: `Vas a eliminar el sistema "${system.name}". Solo se puede borrar si no tiene plantillas ni plantillas base asociadas.`,
+                                confirmLabel: "Eliminar sistema",
+                                onConfirm: () => deleteSystem(system),
+                              })
                             }
                             className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
                           >
@@ -642,7 +595,9 @@ function SuperadminLayoutManagementPage() {
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Descripcion</span>
+            <span className="text-sm font-semibold text-slate-700">
+              Descripcion
+            </span>
             <input
               name="description"
               value={systemForm.description}
@@ -745,9 +700,11 @@ function SuperadminLayoutManagementPage() {
               </p>
               <p className="mt-2 text-sm leading-6 text-rose-900">
                 Si confirmas, se eliminara el banco para el usuario{" "}
-                <span className="font-bold">{bankDeletePreview.bank.userLogin}</span>.
-                Tambien se borraran en cascada sus plantillas, cuentas bancarias y
-                extractos bancarios asociados.
+                <span className="font-bold">
+                  {bankDeletePreview.bank.userLogin}
+                </span>
+                . Tambien se borraran en cascada sus plantillas, cuentas
+                bancarias y extractos bancarios asociados.
               </p>
             </div>
 
@@ -850,7 +807,8 @@ function SuperadminLayoutManagementPage() {
                       {account.currency} | Cuenta {account.accountNumber}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      ERP {account.bankErpId} | Mayor {account.majorAccountNumber}
+                      ERP {account.bankErpId} | Mayor{" "}
+                      {account.majorAccountNumber}
                       {account.paymentAccountNumber
                         ? ` | Pago ${account.paymentAccountNumber}`
                         : ""}

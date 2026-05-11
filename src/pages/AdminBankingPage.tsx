@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type InputHTMLAttributes } from "react"
+import { useState, type FormEvent, type InputHTMLAttributes } from "react";
 import {
   FiBriefcase,
   FiCheckCircle,
@@ -8,24 +8,26 @@ import {
   FiRefreshCcw,
   FiSave,
   FiShield,
-  FiTrash2
-} from "react-icons/fi"
-import ConfirmModal from "../components/ConfirmModal"
-import useCompanyBanking from "../hooks/useCompanyBanking"
-import type { PublicBank, PublicCompanyBankAccount } from "../types/banking"
+  FiTrash2,
+} from "react-icons/fi";
+import ConfirmModal from "../components/ConfirmModal";
+import useCompanyBanking from "../hooks/useCompanyBanking";
+import type { PublicBank, PublicCompanyBankAccount } from "../types/banking";
 
-type BankingWorkspaceMode = "combined" | "banks" | "accounts"
+type BankingWorkspaceMode = "combined" | "banks" | "accounts";
 
 export default function AdminBankingPage({
-  mode = "combined"
+  mode = "combined",
 }: {
-  mode?: BankingWorkspaceMode
+  mode?: BankingWorkspaceMode;
 }) {
-  const [deleteBankTarget, setDeleteBankTarget] = useState<PublicBank | null>(null)
+  const [deleteBankTarget, setDeleteBankTarget] = useState<PublicBank | null>(
+    null,
+  );
   const [deleteAccountTarget, setDeleteAccountTarget] =
-    useState<PublicCompanyBankAccount | null>(null)
-  const [bankFormVisible, setBankFormVisible] = useState(false)
-  const [accountFormVisible, setAccountFormVisible] = useState(false)
+    useState<PublicCompanyBankAccount | null>(null);
+  const [bankFormVisible, setBankFormVisible] = useState(false);
+  const [accountFormVisible, setAccountFormVisible] = useState(false);
   const {
     selectedCompanyId,
     companies,
@@ -52,132 +54,85 @@ export default function AdminBankingPage({
     deleteAccount,
     resetAccountForm,
     reload,
-    stats
-  } = useCompanyBanking()
+    stats,
+  } = useCompanyBanking();
 
-  const showBanks = mode !== "accounts"
-  const showAccounts = mode !== "banks"
-  const headerCopy = {
-    combined: {
-      eyebrow: "Admin Operativo",
-      title: "Bancos y cuentas bancarias",
-      description:
-        "Crea bancos, define su sucursal una sola vez y administra las cuentas de tu empresa dentro de cada banco desde un flujo mas claro."
-    },
-    banks: {
-      eyebrow: "Banco",
-      title: "Cargar Banco",
-      description:
-        "Registra y administra los bancos disponibles para operar extractos y plantillas."
-    },
-    accounts: {
-      eyebrow: "Banco",
-      title: "Cuentas Bancarias",
-      description:
-        "Administra las cuentas asociadas a cada banco, su moneda y sus datos contables para ERP."
-    }
-  }[mode]
+  const showBanks = mode !== "accounts";
+  const showAccounts = mode !== "banks";
 
   const handleDeleteBank = async () => {
-    if (!deleteBankTarget) return
-    await deleteBank(deleteBankTarget.id)
-    setDeleteBankTarget(null)
-    setBankFormVisible(false)
-  }
+    if (!deleteBankTarget) return;
+    await deleteBank(deleteBankTarget.id);
+    setDeleteBankTarget(null);
+    setBankFormVisible(false);
+  };
 
   const handleDeleteAccount = async () => {
-    if (!deleteAccountTarget) return
-    await deleteAccount(deleteAccountTarget.id)
-    setDeleteAccountTarget(null)
-    setAccountFormVisible(false)
-  }
+    if (!deleteAccountTarget) return;
+    await deleteAccount(deleteAccountTarget.id);
+    setDeleteAccountTarget(null);
+    setAccountFormVisible(false);
+  };
 
   const openNewBankForm = () => {
-    resetBankForm()
-    setBankFormVisible(true)
-  }
+    resetBankForm();
+    setBankFormVisible(true);
+  };
 
   const openEditBankForm = (bank: PublicBank) => {
-    startEditBank(bank)
-    setBankFormVisible(true)
-  }
+    startEditBank(bank);
+    setBankFormVisible(true);
+  };
 
   const closeBankForm = () => {
-    resetBankForm()
-    setBankFormVisible(false)
-  }
+    resetBankForm();
+    setBankFormVisible(false);
+  };
 
   const handleSaveBank = async (event: FormEvent<HTMLFormElement>) => {
-    const saved = await saveBank(event)
+    const saved = await saveBank(event);
     if (saved) {
-      setBankFormVisible(false)
+      setBankFormVisible(false);
     }
-  }
+  };
 
   const openNewAccountForm = () => {
-    resetAccountForm()
-    setAccountFormVisible(true)
-  }
+    resetAccountForm();
+    setAccountFormVisible(true);
+  };
 
   const openEditAccountForm = (account: PublicCompanyBankAccount) => {
-    startEditAccount(account)
-    setAccountFormVisible(true)
-  }
+    startEditAccount(account);
+    setAccountFormVisible(true);
+  };
 
   const closeAccountForm = () => {
-    resetAccountForm()
-    setAccountFormVisible(false)
-  }
+    resetAccountForm();
+    setAccountFormVisible(false);
+  };
 
   const handleSaveAccount = async (event: FormEvent<HTMLFormElement>) => {
-    const saved = await saveAccount(event)
+    const saved = await saveAccount(event);
     if (saved) {
-      setAccountFormVisible(false)
+      setAccountFormVisible(false);
     }
-  }
+  };
 
   return (
     <>
       <section className="space-y-6">
-        <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
-          <div className="rounded-[2rem] border border-slate-200/70 bg-white/90 p-6 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
-              {headerCopy.eyebrow}
-            </p>
-            <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-              {headerCopy.title}
-            </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              {headerCopy.description}
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-            {showBanks ? (
-              <>
-                <MetricCard label="Bancos" value={String(stats.banks)} icon={FiBriefcase} />
-                <MetricCard label="Bancos activos" value={String(stats.activeBanks)} icon={FiCheckCircle} accent="emerald" />
-              </>
-            ) : null}
-            {showAccounts ? (
-              <>
-                <MetricCard label="Cuentas" value={String(stats.accounts)} icon={FiCreditCard} />
-                <MetricCard label="Cuentas activas" value={String(stats.activeAccounts)} icon={FiShield} accent="brand" />
-              </>
-            ) : null}
-          </div>
-        </div>
-
         <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-end gap-3">
             {companies.length > 1 ? (
               <label className="min-w-[280px] flex-1 space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">Empresa</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  Empresa
+                </span>
                 <select
                   value={selectedCompanyId}
                   onChange={(e) => {
-                    setAccountFormVisible(false)
-                    changeCompany(Number(e.target.value))
+                    setAccountFormVisible(false);
+                    changeCompany(Number(e.target.value));
                   }}
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 >
@@ -192,12 +147,16 @@ export default function AdminBankingPage({
 
             {mode === "accounts" ? (
               <label className="min-w-[280px] flex-1 space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">Banco</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  Banco
+                </span>
                 <select
                   value={selectedBankId || ""}
                   onChange={(event) => {
-                    setAccountFormVisible(false)
-                    selectBank(event.target.value ? Number(event.target.value) : 0)
+                    setAccountFormVisible(false);
+                    selectBank(
+                      event.target.value ? Number(event.target.value) : 0,
+                    );
                   }}
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 >
@@ -243,7 +202,9 @@ export default function AdminBankingPage({
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                       Paso 1
                     </p>
-                    <h3 className="mt-2 text-xl font-extrabold text-slate-900">Bancos de la empresa</h3>
+                    <h3 className="mt-2 text-xl font-extrabold text-slate-900">
+                      Bancos de la empresa
+                    </h3>
                   </div>
                   <button
                     type="button"
@@ -268,8 +229,9 @@ export default function AdminBankingPage({
                       </thead>
                       <tbody>
                         {banks.map((bank) => {
-                          const isSelected = bank.id === selectedBankId
-                          const accountCount = accountCountByBank.get(bank.id) ?? 0
+                          const isSelected = bank.id === selectedBankId;
+                          const accountCount =
+                            accountCountByBank.get(bank.id) ?? 0;
 
                           return (
                             <tr
@@ -278,14 +240,22 @@ export default function AdminBankingPage({
                               className={`cursor-pointer border-t border-slate-100 transition ${isSelected ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"}`}
                             >
                               <td className="px-4 py-3">
-                                <p className={`font-semibold ${isSelected ? "text-white" : "text-slate-900"}`}>
+                                <p
+                                  className={`font-semibold ${isSelected ? "text-white" : "text-slate-900"}`}
+                                >
                                   {bank.name}
                                 </p>
                               </td>
-                              <td className="px-4 py-3">{bank.branch ?? "-"}</td>
-                              <td className="px-4 py-3 font-semibold">{accountCount}</td>
                               <td className="px-4 py-3">
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${bank.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                {bank.branch ?? "-"}
+                              </td>
+                              <td className="px-4 py-3 font-semibold">
+                                {accountCount}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`rounded-full px-2.5 py-1 text-xs font-bold ${bank.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                                >
                                   {bank.active ? "Activo" : "Inactivo"}
                                 </span>
                               </td>
@@ -294,39 +264,45 @@ export default function AdminBankingPage({
                                   <button
                                     type="button"
                                     onClick={(event) => {
-                                      event.stopPropagation()
-                                      openEditBankForm(bank)
+                                      event.stopPropagation();
+                                      openEditBankForm(bank);
                                     }}
-                                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${isSelected
+                                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                                      isSelected
                                         ? "border-white/20 text-white hover:bg-white/10"
                                         : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
-                                      }`}
+                                    }`}
                                   >
                                     <FiEdit3 className="h-4 w-4" /> Editar
                                   </button>
                                   <button
                                     type="button"
                                     onClick={(event) => {
-                                      event.stopPropagation()
-                                      setDeleteBankTarget(bank)
+                                      event.stopPropagation();
+                                      setDeleteBankTarget(bank);
                                     }}
-                                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${isSelected
+                                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                                      isSelected
                                         ? "border-rose-200/40 text-rose-100 hover:bg-white/10"
                                         : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-                                      }`}
+                                    }`}
                                   >
                                     <FiTrash2 className="h-4 w-4" /> Eliminar
                                   </button>
                                 </div>
                               </td>
                             </tr>
-                          )
+                          );
                         })}
 
                         {banks.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
-                              Todavia no hay bancos cargados. Usa Nuevo para crear el primero.
+                            <td
+                              colSpan={5}
+                              className="px-4 py-6 text-center text-sm text-slate-500"
+                            >
+                              Todavia no hay bancos cargados. Usa Nuevo para
+                              crear el primero.
                             </td>
                           </tr>
                         ) : null}
@@ -337,7 +313,10 @@ export default function AdminBankingPage({
               </div>
 
               {bankFormVisible ? (
-                <form onSubmit={handleSaveBank} className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                <form
+                  onSubmit={handleSaveBank}
+                  className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -384,7 +363,12 @@ export default function AdminBankingPage({
                     />
 
                     <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
-                      <input type="checkbox" name="active" checked={bankForm.active} onChange={onBankFieldChange} />
+                      <input
+                        type="checkbox"
+                        name="active"
+                        checked={bankForm.active}
+                        onChange={onBankFieldChange}
+                      />
                       Banco activo
                     </label>
 
@@ -392,7 +376,8 @@ export default function AdminBankingPage({
                       type="submit"
                       className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
                     >
-                      <FiSave className="h-4 w-4" /> {editingBankId ? "Guardar banco" : "Crear banco"}
+                      <FiSave className="h-4 w-4" />{" "}
+                      {editingBankId ? "Guardar banco" : "Crear banco"}
                     </button>
                   </div>
                 </form>
@@ -421,7 +406,9 @@ export default function AdminBankingPage({
                     </div>
 
                     <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      {selectedBank ? `${visibleAccounts.length} cuenta(s) en ${selectedBank.name}` : "Selecciona un banco"}
+                      {selectedBank
+                        ? `${visibleAccounts.length} cuenta(s) en ${selectedBank.name}`
+                        : "Selecciona un banco"}
                     </div>
                   </div>
 
@@ -435,10 +422,15 @@ export default function AdminBankingPage({
                     {selectedBank ? (
                       <div className="grid gap-3 lg:grid-cols-2">
                         {visibleAccounts.map((account) => (
-                          <article key={account.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <article
+                            key={account.id}
+                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                          >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-sm font-bold text-slate-900">{account.name}</p>
+                                <p className="text-sm font-bold text-slate-900">
+                                  {account.name}
+                                </p>
                                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                                   <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-600">
                                     {account.currency}
@@ -446,14 +438,22 @@ export default function AdminBankingPage({
                                   <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-600">
                                     Cuenta {account.accountNumber}
                                   </span>
-                                  <span className={`rounded-full px-2.5 py-1 font-semibold ${account.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                                    }`}>
+                                  <span
+                                    className={`rounded-full px-2.5 py-1 font-semibold ${
+                                      account.active
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-amber-100 text-amber-700"
+                                    }`}
+                                  >
                                     {account.active ? "Activa" : "Inactiva"}
                                   </span>
                                 </div>
                                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                                  ERP: {account.bankErpId} | Mayor: {account.majorAccountNumber}
-                                  {account.paymentAccountNumber ? ` | Pago: ${account.paymentAccountNumber}` : ""}
+                                  ERP: {account.bankErpId} | Mayor:{" "}
+                                  {account.majorAccountNumber}
+                                  {account.paymentAccountNumber
+                                    ? ` | Pago: ${account.paymentAccountNumber}`
+                                    : ""}
                                 </p>
                               </div>
 
@@ -467,7 +467,9 @@ export default function AdminBankingPage({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setDeleteAccountTarget(account)}
+                                  onClick={() =>
+                                    setDeleteAccountTarget(account)
+                                  }
                                   className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
                                 >
                                   <FiTrash2 className="h-4 w-4" /> Eliminar
@@ -488,7 +490,9 @@ export default function AdminBankingPage({
                         Cuentas bancarias
                       </p>
                       <h3 className="mt-2 text-xl font-extrabold text-slate-900">
-                        {selectedBank ? selectedBank.name : "Selecciona un banco"}
+                        {selectedBank
+                          ? selectedBank.name
+                          : "Selecciona un banco"}
                       </h3>
                     </div>
 
@@ -524,15 +528,26 @@ export default function AdminBankingPage({
                         </thead>
                         <tbody>
                           {visibleAccounts.map((account) => (
-                            <tr key={account.id} className="border-t border-slate-100 text-slate-700 hover:bg-slate-50">
-                              <td className="px-3 py-3 font-semibold text-slate-900">{account.accountNumber}</td>
+                            <tr
+                              key={account.id}
+                              className="border-t border-slate-100 text-slate-700 hover:bg-slate-50"
+                            >
+                              <td className="px-3 py-3 font-semibold text-slate-900">
+                                {account.accountNumber}
+                              </td>
                               <td className="px-3 py-3">{account.currency}</td>
                               <td className="px-3 py-3">{account.name}</td>
                               <td className="px-3 py-3">{account.bankErpId}</td>
-                              <td className="px-3 py-3">{account.majorAccountNumber}</td>
-                              <td className="px-3 py-3">{account.paymentAccountNumber ?? "-"}</td>
                               <td className="px-3 py-3">
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                {account.majorAccountNumber}
+                              </td>
+                              <td className="px-3 py-3">
+                                {account.paymentAccountNumber ?? "-"}
+                              </td>
+                              <td className="px-3 py-3">
+                                <span
+                                  className={`rounded-full px-2.5 py-1 text-xs font-bold ${account.active ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                                >
                                   {account.active ? "Activa" : "Inactiva"}
                                 </span>
                               </td>
@@ -547,7 +562,9 @@ export default function AdminBankingPage({
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setDeleteAccountTarget(account)}
+                                    onClick={() =>
+                                      setDeleteAccountTarget(account)
+                                    }
                                     className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
                                   >
                                     <FiTrash2 className="h-4 w-4" /> Eliminar
@@ -558,8 +575,13 @@ export default function AdminBankingPage({
                           ))}
                           {visibleAccounts.length === 0 ? (
                             <tr>
-                              <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
-                                {selectedBank ? "Este banco todavia no tiene cuentas cargadas." : "Selecciona un banco para ver sus cuentas."}
+                              <td
+                                colSpan={8}
+                                className="px-4 py-6 text-center text-sm text-slate-500"
+                              >
+                                {selectedBank
+                                  ? "Este banco todavia no tiene cuentas cargadas."
+                                  : "Selecciona un banco para ver sus cuentas."}
                               </td>
                             </tr>
                           ) : null}
@@ -571,14 +593,19 @@ export default function AdminBankingPage({
               )}
 
               {accountFormVisible ? (
-                <form onSubmit={handleSaveAccount} className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                <form
+                  onSubmit={handleSaveAccount}
+                  className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                         {editingAccountId ? "Edicion" : "Alta"}
                       </p>
                       <h3 className="mt-2 text-xl font-extrabold text-slate-900">
-                        {editingAccountId ? "Editar cuenta bancaria" : "Crear cuenta bancaria"}
+                        {editingAccountId
+                          ? "Editar cuenta bancaria"
+                          : "Crear cuenta bancaria"}
                       </h3>
                     </div>
 
@@ -601,7 +628,9 @@ export default function AdminBankingPage({
                     />
 
                     <label className="space-y-1.5">
-                      <span className="text-sm font-semibold text-slate-700">Moneda</span>
+                      <span className="text-sm font-semibold text-slate-700">
+                        Moneda
+                      </span>
                       <select
                         name="currency"
                         value={accountForm.currency}
@@ -609,7 +638,9 @@ export default function AdminBankingPage({
                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
                         required
                       >
-                        {currencies.length === 0 ? <option value="PYG">PYG - Guarani paraguayo</option> : null}
+                        {currencies.length === 0 ? (
+                          <option value="PYG">PYG - Guarani paraguayo</option>
+                        ) : null}
                         {currencies.map((currency) => (
                           <option key={currency.code} value={currency.code}>
                             {currency.code} - {currency.name}
@@ -667,7 +698,8 @@ export default function AdminBankingPage({
                       type="submit"
                       className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
                     >
-                      <FiSave className="h-4 w-4" /> {editingAccountId ? "Guardar cuenta" : "Crear cuenta"}
+                      <FiSave className="h-4 w-4" />{" "}
+                      {editingAccountId ? "Guardar cuenta" : "Crear cuenta"}
                     </button>
                   </div>
                 </form>
@@ -697,31 +729,35 @@ export default function AdminBankingPage({
         onConfirm={() => void handleDeleteAccount()}
       />
     </>
-  )
+  );
 }
 
 function MetricCard({
   label,
   value,
   icon: Icon,
-  accent = "slate"
+  accent = "slate",
 }: {
-  label: string
-  value: string
-  icon: typeof FiBriefcase
-  accent?: "slate" | "emerald" | "brand"
+  label: string;
+  value: string;
+  icon: typeof FiBriefcase;
+  accent?: "slate" | "emerald" | "brand";
 }) {
   const accentClasses = {
     slate: "border-slate-200 bg-white text-slate-900",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    brand: "border-brand-200 bg-brand-50 text-brand-800"
-  } as const
+    brand: "border-brand-200 bg-brand-50 text-brand-800",
+  } as const;
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${accentClasses[accent]}`}>
+    <div
+      className={`rounded-2xl border p-4 shadow-sm ${accentClasses[accent]}`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            {label}
+          </p>
           <p className="mt-2 text-2xl font-extrabold">{value}</p>
         </div>
         <div className="rounded-2xl bg-white/80 p-3 text-slate-700 shadow-sm">
@@ -729,7 +765,7 @@ function MetricCard({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function BankContextTile({
@@ -737,19 +773,19 @@ function BankContextTile({
   label,
   value,
   helper,
-  accent = "slate"
+  accent = "slate",
 }: {
-  icon: typeof FiBriefcase
-  label: string
-  value: string
-  helper: string
-  accent?: "slate" | "emerald" | "amber"
+  icon: typeof FiBriefcase;
+  label: string;
+  value: string;
+  helper: string;
+  accent?: "slate" | "emerald" | "amber";
 }) {
   const accentClasses = {
     slate: "border-slate-200 bg-slate-50 text-slate-900",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    amber: "border-amber-200 bg-amber-50 text-amber-900"
-  } as const
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+  } as const;
 
   return (
     <div className={`rounded-2xl border p-4 ${accentClasses[accent]}`}>
@@ -766,7 +802,7 @@ function BankContextTile({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Field({
@@ -781,5 +817,5 @@ function Field({
         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
       />
     </label>
-  )
+  );
 }

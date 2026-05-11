@@ -89,6 +89,10 @@ export default function useAccessControl() {
     setCompanyForm((prev) => ({ ...prev, [key]: value }) as CompanyFormState);
   };
 
+  const onCompanyCountryChange = (country: string) => {
+    setCompanyForm((prev) => ({ ...prev, country }));
+  };
+
   const createCompany = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -154,6 +158,7 @@ export default function useAccessControl() {
     matrix,
     companyForm,
     onCompanyFieldChange,
+    onCompanyCountryChange,
     createCompany,
     toggleModule,
     saveRoleModules,

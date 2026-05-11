@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { FiBriefcase, FiCamera, FiSave, FiSettings, FiDatabase, FiAlertCircle, FiTrash2 } from "react-icons/fi";
 import { apiClient } from "../api/apiClient";
+import CompanyCountrySelect from "../components/forms/CompanyCountrySelect";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { isSuperAdminRole, isAdminRole } from "../utils/role";
@@ -347,12 +348,9 @@ export default function CompanyProfilePage() {
 
                 <label className="block space-y-1.5">
                   <span className="text-sm font-semibold text-slate-700">País</span>
-                  <input
-                    type="text"
-                    name="country"
+                  <CompanyCountrySelect
                     value={form.country}
-                    onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    onChange={(country) => setForm((prev) => ({ ...prev, country }))}
                     placeholder="Ej: Paraguay"
                   />
                 </label>

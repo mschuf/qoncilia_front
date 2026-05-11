@@ -148,7 +148,9 @@ export default function ConciliationWorkbenchPage() {
       ? "El panel/boton no se muestra porque todavia no hay metricas de comparacion."
       : null,
     !selectedErpConfigId ? "No hay ERP seleccionado." : null,
-    isSendingExternalReconciliation ? "Se esta enviando la conciliacion." : null,
+    isSendingExternalReconciliation
+      ? "Se esta enviando la conciliacion."
+      : null,
     !erpSession?.authenticated ? "La sesion ERP no esta autenticada." : null,
     matchedCount === 0 ? "No hay coincidencias conciliadas." : null,
     !canSendExternalReconciliation
@@ -169,7 +171,7 @@ export default function ConciliationWorkbenchPage() {
     console.groupCollapsed(
       `[Qoncilia] Boton Conciliar ERP ${
         isExternalReconciliationDisabled ? "deshabilitado" : "habilitado"
-      }`
+      }`,
     );
     console.table({
       panelVisible: isExternalReconciliationPanelVisible,
@@ -215,20 +217,6 @@ export default function ConciliationWorkbenchPage() {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-3xl border border-slate-200/70 bg-white/90 p-6 shadow-sm">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-brand-600">
-          Conciliar
-        </p>
-        <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
-          Comparar contra un extracto bancario guardado
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          Selecciona banco y cuenta, busca el extracto guardado, sube el Excel
-          del sistema y revisa las coincidencias sin persistir datos del
-          sistema.
-        </p>
-      </div>
-
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_auto]">
           {isAdminRole(role) ? (
@@ -577,9 +565,7 @@ function StatementRow({
         {formatDateTime(statement.createdAt)}
       </td>
       <td className="px-3 py-3">
-        <p className="font-semibold text-slate-900">
-          {statement.bankName}
-        </p>
+        <p className="font-semibold text-slate-900">{statement.bankName}</p>
         <p className="mt-1 text-xs text-slate-500">
           {statement.companyBankAccountName} -{" "}
           {statement.companyBankAccountNumber}
