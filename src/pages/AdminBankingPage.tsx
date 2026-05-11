@@ -2,11 +2,14 @@ import { useState, type FormEvent, type InputHTMLAttributes } from "react";
 import {
   FiBriefcase,
   FiCheckCircle,
+  FiChevronLeft,
+  FiChevronRight,
   FiCreditCard,
   FiEdit3,
   FiPlus,
   FiRefreshCcw,
   FiSave,
+  FiSearch,
   FiShield,
   FiTrash2,
 } from "react-icons/fi";
@@ -28,6 +31,8 @@ export default function AdminBankingPage({
     useState<PublicCompanyBankAccount | null>(null);
   const [bankFormVisible, setBankFormVisible] = useState(false);
   const [accountFormVisible, setAccountFormVisible] = useState(false);
+  const showBanks = mode !== "accounts";
+  const showAccounts = mode !== "banks";
   const {
     selectedCompanyId,
     companies,
@@ -38,6 +43,17 @@ export default function AdminBankingPage({
     selectedBank,
     visibleAccounts,
     accountCountByBank,
+    bankSearch,
+    setBankSearch,
+    accountSearch,
+    setAccountSearch,
+    bankPagination,
+    accountPagination,
+    setBankPage,
+    setAccountPage,
+    isLoadingReference,
+    isLoadingBanks,
+    isLoadingAccounts,
     bankForm,
     accountForm,
     editingBankId,
@@ -55,10 +71,7 @@ export default function AdminBankingPage({
     resetAccountForm,
     reload,
     stats,
-  } = useCompanyBanking();
-
-  const showBanks = mode !== "accounts";
-  const showAccounts = mode !== "banks";
+  } = useCompanyBanking({ loadAccounts: showAccounts });
 
   const handleDeleteBank = async () => {
     if (!deleteBankTarget) return;
@@ -146,37 +159,56 @@ export default function AdminBankingPage({
             ) : null}
 
             {mode === "accounts" ? (
-              <label className="min-w-[280px] flex-1 space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">
-                  Banco
-                </span>
-                <select
-                  value={selectedBankId || ""}
-                  onChange={(event) => {
-                    setAccountFormVisible(false);
-                    selectBank(
-                      event.target.value ? Number(event.target.value) : 0,
-                    );
-                  }}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-                >
-                  <option value="">Selecciona un banco</option>
-                  {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>
-                      {bank.name}
-                      {bank.branch ? ` - ${bank.branch}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <SearchField
+                  label="Buscar banco"
+                  value={bankSearch}
+                  onChange={setBankSearch}
+                  placeholder="Nombre o sucursal"
+                />
+
+                <label className="min-w-[280px] flex-1 space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">
+                    Banco
+                  </span>
+                  <select
+                    value={selectedBankId || ""}
+                    onChange={(event) => {
+                      setAccountFormVisible(false);
+                      selectBank(
+                        event.target.value ? Number(event.target.value) : 0,
+                      );
+                    }}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                  >
+                    <option value="">Selecciona un banco</option>
+                    {banks.map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.name}
+                        {bank.branch ? ` - ${bank.branch}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <PaginationControls
+                  compact
+                  label="Bancos"
+                  pagination={bankPagination}
+                  loading={isLoadingBanks}
+                  onPageChange={setBankPage}
+                />
+              </>
             ) : null}
 
             <button
               type="button"
               onClick={() => void reload(selectedCompanyId)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              disabled={isLoadingReference || isLoadingBanks || isLoadingAccounts}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <FiRefreshCcw className="h-4 w-4" /> Recargar
+              <FiRefreshCcw className="h-4 w-4" />{" "}
+              {isLoadingReference ? "Recargando" : "Recargar"}
             </button>
           </div>
         </div>
@@ -213,6 +245,20 @@ export default function AdminBankingPage({
                   >
                     <FiPlus className="h-4 w-4" /> Nuevo
                   </button>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-end gap-3">
+                  <SearchField
+                    label="Buscar banco"
+                    value={bankSearch}
+                    onChange={setBankSearch}
+                    placeholder="Nombre, sucursal o descripcion"
+                  />
+                  <p className="pb-3 text-xs font-semibold text-slate-500">
+                    {isLoadingBanks
+                      ? "Cargando bancos..."
+                      : `${bankPagination.total} banco(s) encontrado(s)`}
+                  </p>
                 </div>
 
                 <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
@@ -301,8 +347,9 @@ export default function AdminBankingPage({
                               colSpan={5}
                               className="px-4 py-6 text-center text-sm text-slate-500"
                             >
-                              Todavia no hay bancos cargados. Usa Nuevo para
-                              crear el primero.
+                              {bankSearch.trim()
+                                ? "No se encontraron bancos con ese filtro."
+                                : "Todavia no hay bancos cargados. Usa Nuevo para crear el primero."}
                             </td>
                           </tr>
                         ) : null}
@@ -310,6 +357,13 @@ export default function AdminBankingPage({
                     </table>
                   </div>
                 </div>
+
+                <PaginationControls
+                  label="Bancos"
+                  pagination={bankPagination}
+                  loading={isLoadingBanks}
+                  onPageChange={setBankPage}
+                />
               </div>
 
               {bankFormVisible ? (
@@ -407,15 +461,32 @@ export default function AdminBankingPage({
 
                     <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                       {selectedBank
-                        ? `${visibleAccounts.length} cuenta(s) en ${selectedBank.name}`
+                        ? `${accountPagination.total} cuenta(s) en ${selectedBank.name}`
                         : "Selecciona un banco"}
                     </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-end gap-3">
+                    <SearchField
+                      label="Buscar cuenta"
+                      value={accountSearch}
+                      onChange={setAccountSearch}
+                      placeholder="Nro cuenta, ERP, moneda"
+                      disabled={!selectedBank}
+                    />
+                    <p className="pb-3 text-xs font-semibold text-slate-500">
+                      {isLoadingAccounts
+                        ? "Cargando cuentas..."
+                        : `${accountPagination.total} cuenta(s) encontrada(s)`}
+                    </p>
                   </div>
 
                   <div className="mt-5 space-y-4">
                     {selectedBank && visibleAccounts.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                        Este banco todavia no tiene cuentas cargadas.
+                        {accountSearch.trim()
+                          ? "No se encontraron cuentas con ese filtro."
+                          : "Este banco todavia no tiene cuentas cargadas."}
                       </div>
                     ) : null}
 
@@ -481,6 +552,13 @@ export default function AdminBankingPage({
                       </div>
                     ) : null}
                   </div>
+
+                  <PaginationControls
+                    label="Cuentas"
+                    pagination={accountPagination}
+                    loading={isLoadingAccounts}
+                    onPageChange={setAccountPage}
+                  />
                 </div>
               ) : (
                 <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 shadow-sm">
@@ -498,7 +576,7 @@ export default function AdminBankingPage({
 
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
-                        {visibleAccounts.length} cuenta(s)
+                        {accountPagination.total} cuenta(s)
                       </span>
                       <button
                         type="button"
@@ -509,6 +587,21 @@ export default function AdminBankingPage({
                         <FiPlus className="h-4 w-4" /> Nuevo
                       </button>
                     </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-end gap-3">
+                    <SearchField
+                      label="Buscar cuenta"
+                      value={accountSearch}
+                      onChange={setAccountSearch}
+                      placeholder="Nro cuenta, ERP, mayor, moneda"
+                      disabled={!selectedBank}
+                    />
+                    <p className="pb-3 text-xs font-semibold text-slate-500">
+                      {isLoadingAccounts
+                        ? "Cargando cuentas..."
+                        : `${accountPagination.total} resultado(s)`}
+                    </p>
                   </div>
 
                   <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
@@ -580,7 +673,9 @@ export default function AdminBankingPage({
                                 className="px-4 py-6 text-center text-sm text-slate-500"
                               >
                                 {selectedBank
-                                  ? "Este banco todavia no tiene cuentas cargadas."
+                                  ? accountSearch.trim()
+                                    ? "No se encontraron cuentas con ese filtro."
+                                    : "Este banco todavia no tiene cuentas cargadas."
                                   : "Selecciona un banco para ver sus cuentas."}
                               </td>
                             </tr>
@@ -589,6 +684,13 @@ export default function AdminBankingPage({
                       </table>
                     </div>
                   </div>
+
+                  <PaginationControls
+                    label="Cuentas"
+                    pagination={accountPagination}
+                    loading={isLoadingAccounts}
+                    onPageChange={setAccountPage}
+                  />
                 </div>
               )}
 
@@ -800,6 +902,93 @@ function BankContextTile({
         <div className="rounded-xl bg-white/80 p-2 text-slate-600 shadow-sm">
           <Icon className="h-4 w-4" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SearchField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="min-w-[260px] flex-1 space-y-1.5">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <span className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm transition focus-within:border-slate-900 focus-within:ring-1 focus-within:ring-slate-900">
+        <FiSearch className="h-4 w-4 shrink-0 text-slate-400" />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="min-w-0 flex-1 bg-transparent outline-none disabled:cursor-not-allowed disabled:text-slate-400"
+        />
+      </span>
+    </label>
+  );
+}
+
+function PaginationControls({
+  label,
+  pagination,
+  loading = false,
+  compact = false,
+  onPageChange,
+}: {
+  label: string;
+  pagination: { total: number; page: number; limit: number; lastPage: number };
+  loading?: boolean;
+  compact?: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  const firstItem =
+    pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const lastItem = Math.min(
+    pagination.page * pagination.limit,
+    pagination.total,
+  );
+
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600 ${
+        compact ? "min-w-[260px]" : "mt-4"
+      }`}
+    >
+      <span className="font-semibold">
+        {label}: {firstItem}-{lastItem} de {pagination.total}
+      </span>
+
+      <div className="inline-flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => onPageChange(pagination.page - 1)}
+          disabled={loading || pagination.page <= 1}
+          className="inline-flex h-10 items-center gap-1 px-3 font-semibold transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+        >
+          <FiChevronLeft className="h-4 w-4" />
+          Anterior
+        </button>
+        <span className="border-x border-slate-200 px-3 py-2 font-bold text-slate-700">
+          {pagination.page}/{pagination.lastPage}
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(pagination.page + 1)}
+          disabled={loading || pagination.page >= pagination.lastPage}
+          className="inline-flex h-10 items-center gap-1 px-3 font-semibold transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+        >
+          Siguiente
+          <FiChevronRight className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
