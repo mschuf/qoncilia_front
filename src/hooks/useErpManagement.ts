@@ -13,21 +13,22 @@ import {
 import type {
   CompanyErpConfig,
   CompanyErpConfigFormState,
+  ErpConfigTemplate,
   ErpReferenceResponse
 } from "../types/erp"
 import { isAdminRole, isSuperAdminRole } from "../utils/role"
 
 const initialConfigForm: CompanyErpConfigFormState = {
   companyId: 0,
+  companyIds: [],
   code: "SAP_B1",
   name: "SAP Business One",
   erpType: "sap_b1",
-  active: true,
-  isDefault: true,
+  active: false,
+  isDefault: false,
   userSystem: "",
   userPass: "",
   dbName: "",
-  cmpName: "",
   serverNode: "",
   dbUser: "",
   password: "",
@@ -44,6 +45,7 @@ const initialLoginForm: SapLoginFormState = {
 function configToForm(config: CompanyErpConfig): CompanyErpConfigFormState {
   return {
     companyId: config.companyId,
+    companyIds: [config.companyId],
     code: config.code,
     name: config.name,
     erpType: config.erpType,
@@ -52,7 +54,6 @@ function configToForm(config: CompanyErpConfig): CompanyErpConfigFormState {
     userSystem: config.userSystem ?? "",
     userPass: "",
     dbName: config.dbName ?? "",
-    cmpName: config.cmpName ?? "",
     serverNode: config.serverNode ?? "",
     dbUser: config.dbUser ?? "",
     password: "",
@@ -62,10 +63,32 @@ function configToForm(config: CompanyErpConfig): CompanyErpConfigFormState {
   }
 }
 
+function templateToForm(template: ErpConfigTemplate): CompanyErpConfigFormState {
+  return {
+    companyId: 0,
+    companyIds: [],
+    code: template.code,
+    name: template.name,
+    erpType: template.erpType,
+    active: template.active,
+    isDefault: template.isDefault,
+    userSystem: template.userSystem ?? "",
+    userPass: "",
+    dbName: template.dbName ?? "",
+    serverNode: template.serverNode ?? "",
+    dbUser: template.dbUser ?? "",
+    password: "",
+    serviceLayerUrl: template.serviceLayerUrl ?? "",
+    tlsVersion: template.tlsVersion ?? "1.2",
+    allowSelfSigned: template.allowSelfSigned
+  }
+}
+
 function createConfigForm(companyId: number): CompanyErpConfigFormState {
   return {
     ...initialConfigForm,
-    companyId
+    companyId,
+    companyIds: companyId ? [companyId] : []
   }
 }
 
@@ -93,7 +116,9 @@ export default function useErpManagement() {
   const canEditConfig = isAdminRole(role)
   const [reference, setReference] = useState<ErpReferenceResponse | null>(null)
   const [configs, setConfigs] = useState<CompanyErpConfig[]>([])
+  const [templates, setTemplates] = useState<ErpConfigTemplate[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<number>(0)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number>(0)
   const [selectedConfigId, setSelectedConfigId] = useState<number>(0)
   const [configForm, setConfigForm] = useState<CompanyErpConfigFormState>(
     createConfigForm(0)
@@ -101,6 +126,7 @@ export default function useErpManagement() {
   const [loginForm, setLoginForm] = useState<SapLoginFormState>(initialLoginForm)
   const [sapSession, setSapSession] = useState<SapErpSession | null>(null)
   const [isCreatingConfig, setIsCreatingConfig] = useState(false)
+  const [copyCompanyIds, setCopyCompanyIds] = useState<number[]>([])
 
   const notifyError = useCallback(
     (error: unknown, fallbackMessage: string) => {
@@ -119,6 +145,19 @@ export default function useErpManagement() {
     [configs, selectedConfigId]
   )
 
+  const selectedTemplate = useMemo(() => {
+    if (!isSuperAdmin) return null
+    return templates.find((template) => template.id === selectedTemplateId) ?? templates[0] ?? null
+  }, [isSuperAdmin, selectedTemplateId, templates])
+
+  const selectedTemplateConfigs = selectedTemplate?.configs ?? []
+
+  const availableCompaniesForCopy = useMemo(() => {
+    if (!selectedTemplate) return []
+    const assignedIds = new Set(selectedTemplate.configs.map((config) => config.companyId))
+    return (reference?.companies ?? []).filter((company) => !assignedIds.has(company.id))
+  }, [reference?.companies, selectedTemplate])
+
   const loadReference = useCallback(async () => {
     const response = await apiClient.get<ErpReferenceResponse>("/erp/reference")
     setReference(response)
@@ -134,17 +173,17 @@ export default function useErpManagement() {
 
   const loadConfigs = useCallback(
     async (companyId: number) => {
-      if (!companyId) {
+      if (!companyId && !isSuperAdmin) {
         setConfigs([])
         setSelectedConfigId(0)
         return
       }
 
       const params = new URLSearchParams()
-      if (isSuperAdmin) {
+      if (isSuperAdmin && companyId) {
         params.set("companyId", String(companyId))
       }
-      if (!isSuperAdmin) {
+      if (!isAdminRole(role)) {
         params.set("activeOnly", "true")
       }
 
@@ -154,6 +193,10 @@ export default function useErpManagement() {
       const nextConfigs = response ?? []
       setConfigs(nextConfigs)
       setSelectedConfigId((current) => {
+        if (isSuperAdmin) {
+          return current && nextConfigs.some((config) => config.id === current) ? current : 0
+        }
+
         const requested = Number(searchParams.get("configId") ?? 0)
         const stored = getStoredSapConfigId()
         const candidates = [requested, current, stored]
@@ -162,23 +205,55 @@ export default function useErpManagement() {
         return existing ?? nextConfigs.find((config) => config.isDefault)?.id ?? nextConfigs[0]?.id ?? 0
       })
     },
-    [isSuperAdmin, searchParams]
+    [isSuperAdmin, role, searchParams]
   )
+
+  const loadTemplates = useCallback(async () => {
+    if (!isSuperAdmin) return
+
+    const response = await apiClient.get<ErpConfigTemplate[]>("/erp/config-templates")
+    const nextTemplates = response ?? []
+    setTemplates(nextTemplates)
+    setSelectedTemplateId((current) => {
+      if (current && nextTemplates.some((template) => template.id === current)) {
+        return current
+      }
+
+      return nextTemplates[0]?.id ?? 0
+    })
+  }, [isSuperAdmin])
 
   useEffect(() => {
     void loadReference().catch((error) => notifyError(error, "No se pudo cargar la referencia ERP."))
   }, [loadReference, notifyError])
 
   useEffect(() => {
-    if (!selectedCompanyId) return
-    void loadConfigs(selectedCompanyId).catch((error) =>
+    if (!isSuperAdmin) return
+    void loadTemplates().catch((error) =>
+      notifyError(error, "No se pudieron cargar las plantillas ERP.")
+    )
+  }, [isSuperAdmin, loadTemplates, notifyError])
+
+  useEffect(() => {
+    if (!isSuperAdmin && !selectedCompanyId) return
+    void loadConfigs(isSuperAdmin ? 0 : selectedCompanyId).catch((error) =>
       notifyError(error, "No se pudieron cargar las configuraciones ERP.")
     )
-  }, [loadConfigs, notifyError, selectedCompanyId])
+  }, [isSuperAdmin, loadConfigs, notifyError, selectedCompanyId])
+
+  useEffect(() => {
+    if (!selectedTemplate) {
+      setCopyCompanyIds([])
+      return
+    }
+
+    const availableIds = new Set(availableCompaniesForCopy.map((company) => company.id))
+    setCopyCompanyIds((current) => current.filter((companyId) => availableIds.has(companyId)))
+  }, [availableCompaniesForCopy, selectedTemplate])
 
   useEffect(() => {
     if (isCreatingConfig) {
-      setConfigForm(createConfigForm(selectedCompanyId))
+      setConfigForm(createConfigForm(isSuperAdmin ? 0 : selectedCompanyId))
       return
     }
 
@@ -191,8 +266,13 @@ export default function useErpManagement() {
       return
     }
 
-    setConfigForm(createConfigForm(selectedCompanyId))
-  }, [isCreatingConfig, selectedCompanyId, selectedConfig])
+    if (isSuperAdmin && selectedTemplate) {
+      setConfigForm(templateToForm(selectedTemplate))
+      return
+    }
+
+    setConfigForm(createConfigForm(isSuperAdmin ? 0 : selectedCompanyId))
+  }, [isCreatingConfig, isSuperAdmin, selectedCompanyId, selectedConfig, selectedTemplate])
 
   const checkSapSession = useCallback(async () => {
     if (!selectedConfigId) {
@@ -214,6 +294,12 @@ export default function useErpManagement() {
   useEffect(() => {
     if (!selectedConfigId) {
       setSapSession(null)
+      setSearchParams((current) => {
+        if (!current.has("configId")) return current
+        const next = new URLSearchParams(current)
+        next.delete("configId")
+        return next
+      }, { replace: true })
       return
     }
 
@@ -249,39 +335,77 @@ export default function useErpManagement() {
     }))
   }
 
-  const startCreateConfig = () => {
-    setIsCreatingConfig(true)
+  const toggleConfigCompany = (companyId: number) => {
+    setConfigForm((current) => {
+      const ids = new Set(current.companyIds)
+      if (ids.has(companyId)) {
+        ids.delete(companyId)
+      } else {
+        ids.add(companyId)
+      }
+
+      const companyIds = Array.from(ids)
+      return {
+        ...current,
+        companyIds,
+        companyId: current.companyId || companyIds[0] || 0
+      }
+    })
+  }
+
+  const toggleCopyCompany = (companyId: number) => {
+    setCopyCompanyIds((current) =>
+      current.includes(companyId)
+        ? current.filter((id) => id !== companyId)
+        : [...current, companyId]
+    )
+  }
+
+  const selectTemplate = (templateId: number) => {
+    setIsCreatingConfig(false)
+    setSelectedTemplateId(templateId)
     setSelectedConfigId(0)
     setSapSession(null)
   }
 
+  const startCreateConfig = () => {
+    setIsCreatingConfig(true)
+    setSelectedConfigId(0)
+    setSapSession(null)
+    setCopyCompanyIds([])
+  }
+
   const cancelCreateConfig = () => {
     setIsCreatingConfig(false)
-    setSelectedConfigId(configs[0]?.id ?? 0)
+    setSelectedConfigId(0)
+    setSelectedTemplateId((current) => current || templates[0]?.id || 0)
   }
 
   const saveConfig = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canEditConfig) return
 
+    if (isSuperAdmin && !isCreatingConfig && !selectedConfigId && !selectedTemplate) {
+      toast.error("Selecciona una plantilla ERP para editar.")
+      return
+    }
+
     const editableCredentials = {
+      name: configForm.name,
+      active: configForm.active,
+      isDefault: configForm.isDefault,
       userSystem: configForm.userSystem || undefined,
       userPass: configForm.userPass || undefined,
-      dbName: configForm.dbName,
-      cmpName: configForm.cmpName || undefined,
+      dbName: configForm.dbName || undefined,
       dbUser: configForm.dbUser || undefined,
       password: configForm.password || undefined,
-      serviceLayerUrl: configForm.serviceLayerUrl,
-      tlsVersion: configForm.tlsVersion
+      serviceLayerUrl: configForm.serviceLayerUrl || undefined,
+      tlsVersion: configForm.tlsVersion || undefined
     }
 
     const payload = isSuperAdmin
       ? {
-          companyId: configForm.companyId || selectedCompanyId,
           code: configForm.code,
-          name: configForm.name,
-          active: configForm.active,
-          isDefault: configForm.isDefault,
           serverNode: configForm.serverNode || undefined,
           allowSelfSigned: configForm.allowSelfSigned,
           ...editableCredentials
@@ -294,18 +418,98 @@ export default function useErpManagement() {
     }
 
     try {
-      const saved =
-        isCreatingConfig || !selectedConfigId
-          ? await apiClient.post<CompanyErpConfig>("/erp/configs", payload)
-          : await apiClient.patch<CompanyErpConfig>(`/erp/configs/${selectedConfigId}`, payload)
+      if (isSuperAdmin && isCreatingConfig) {
+        const savedTemplate = await apiClient.post<ErpConfigTemplate>("/erp/config-templates", payload)
+        toast.success("Plantilla ERP creada correctamente.")
+        setIsCreatingConfig(false)
+        setSelectedTemplateId(savedTemplate.id)
+        setSelectedConfigId(0)
+        await loadTemplates()
+        await loadConfigs(0)
+        return
+      }
 
+      if (isSuperAdmin && selectedConfigId) {
+        const savedConfig = await apiClient.patch<CompanyErpConfig>(
+          `/erp/configs/${selectedConfigId}`,
+          payload
+        )
+        toast.success("Configuracion ERP guardada correctamente.")
+        await loadTemplates()
+        await loadConfigs(0)
+        setSelectedConfigId(savedConfig.id)
+        setSelectedTemplateId(savedConfig.templateId ?? selectedTemplate?.id ?? 0)
+        return
+      }
+
+      if (isSuperAdmin && selectedTemplate) {
+        const savedTemplate = await apiClient.patch<ErpConfigTemplate>(
+          `/erp/config-templates/${selectedTemplate.id}`,
+          payload
+        )
+        toast.success("Plantilla ERP guardada correctamente.")
+        await loadTemplates()
+        await loadConfigs(0)
+        setSelectedTemplateId(savedTemplate.id)
+        setSelectedConfigId(0)
+        return
+      }
+
+      const savedConfig = await apiClient.patch<CompanyErpConfig>(`/erp/configs/${selectedConfigId}`, payload)
       toast.success("Configuracion ERP guardada correctamente.")
       setIsCreatingConfig(false)
-      await loadConfigs(saved.companyId)
-      setSelectedCompanyId(saved.companyId)
-      setSelectedConfigId(saved.id)
+      await loadConfigs(savedConfig.companyId)
+      setSelectedCompanyId(savedConfig.companyId)
+      setSelectedConfigId(savedConfig.id)
     } catch (error) {
       notifyError(error, "No se pudo guardar la configuracion ERP.")
+    }
+  }
+
+  const copyTemplateToCompanies = async () => {
+    if (!isSuperAdmin || !selectedTemplate || copyCompanyIds.length === 0) {
+      toast.error("Selecciona una plantilla y al menos una empresa destino.")
+      return
+    }
+
+    try {
+      const copiedConfigs = await apiClient.post<CompanyErpConfig[]>(
+        `/erp/config-templates/${selectedTemplate.id}/copies`,
+        { companyIds: copyCompanyIds }
+      )
+      toast.success(
+        copiedConfigs.length > 1
+          ? `${copiedConfigs.length} copias creadas correctamente.`
+          : "Copia creada correctamente."
+      )
+      setCopyCompanyIds([])
+      await loadTemplates()
+      await loadConfigs(0)
+      if (copiedConfigs[0]) {
+        setSelectedConfigId(copiedConfigs[0].id)
+        setSelectedTemplateId(copiedConfigs[0].templateId ?? selectedTemplate.id)
+      }
+    } catch (error) {
+      notifyError(error, "No se pudo copiar la plantilla ERP.")
+    }
+  }
+
+  const deleteConfig = async (config: CompanyErpConfig) => {
+    if (!isSuperAdmin) return
+    const confirmed = window.confirm(
+      `Seguro que queres quitar "${config.name}" de ${config.companyName}?`
+    )
+    if (!confirmed) return
+
+    try {
+      await apiClient.delete(`/erp/configs/${config.id}`)
+      toast.success("Configuracion ERP quitada de la empresa.")
+      await loadTemplates()
+      await loadConfigs(0)
+      setSelectedConfigId(0)
+      setSelectedTemplateId(config.templateId ?? selectedTemplate?.id ?? 0)
+    } catch (error) {
+      notifyError(error, "No se pudo quitar la configuracion ERP.")
     }
   }
 
@@ -364,6 +568,11 @@ export default function useErpManagement() {
     reference,
     companies: reference?.companies ?? [],
     configs,
+    templates,
+    selectedTemplate,
+    selectedTemplateConfigs,
+    availableCompaniesForCopy,
+    copyCompanyIds,
     selectedCompanyId,
     setSelectedCompanyId,
     selectedCompany,
@@ -371,8 +580,14 @@ export default function useErpManagement() {
     setSelectedConfigId,
     selectedConfig,
     configForm,
+    toggleConfigCompany,
+    toggleCopyCompany,
+    setCopyCompanyIds,
+    selectTemplate,
     onConfigFormChange,
     saveConfig,
+    copyTemplateToCompanies,
+    deleteConfig,
     startCreateConfig,
     cancelCreateConfig,
     isCreatingConfig,
@@ -384,6 +599,6 @@ export default function useErpManagement() {
     sapSession,
     sessionLabel: sessionLabel(sapSession?.status),
     metrics,
-    reload: () => loadConfigs(selectedCompanyId)
+    reload: () => loadConfigs(isSuperAdmin ? 0 : selectedCompanyId)
   }
 }

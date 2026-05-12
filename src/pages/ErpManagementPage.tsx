@@ -9,9 +9,11 @@ import {
   FiSave,
   FiServer,
   FiShield,
+  FiCopy,
+  FiTrash2,
 } from "react-icons/fi";
 import useErpManagement from "../hooks/useErpManagement";
-import type { CompanyErpConfig } from "../types/erp";
+import type { CompanyErpConfig, ErpConfigTemplate } from "../types/erp";
 
 export default function ErpManagementPage() {
   const {
@@ -19,14 +21,21 @@ export default function ErpManagementPage() {
     canEditConfig,
     companies,
     configs,
-    selectedCompanyId,
-    setSelectedCompanyId,
+    templates,
+    selectedTemplate,
+    selectedTemplateConfigs,
+    availableCompaniesForCopy,
+    copyCompanyIds,
     selectedConfigId,
     setSelectedConfigId,
     selectedConfig,
     configForm,
+    setCopyCompanyIds,
+    selectTemplate,
     onConfigFormChange,
     saveConfig,
+    copyTemplateToCompanies,
+    deleteConfig,
     startCreateConfig,
     cancelCreateConfig,
     isCreatingConfig,
@@ -45,25 +54,10 @@ export default function ErpManagementPage() {
       <div className="rounded-3xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-end gap-3">
           {isSuperAdmin ? (
-            <label className="min-w-[260px] flex-1 space-y-1.5">
-              <span className="text-sm font-semibold text-slate-700">
-                Empresa
-              </span>
-              <select
-                value={selectedCompanyId}
-                onChange={(event) => {
-                  setSelectedCompanyId(Number(event.target.value));
-                  cancelCreateConfig();
-                }}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-              >
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name} ({company.fiscalId ?? company.code})
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="inline-flex min-w-[260px] flex-1 items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+              <FiShield className="h-4 w-4" />
+              Plantillas ERP globales
+            </div>
           ) : (
             <div className="inline-flex min-w-[260px] flex-1 items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
               <FiShield className="h-4 w-4" />
@@ -85,7 +79,7 @@ export default function ErpManagementPage() {
               onClick={startCreateConfig}
               className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700"
             >
-              <FiPlus className="h-4 w-4" /> Nueva configuracion
+              <FiPlus className="h-4 w-4" /> Nueva plantilla
             </button>
           ) : null}
         </div>
@@ -96,7 +90,7 @@ export default function ErpManagementPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                ERPs activas
+                Configuraciones ERP
               </p>
               <h3 className="mt-2 text-xl font-extrabold text-slate-900">
                 Integraciones disponibles
@@ -108,23 +102,34 @@ export default function ErpManagementPage() {
           </div>
 
           <div className="mt-5 space-y-3">
-            {configs.map((config) => (
-              <ConfigTile
-                key={config.id}
-                config={config}
-                selected={config.id === selectedConfigId}
-                connected={
-                  sapSession?.companyErpConfigId === config.id &&
-                  sapSession.authenticated
-                }
-                onSelect={() => {
-                  setSelectedConfigId(config.id);
-                }}
-              />
-            ))}
-            {configs.length === 0 ? (
+            {isSuperAdmin
+              ? templates.map((template) => (
+                  <TemplateTile
+                    key={template.id}
+                    template={template}
+                    selected={template.id === selectedTemplate?.id}
+                    onSelect={() => selectTemplate(template.id)}
+                  />
+                ))
+              : configs.map((config) => (
+                  <ConfigTile
+                    key={config.id}
+                    config={config}
+                    selected={config.id === selectedConfigId}
+                    connected={
+                      sapSession?.companyErpConfigId === config.id &&
+                      sapSession.authenticated
+                    }
+                    onSelect={() => {
+                      setSelectedConfigId(config.id);
+                    }}
+                  />
+                ))}
+            {(isSuperAdmin ? templates.length : configs.length) === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">
-                No hay configuraciones ERP disponibles para esta empresa.
+                {isSuperAdmin
+                  ? "No hay plantillas ERP creadas."
+                  : "No hay configuraciones ERP disponibles para esta empresa."}
               </div>
             ) : null}
           </div>
@@ -138,12 +143,16 @@ export default function ErpManagementPage() {
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                     {isSuperAdmin
                       ? isCreatingConfig
-                        ? "Nueva configuracion"
-                        : "ABM superadmin"
+                        ? "Nueva plantilla"
+                        : selectedConfig
+                          ? "Copia asignada"
+                          : "Template ERP"
                       : "Configuracion de tu empresa"}
                   </p>
                   <h3 className="mt-2 text-xl font-extrabold text-slate-900">
-                    Configuracion SAP Business One
+                    {isSuperAdmin && isCreatingConfig
+                      ? "Template SAP Business One"
+                      : "Configuracion SAP Business One"}
                   </h3>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-3 text-slate-700">
@@ -152,21 +161,132 @@ export default function ErpManagementPage() {
               </div>
 
               <form onSubmit={saveConfig} className="mt-6 space-y-4">
-                {isSuperAdmin ? (
-                  <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2">
+                  {isSuperAdmin ? (
                     <Field
                       label="Codigo"
                       name="code"
                       value={configForm.code}
                       onChange={onConfigFormChange}
+                      disabled={!isCreatingConfig}
                       required
                     />
+                  ) : null}
+                  <Field
+                    label="Nombre"
+                    name="name"
+                    value={configForm.name}
+                    onChange={onConfigFormChange}
+                    required
+                  />
+                </div>
+
+                {isSuperAdmin && !isCreatingConfig && selectedTemplate ? (
+                  <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">
+                        Copias asignadas
+                      </p>
+
+                      {availableCompaniesForCopy.length > 0 ? (
+                        <div className="mt-3 flex gap-2">
+                          <select
+                            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
+                            value={copyCompanyIds[0] ?? ""}
+                            onChange={(e) =>
+                              setCopyCompanyIds(
+                                e.target.value ? [Number(e.target.value)] : []
+                              )
+                            }
+                          >
+                            <option value="">Seleccionar empresa</option>
+                            {availableCompaniesForCopy.map((company) => (
+                              <option key={company.id} value={company.id}>
+                                {company.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => void copyTemplateToCompanies()}
+                            disabled={copyCompanyIds.length === 0}
+                            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                          >
+                            <FiCopy className="h-4 w-4" />
+                            Copiar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-500">
+                          Todas las empresas ya tienen una copia de esta plantilla.
+                        </div>
+                      )}
+
+                      <div className="mt-3 space-y-2">
+                        {selectedTemplateConfigs.map((config) => (
+                          <div
+                            key={config.id}
+                            className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2 text-sm ${
+                              config.id === selectedConfigId
+                                ? "border-slate-900"
+                                : "border-slate-200"
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate font-bold text-slate-800">
+                                {config.companyName}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {config.active ? "Activa" : "Inactiva"}
+                                {config.isDefault ? " | Default" : ""}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedConfigId(config.id)}
+                                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void deleteConfig(config)}
+                                className="inline-flex items-center gap-1 rounded-xl border border-rose-200 px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-50"
+                              >
+                                <FiTrash2 className="h-3.5 w-3.5" />
+                                Quitar
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        {selectedTemplateConfigs.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-500">
+                            Esta plantilla todavia no esta asignada a ninguna empresa.
+                          </div>
+                        ) : null}
+                      </div>
+                      {selectedConfig ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedConfigId(0)}
+                          className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                        >
+                          Editar template
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {isSuperAdmin && !isCreatingConfig && selectedConfig ? (
+                  <div className="grid gap-3 md:grid-cols-2">
                     <Field
-                      label="Nombre"
-                      name="name"
-                      value={configForm.name}
+                      label="Empresa"
+                      name="companyId"
+                      value={selectedConfig?.companyName ?? ""}
                       onChange={onConfigFormChange}
-                      required
+                      disabled
                     />
                   </div>
                 ) : null}
@@ -178,7 +298,7 @@ export default function ErpManagementPage() {
                     value={configForm.dbName}
                     onChange={onConfigFormChange}
                     placeholder="ESQUEMA_PROD"
-                    required
+                    required={configForm.active}
                   />
                   <Field
                     label="Service Layer URL"
@@ -186,7 +306,7 @@ export default function ErpManagementPage() {
                     value={configForm.serviceLayerUrl}
                     onChange={onConfigFormChange}
                     placeholder="https://172.19.0.88:50000/b1s/v2"
-                    required
+                    required={configForm.active}
                   />
                 </div>
 
@@ -205,7 +325,7 @@ export default function ErpManagementPage() {
                     value={configForm.userPass}
                     onChange={onConfigFormChange}
                     placeholder={
-                      selectedConfig?.hasUserPass
+                      selectedConfig?.hasUserPass || (!selectedConfig && selectedTemplate?.hasUserPass)
                         ? "Dejar en blanco para conservar"
                         : "Opcional"
                     }
@@ -223,14 +343,7 @@ export default function ErpManagementPage() {
                   </SelectField>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Field
-                    label="Esquema"
-                    name="cmpName"
-                    value={configForm.cmpName}
-                    onChange={onConfigFormChange}
-                    placeholder="Opcional"
-                  />
+                <div className="grid gap-3 md:grid-cols-2">
                   <Field
                     label="DB user"
                     name="dbUser"
@@ -245,7 +358,7 @@ export default function ErpManagementPage() {
                     value={configForm.password}
                     onChange={onConfigFormChange}
                     placeholder={
-                      selectedConfig?.hasPassword
+                      selectedConfig?.hasPassword || (!selectedConfig && selectedTemplate?.hasPassword)
                         ? "Dejar en blanco para conservar"
                         : "Opcional"
                     }
@@ -264,28 +377,28 @@ export default function ErpManagementPage() {
                   </div>
                 ) : null}
 
-                {isSuperAdmin ? (
-                  <div className="flex flex-wrap gap-3">
-                    <CheckField
-                      label="Activa"
-                      name="active"
-                      checked={configForm.active}
-                      onChange={onConfigFormChange}
-                    />
-                    <CheckField
-                      label="Predeterminada"
-                      name="isDefault"
-                      checked={configForm.isDefault}
-                      onChange={onConfigFormChange}
-                    />
+                <div className="flex flex-wrap gap-3">
+                  <CheckField
+                    label="Activa"
+                    name="active"
+                    checked={configForm.active}
+                    onChange={onConfigFormChange}
+                  />
+                  <CheckField
+                    label="Predeterminada"
+                    name="isDefault"
+                    checked={configForm.isDefault}
+                    onChange={onConfigFormChange}
+                  />
+                  {isSuperAdmin ? (
                     <CheckField
                       label="Certificado self-signed"
                       name="allowSelfSigned"
                       checked={configForm.allowSelfSigned}
                       onChange={onConfigFormChange}
                     />
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
 
                 <div className="flex flex-wrap justify-end gap-2">
                   {isCreatingConfig ? (
@@ -300,13 +413,20 @@ export default function ErpManagementPage() {
 
                   <button
                     type="submit"
-                    disabled={!isSuperAdmin && !selectedConfig}
+                    disabled={
+                      (!isSuperAdmin && !selectedConfig) ||
+                      (isSuperAdmin && !isCreatingConfig && !selectedConfig && !selectedTemplate)
+                    }
                     className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
                   >
                     <FiSave className="h-4 w-4" />
                     {isCreatingConfig
-                      ? "Crear configuracion"
-                      : "Guardar configuracion"}
+                      ? isSuperAdmin
+                        ? "Crear plantilla"
+                        : "Crear configuracion"
+                      : isSuperAdmin && !selectedConfig
+                        ? "Guardar template"
+                        : "Guardar configuracion"}
                   </button>
                 </div>
               </form>
@@ -446,6 +566,65 @@ function ConfigTile({
             Default
           </span>
         ) : null}
+      </div>
+    </button>
+  );
+}
+
+function TemplateTile({
+  template,
+  selected,
+  onSelect,
+}: {
+  template: ErpConfigTemplate;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const assignedCount = template.configs.length;
+  const activeCount = template.configs.filter((config) => config.active).length;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full rounded-2xl border p-4 text-left transition ${
+        selected
+          ? "border-slate-900 bg-slate-900 text-white shadow-md"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-extrabold">{template.name}</p>
+          <p
+            className={`mt-1 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}
+          >
+            {template.code}
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
+            selected ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {assignedCount}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span
+          className={`rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
+            selected ? "bg-white/10 text-slate-100" : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          {activeCount} activas
+        </span>
+        <span
+          className={`rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
+            selected ? "bg-white/10 text-slate-100" : "bg-brand-100 text-brand-700"
+          }`}
+        >
+          {assignedCount} empresas
+        </span>
       </div>
     </button>
   );
