@@ -548,22 +548,23 @@ export default function BankStatementsPage() {
                 >
                   <FiEye className="h-4 w-4" /> Visualizar
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void saveBankStatement()}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
-                >
-                  <FiSave className="h-4 w-4" /> Guardar extracto
-                </button>
                 {hasActiveSapB1 ? (
                   <button
                     type="button"
                     onClick={() => void processBankStatement()}
-                    className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-bold text-brand-700 transition hover:bg-brand-100"
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
                   >
                     <FiSend className="h-4 w-4" /> Procesar
                   </button>
-                ) : null}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void saveBankStatement()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                  >
+                    <FiSave className="h-4 w-4" /> Guardar extracto
+                  </button>
+                )}
               </div>
             </div>
           </div>
