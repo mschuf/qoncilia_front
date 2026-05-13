@@ -8,6 +8,7 @@ import { useDebounce } from "./useDebounce"
 import {
   getStoredSapConfigId,
   storeSapConfigId,
+  type SapB1QueryPreviewResult,
   type SapExternalReconciliationRequest,
   type SapExternalReconciliationResult,
   type SapErpSession,
@@ -222,6 +223,8 @@ export default function useConciliationWorkbench() {
   const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
   const [selectedErpConfigId, setSelectedErpConfigId] = useState<number>(0)
   const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
+  const [sapB1QueryPreview, setSapB1QueryPreview] = useState<SapB1QueryPreviewResult | null>(null)
+  const [isRunningSapB1Queries, setIsRunningSapB1Queries] = useState(false)
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
   const [isSendingExternalReconciliation, setIsSendingExternalReconciliation] = useState(false)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
@@ -473,12 +476,33 @@ export default function useConciliationWorkbench() {
     [bankStatements, selectedBankStatementId]
   )
 
+  const selectedErpConfig = useMemo(
+    () => erpConfigs.find((config) => config.id === selectedErpConfigId) ?? null,
+    [erpConfigs, selectedErpConfigId]
+  )
+  const isSapB1QueryMode = selectedErpConfig?.code?.toUpperCase() === "SAP_B1"
+
   const clearPreview = useCallback(() => {
     setPreview(null)
     setManualMatches([])
     setUnmatchedSystemRows([])
     setUnmatchedBankRows([])
   }, [])
+
+  const clearSapB1QueryPreview = useCallback(() => {
+    setSapB1QueryPreview(null)
+  }, [])
+
+  useEffect(() => {
+    clearSapB1QueryPreview()
+  }, [
+    clearSapB1QueryPreview,
+    dateFrom,
+    dateTo,
+    selectedBankId,
+    selectedCompanyBankAccountId,
+    selectedErpConfigId
+  ])
 
   const onFileChange =
     (setter: Dispatch<SetStateAction<File | null>>) =>
@@ -584,6 +608,44 @@ export default function useConciliationWorkbench() {
       console.error(error)
       console.groupEnd()
       toast.error(error instanceof Error ? error.message : "No se pudo comparar el extracto.")
+    }
+  }
+
+  const runSapB1QueryPreview = async () => {
+    if (!selectedErpConfigId || !isSapB1QueryMode) {
+      toast.error("Selecciona una configuracion ERP SAP_B1 activa.")
+      return
+    }
+
+    if (!selectedCompanyBankAccountId) {
+      toast.error("Selecciona una cuenta bancaria.")
+      return
+    }
+
+    if (!dateFrom || !dateTo) {
+      toast.error("Selecciona Fecha Desde y Fecha Hasta.")
+      return
+    }
+
+    try {
+      setIsRunningSapB1Queries(true)
+      const response = await apiClient.post<SapB1QueryPreviewResult>(
+        "/erp/sap/query-preview",
+        {
+          companyErpConfigId: selectedErpConfigId,
+          companyBankAccountId: selectedCompanyBankAccountId,
+          dateFrom,
+          dateTo
+        },
+        { timeoutMs: 45000 }
+      )
+      setSapB1QueryPreview(response)
+      clearPreview()
+      toast.success("Consultas SAP_B1 ejecutadas.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudieron ejecutar las consultas SAP_B1.")
+    } finally {
+      setIsRunningSapB1Queries(false)
     }
   }
 
@@ -803,6 +865,7 @@ export default function useConciliationWorkbench() {
   const clearAll = () => {
     setSystemFile(null)
     clearPreview()
+    clearSapB1QueryPreview()
   }
 
   return {
@@ -827,10 +890,15 @@ export default function useConciliationWorkbench() {
     systemFile,
     setSystemFile,
     erpConfigs,
+    selectedErpConfig,
     selectedErpConfigId,
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
+    isSapB1QueryMode,
+    sapB1QueryPreview,
+    isRunningSapB1Queries,
+    runSapB1QueryPreview,
     isSendingExternalReconciliation,
     preview,
     manualMatches,

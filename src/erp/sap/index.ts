@@ -6,6 +6,8 @@ export type {
   SapExternalReconciliationMatchInput,
   SapExternalReconciliationRequest,
   SapExternalReconciliationResult,
+  SapB1QueryPreviewResult,
+  SapB1QueryTable,
   SapErpSession,
   SapLoginFormState,
   SapSessionStatus

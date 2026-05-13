@@ -14,7 +14,11 @@ import {
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
 import type { BankStatementSummary } from "../types/conciliation";
-import type { SapErpSession } from "../erp/sap";
+import type {
+  SapB1QueryPreviewResult,
+  SapB1QueryTable,
+  SapErpSession,
+} from "../erp/sap";
 import { isAdminRole, isSuperAdminRole } from "../utils/role";
 
 function formatDateTime(value: string) {
@@ -102,10 +106,15 @@ export default function ConciliationWorkbenchPage() {
     systemFile,
     setSystemFile,
     erpConfigs,
+    selectedErpConfig,
     selectedErpConfigId,
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
+    isSapB1QueryMode,
+    sapB1QueryPreview,
+    isRunningSapB1Queries,
+    runSapB1QueryPreview,
     isSendingExternalReconciliation,
     preview,
     manualMatches,
@@ -144,6 +153,10 @@ export default function ConciliationWorkbenchPage() {
   const handleSearch = async () => {
     if (isSuperAdminRole(role) && banks.length === 0) {
       await loadCatalog(selectedUserId);
+    }
+    if (isSapB1QueryMode) {
+      await runSapB1QueryPreview();
+      return;
     }
     searchBankStatements();
   };
@@ -318,9 +331,13 @@ export default function ConciliationWorkbenchPage() {
             <button
               type="button"
               onClick={handleSearch}
-              disabled={isLoadingCatalog}
-              aria-label="Buscar extractos"
-              title="Buscar extractos"
+              disabled={isLoadingCatalog || isRunningSapB1Queries}
+              aria-label={
+                isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
+              }
+              title={
+                isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
+              }
               className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FiSearch className="h-4 w-4" />
@@ -329,126 +346,134 @@ export default function ConciliationWorkbenchPage() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                Extractos encontrados
-              </p>
-              <h3 className="mt-2 text-lg font-extrabold text-center text-slate-900">
-                Elige el extracto bancario para comparar
-              </h3>
-            </div>
-            {selectedBankStatement ? (
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
-                {selectedBankStatement.rowCount} filas
-              </span>
-            ) : null}
-          </div>
-
-          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                  <tr>
-                    <th className="px-3 py-2">Fecha</th>
-                    <th className="px-3 py-2">Banco y Cuenta</th>
-                    <th className="px-3 py-2">Alias del Extracto</th>
-                    <th className="px-3 py-2 text-right">Seleccionar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bankStatements.map((statement) => (
-                    <StatementRow
-                      key={statement.id}
-                      statement={statement}
-                      selected={statement.id === selectedBankStatementId}
-                      onSelect={setSelectedBankStatementId}
-                    />
-                  ))}
-                  {bankStatements.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-4 py-6 text-center text-sm text-slate-500"
-                      >
-                        No hay extractos guardados para los filtros elegidos.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-            <span>
-              Página <span className="font-semibold">{page}</span> de{" "}
-              <span className="font-semibold">{totalPages}</span>
-              {totalStatements > 0 ? (
-                <>
-                  {" "}
-                  · <span className="font-semibold">
-                    {totalStatements}
-                  </span>{" "}
-                  extractos
-                </>
+      {isSapB1QueryMode ? (
+        <SapB1QueryPreviewSection
+          result={sapB1QueryPreview}
+          loading={isRunningSapB1Queries}
+          erpName={selectedErpConfig?.name ?? "SAP_B1"}
+        />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                  Extractos encontrados
+                </p>
+                <h3 className="mt-2 text-lg font-extrabold text-center text-slate-900">
+                  Elige el extracto bancario para comparar
+                </h3>
+              </div>
+              {selectedBankStatement ? (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
+                  {selectedBankStatement.rowCount} filas
+                </span>
               ) : null}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => goToPage(page - 1)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
-              >
-                Anterior
-              </button>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => goToPage(page + 1)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
-              >
-                Siguiente
-              </button>
             </div>
-          </div>
-        </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <div className="space-y-4">
-            <UploadCard
-              title={`Excel del ${systemLabel}`}
-              file={systemFile}
-              onChange={onFileChange(setSystemFile)}
-              onClear={() => setSystemFile(null)}
-            />
+            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Fecha</th>
+                      <th className="px-3 py-2">Banco y Cuenta</th>
+                      <th className="px-3 py-2">Alias del Extracto</th>
+                      <th className="px-3 py-2 text-right">Seleccionar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bankStatements.map((statement) => (
+                      <StatementRow
+                        key={statement.id}
+                        statement={statement}
+                        selected={statement.id === selectedBankStatementId}
+                        onSelect={setSelectedBankStatementId}
+                      />
+                    ))}
+                    {bankStatements.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-4 py-6 text-center text-sm text-slate-500"
+                        >
+                          No hay extractos guardados para los filtros elegidos.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+              <span>
+                Página <span className="font-semibold">{page}</span> de{" "}
+                <span className="font-semibold">{totalPages}</span>
+                {totalStatements > 0 ? (
+                  <>
+                    {" "}
+                    · <span className="font-semibold">
+                      {totalStatements}
+                    </span>{" "}
+                    extractos
+                  </>
+                ) : null}
+              </span>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => void runComparison()}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                  disabled={page <= 1}
+                  onClick={() => goToPage(page - 1)}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
                 >
-                  <FiUploadCloud className="h-4 w-4" /> Comparar
+                  Anterior
                 </button>
                 <button
                   type="button"
-                  onClick={clearAll}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                  disabled={page >= totalPages}
+                  onClick={() => goToPage(page + 1)}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
                 >
-                  <FiRefreshCw className="h-4 w-4" /> Limpiar
+                  Siguiente
                 </button>
               </div>
             </div>
-          </div>
-        </section>
-      </div>
+          </section>
 
-      {preview && metrics ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="space-y-4">
+              <UploadCard
+                title={`Excel del ${systemLabel}`}
+                file={systemFile}
+                onChange={onFileChange(setSystemFile)}
+                onClear={() => setSystemFile(null)}
+              />
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void runComparison()}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                  >
+                    <FiUploadCloud className="h-4 w-4" /> Comparar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    <FiRefreshCw className="h-4 w-4" /> Limpiar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {!isSapB1QueryMode && preview && metrics ? (
         <>
           <section className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -596,6 +621,118 @@ export default function ConciliationWorkbenchPage() {
       </div>
     </section>
   );
+}
+
+function SapB1QueryPreviewSection({
+  result,
+  loading,
+  erpName,
+}: {
+  result: SapB1QueryPreviewResult | null;
+  loading: boolean;
+  erpName: string;
+}) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {result ? (
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
+            {result.accountCode}
+          </span>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+          Ejecutando consultas...
+        </div>
+      ) : result ? (
+        <div className="mt-5 grid gap-5 xl:grid-cols-2">
+          <SapB1QueryTableView title="Query banco" table={result.bank} />
+          <SapB1QueryTableView title="Query sistema" table={result.system} />
+        </div>
+      ) : (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+          Selecciona cuenta, fechas y pulsa buscar para ejecutar las consultas.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SapB1QueryTableView({
+  title,
+  table,
+}: {
+  title: string;
+  table: SapB1QueryTable;
+}) {
+  const columns = table.columns.slice(0, 12);
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h4 className="text-sm font-extrabold text-slate-900">{title}</h4>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+          {table.rows.length} filas
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200">
+        <div className="max-h-[520px] overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+              <tr>
+                {columns.map((column) => (
+                  <th key={column} className="whitespace-nowrap px-3 py-2">
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, index) => (
+                <tr
+                  key={index}
+                  className="border-t border-slate-100 text-slate-700"
+                >
+                  {columns.map((column) => (
+                    <td key={column} className="whitespace-nowrap px-3 py-2">
+                      {formatQueryValue(row[column])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {table.rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={Math.max(columns.length, 1)}
+                    className="px-4 py-8 text-center text-sm text-slate-500"
+                  >
+                    La consulta no devolvio filas.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {table.columns.length > columns.length ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Mostrando las primeras {columns.length} columnas de{" "}
+          {table.columns.length}.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function formatQueryValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "number") return value.toLocaleString("es-PY");
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return new Date(value).toLocaleDateString();
+  }
+  return String(value);
 }
 
 // Memoized para evitar re-render de filas al cambiar filtros/paginacion sin

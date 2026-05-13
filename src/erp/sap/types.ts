@@ -22,6 +22,22 @@ export interface SapLoginFormState {
   password: string
 }
 
+export interface SapB1QueryTable {
+  columns: string[]
+  rows: Array<Record<string, unknown>>
+}
+
+export interface SapB1QueryPreviewResult {
+  companyErpConfigId: number
+  companyErpConfigName: string
+  companyDb: string
+  accountCode: string
+  dateFrom: string
+  dateTo: string
+  bank: SapB1QueryTable
+  system: SapB1QueryTable
+}
+
 export type SapExternalReconciliationAccountType = "rat_GLAccount" | "rat_BusinessPartner"
 
 export interface SapExternalReconciliationMatchInput {
