@@ -9,6 +9,8 @@ export default function AppModal({
   children,
   footer,
   closeOnBackdrop = true,
+  widthClass = "max-w-2xl",
+  contentClassName = "max-h-[70vh] overflow-y-auto px-6 py-5",
 }: AppModalProps) {
   useEscapeKey(open, onClose);
 
@@ -20,7 +22,7 @@ export default function AppModal({
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl bg-white shadow-glow"
+        className={`w-full rounded-2xl bg-white shadow-glow ${widthClass}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
@@ -35,7 +37,7 @@ export default function AppModal({
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto px-6 py-5">{children}</div>
+        <div className={contentClassName}>{children}</div>
 
         {footer ? <div className="border-t border-slate-100 px-6 py-4">{footer}</div> : null}
       </div>

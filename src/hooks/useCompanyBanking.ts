@@ -336,8 +336,6 @@ export default function useCompanyBanking({
       return
     }
 
-    if (manualLoad) return
-
     void loadBanksPage({
       companyId: selectedCompanyId,
       page: bankPagination.page,
