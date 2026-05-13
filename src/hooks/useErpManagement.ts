@@ -30,6 +30,8 @@ const initialConfigForm: CompanyErpConfigFormState = {
   userPass: "",
   dbName: "",
   serverNode: "",
+  queryBanco: "",
+  querySistema: "",
   dbUser: "",
   password: "",
   serviceLayerUrl: "",
@@ -55,6 +57,8 @@ function configToForm(config: CompanyErpConfig): CompanyErpConfigFormState {
     userPass: "",
     dbName: config.dbName ?? "",
     serverNode: config.serverNode ?? "",
+    queryBanco: config.queryBanco ?? "",
+    querySistema: config.querySistema ?? "",
     dbUser: config.dbUser ?? "",
     password: "",
     serviceLayerUrl: config.serviceLayerUrl ?? "",
@@ -76,6 +80,8 @@ function templateToForm(template: ErpConfigTemplate): CompanyErpConfigFormState 
     userPass: "",
     dbName: template.dbName ?? "",
     serverNode: template.serverNode ?? "",
+    queryBanco: "",
+    querySistema: "",
     dbUser: template.dbUser ?? "",
     password: "",
     serviceLayerUrl: template.serviceLayerUrl ?? "",
@@ -397,6 +403,9 @@ export default function useErpManagement() {
       userSystem: configForm.userSystem || undefined,
       userPass: configForm.userPass || undefined,
       dbName: configForm.dbName || undefined,
+      serverNode: configForm.serverNode || undefined,
+      queryBanco: configForm.queryBanco || undefined,
+      querySistema: configForm.querySistema || undefined,
       dbUser: configForm.dbUser || undefined,
       password: configForm.password || undefined,
       serviceLayerUrl: configForm.serviceLayerUrl || undefined,
@@ -406,7 +415,6 @@ export default function useErpManagement() {
     const payload = isSuperAdmin
       ? {
           code: configForm.code,
-          serverNode: configForm.serverNode || undefined,
           allowSelfSigned: configForm.allowSelfSigned,
           ...editableCredentials
         }

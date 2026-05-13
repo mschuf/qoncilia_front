@@ -27,6 +27,8 @@ export interface CompanyErpConfig {
   userSystem: string | null
   dbName: string | null
   serverNode: string | null
+  queryBanco: string | null
+  querySistema: string | null
   dbUser: string | null
   serviceLayerUrl: string | null
   tlsVersion: string | null
@@ -72,6 +74,8 @@ export interface CompanyErpConfigFormState {
   userPass: string
   dbName: string
   serverNode: string
+  queryBanco: string
+  querySistema: string
   dbUser: string
   password: string
   serviceLayerUrl: string

@@ -727,7 +727,9 @@ export default function BankStatementsPage() {
             </div>
             <button
               type="button"
-              onClick={() => void loadBankStatements(bankStatementsPagination.page)}
+              onClick={() =>
+                void loadBankStatements(bankStatementsPagination.page)
+              }
               disabled={isLoadingStatements || !selectedBankId}
               title="Actualizar extractos"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -756,7 +758,7 @@ export default function BankStatementsPage() {
             Seguro que quieres eliminar el extracto{" "}
             <strong>"{deleteStatementTarget?.name ?? ""}"</strong>?
             {deleteStatementTarget?.status === "sap_b1_processed"
-              ? " Tambien se eliminara fila por fila en SAP_B1."
+              ? " Tambien se eliminara fila por fila en SAP_B1. Este proceso puede demorar"
               : ""}
           </span>
         }

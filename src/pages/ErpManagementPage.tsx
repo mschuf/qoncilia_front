@@ -1,4 +1,8 @@
-import type { InputHTMLAttributes, SelectHTMLAttributes } from "react";
+import type {
+  InputHTMLAttributes,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 import {
   FiCheckCircle,
   FiDatabase,
@@ -365,14 +369,34 @@ export default function ErpManagementPage() {
                   />
                 </div>
 
-                {isSuperAdmin ? (
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Field
-                      label="Server node"
-                      name="serverNode"
-                      value={configForm.serverNode}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field
+                    label="Server Node"
+                    name="serverNode"
+                    value={configForm.serverNode}
+                    onChange={onConfigFormChange}
+                    placeholder="Opcional"
+                    maxLength={100}
+                  />
+                </div>
+
+                {selectedConfig || !isSuperAdmin ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <TextAreaField
+                      label="Query banco"
+                      name="queryBanco"
+                      value={configForm.queryBanco}
                       onChange={onConfigFormChange}
-                      placeholder="Opcional"
+                      placeholder="SQL para banco"
+                      rows={6}
+                    />
+                    <TextAreaField
+                      label="Query sistema"
+                      name="querySistema"
+                      value={configForm.querySistema}
+                      onChange={onConfigFormChange}
+                      placeholder="SQL para sistema"
+                      rows={6}
                     />
                   </div>
                 ) : null}
@@ -663,6 +687,21 @@ function Field({
       <input
         {...props}
         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
+      />
+    </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) {
+  return (
+    <label className="space-y-1.5">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <textarea
+        {...props}
+        className="w-full resize-y rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition-all focus:border-slate-900 focus:ring-1 focus:ring-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
       />
     </label>
   );
