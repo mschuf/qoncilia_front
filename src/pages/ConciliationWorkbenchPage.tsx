@@ -13,7 +13,7 @@ import {
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
-import type { BankStatementSummary } from "../types/conciliation";
+import type { BankStatementSummary, LayoutMapping, PreviewRow } from "../types/conciliation";
 import type {
   SapB1QueryPreviewResult,
   SapB1QueryTable,
@@ -23,6 +23,115 @@ import { isAdminRole, isSuperAdminRole } from "../utils/role";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
+}
+
+interface SmartMatch {
+  systemRow: PreviewRow;
+  bankRow: PreviewRow;
+  score: number;
+  column1Match: boolean;
+  column2Match: boolean;
+  column3Match: boolean;
+}
+
+function getRowValue(row: PreviewRow, fieldKey: string | undefined): string | number | null {
+  if (!fieldKey) return null;
+  return row.normalized[fieldKey] ?? row.values[fieldKey] ?? null;
+}
+
+function likeMatch(a: string | number | null, b: string | number | null): boolean {
+  if (a == null || b == null) return false;
+  const sa = String(a).toLowerCase().trim();
+  const sb = String(b).toLowerCase().trim();
+  return sa.includes(sb) || sb.includes(sa);
+}
+
+function exactMatch(a: string | number | null, b: string | number | null): boolean {
+  if (a == null || b == null) return false;
+  return String(a).trim() === String(b).trim();
+}
+
+function calculateSmartMatches(
+  systemRows: PreviewRow[],
+  bankRows: PreviewRow[],
+  fieldKeys: string[]
+): SmartMatch[] {
+  const keys = fieldKeys.slice(0, 3);
+  if (keys.length === 0) return [];
+
+  const col1 = keys[0];
+  const col2 = keys[1];
+  const col3 = keys[2];
+
+  const matches: SmartMatch[] = [];
+  const usedBankRows = new Set<string>();
+
+  for (const sysRow of systemRows) {
+    // Paso 1: filtrar por columna 1 (LIKE)
+    let candidates = bankRows.filter((bankRow) => {
+      if (usedBankRows.has(bankRow.rowId)) return false;
+      return likeMatch(getRowValue(sysRow, col1), getRowValue(bankRow, col1));
+    });
+
+    if (candidates.length === 0) continue;
+
+    // Paso 2: si hay ambiguedad, filtrar por columna 2 (fecha =)
+    if (candidates.length > 1 && col2) {
+      const filtered = candidates.filter((bankRow) =>
+        exactMatch(getRowValue(sysRow, col2), getRowValue(bankRow, col2))
+      );
+      if (filtered.length > 0) candidates = filtered;
+    }
+
+    // Paso 3: si aun hay ambiguedad, filtrar por columna 3 (monto =)
+    if (candidates.length > 1 && col3) {
+      const filtered = candidates.filter((bankRow) =>
+        exactMatch(getRowValue(sysRow, col3), getRowValue(bankRow, col3))
+      );
+      if (filtered.length > 0) candidates = filtered;
+    }
+
+    const chosen = candidates[0];
+    usedBankRows.add(chosen.rowId);
+
+    const c1m = likeMatch(getRowValue(sysRow, col1), getRowValue(chosen, col1));
+    const c2m = col2 ? exactMatch(getRowValue(sysRow, col2), getRowValue(chosen, col2)) : false;
+    const c3m = col3 ? exactMatch(getRowValue(sysRow, col3), getRowValue(chosen, col3)) : false;
+
+    matches.push({
+      systemRow: sysRow,
+      bankRow: chosen,
+      score: (c1m ? 0.7 : 0) + (c2m ? 0.15 : 0) + (c3m ? 0.15 : 0),
+      column1Match: c1m,
+      column2Match: c2m,
+      column3Match: c3m,
+    });
+  }
+
+  return matches;
+}
+
+function convertSapB1TableToPreviewRows(table: SapB1QueryTable): PreviewRow[] {
+  return table.rows.map((row, index) => {
+    const values: Record<string, string | null> = {};
+    const normalized: Record<string, string | number | null> = {};
+
+    for (const col of table.columns) {
+      const raw = row[col];
+      const str = raw == null ? null : String(raw);
+      values[col] = str;
+      normalized[col] = str == null
+        ? null
+        : str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    }
+
+    return {
+      rowId: `sap-b1-${index}`,
+      rowNumber: index + 1,
+      values,
+      normalized,
+    };
+  });
 }
 
 function resolveErpStatus(session: SapErpSession | null) {
@@ -149,6 +258,26 @@ export default function ConciliationWorkbenchPage() {
     preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
   const erpStatus = resolveErpStatus(erpSession);
   const [isErpPanelOpen, setIsErpPanelOpen] = useState(false);
+  const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
+  const [showComparison, setShowComparison] = useState(false);
+  const [sapB1SmartMatches, setSapB1SmartMatches] = useState<SmartMatch[]>([]);
+  const [showSapB1Comparison, setShowSapB1Comparison] = useState(false);
+
+  useEffect(() => {
+    if (preview && selectedLayout) {
+      const fieldKeys = selectedLayout.mappings
+        .filter((m) => m.active)
+        .map((m) => m.fieldKey)
+        .slice(0, 3);
+      const matches = calculateSmartMatches(
+        preview.systemRows,
+        preview.bankRows,
+        fieldKeys
+      );
+      setSmartMatches(matches);
+      setShowComparison(true);
+    }
+  }, [preview, selectedLayout]);
 
   const handleSearch = async () => {
     if (isSuperAdminRole(role) && banks.length === 0) {
@@ -347,130 +476,233 @@ export default function ConciliationWorkbenchPage() {
       </section>
 
       {isSapB1QueryMode ? (
-        <SapB1QueryPreviewSection
-          result={sapB1QueryPreview}
-          loading={isRunningSapB1Queries}
-          erpName={selectedErpConfig?.name ?? "SAP_B1"}
-        />
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+        <>
           <section className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                  Extractos encontrados
-                </p>
-                <h3 className="mt-2 text-lg font-extrabold text-center text-slate-900">
-                  Elige el extracto bancario para comparar
-                </h3>
-              </div>
-              {selectedBankStatement ? (
+              {sapB1QueryPreview ? (
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
-                  {selectedBankStatement.rowCount} filas
+                  {sapB1QueryPreview.accountCode}
                 </span>
               ) : null}
             </div>
 
-            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Fecha</th>
-                      <th className="px-3 py-2">Banco y Cuenta</th>
-                      <th className="px-3 py-2">Alias del Extracto</th>
-                      <th className="px-3 py-2 text-right">Seleccionar</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bankStatements.map((statement) => (
-                      <StatementRow
-                        key={statement.id}
-                        statement={statement}
-                        selected={statement.id === selectedBankStatementId}
-                        onSelect={setSelectedBankStatementId}
-                      />
-                    ))}
-                    {bankStatements.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="px-4 py-6 text-center text-sm text-slate-500"
-                        >
-                          No hay extractos guardados para los filtros elegidos.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+            {isRunningSapB1Queries ? (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                Ejecutando consultas...
               </div>
-            </div>
+            ) : sapB1QueryPreview ? (
+              <div className="mt-5 grid gap-5 xl:grid-cols-2">
+                <SapB1QueryTableView title="Query banco" table={sapB1QueryPreview.bank} />
+                <SapB1QueryTableView title="Query sistema" table={sapB1QueryPreview.system} />
+              </div>
+            ) : (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                Selecciona cuenta, fechas y pulsa buscar para ejecutar las consultas.
+              </div>
+            )}
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-              <span>
-                Página <span className="font-semibold">{page}</span> de{" "}
-                <span className="font-semibold">{totalPages}</span>
-                {totalStatements > 0 ? (
-                  <>
-                    {" "}
-                    · <span className="font-semibold">
-                      {totalStatements}
-                    </span>{" "}
-                    extractos
-                  </>
-                ) : null}
-              </span>
-              <div className="flex items-center gap-2">
+            {sapB1QueryPreview ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="button"
-                  disabled={page <= 1}
-                  onClick={() => goToPage(page - 1)}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                  onClick={() => {
+                    setShowSapB1Comparison(false);
+                    setSapB1SmartMatches([]);
+                  }}
+                  disabled={!showSapB1Comparison}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Anterior
+                  <FiRefreshCw className="h-4 w-4" /> Limpiar
                 </button>
                 <button
                   type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => goToPage(page + 1)}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                  onClick={() => {
+                    if (!sapB1QueryPreview) return;
+                    const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
+                    const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
+                    const fieldKeys = sapB1QueryPreview.bank.columns.slice(0, 3);
+                    const matches = calculateSmartMatches(systemRows, bankRows, fieldKeys);
+                    setSapB1SmartMatches(matches);
+                    setShowSapB1Comparison(true);
+                  }}
+                  disabled={!sapB1QueryPreview || sapB1QueryPreview.bank.rows.length === 0 || sapB1QueryPreview.system.rows.length === 0}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Siguiente
+                  <FiUploadCloud className="h-4 w-4" /> Comparar
                 </button>
               </div>
-            </div>
+            ) : null}
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5">
-            <div className="space-y-4">
-              <UploadCard
-                title={`Excel del ${systemLabel}`}
-                file={systemFile}
-                onChange={onFileChange(setSystemFile)}
-                onClear={() => setSystemFile(null)}
-              />
+          {showSapB1Comparison && sapB1SmartMatches.length > 0 && sapB1QueryPreview ? (
+            <SmartMatchesTable
+              matches={sapB1SmartMatches}
+              columns={sapB1QueryPreview.bank.columns.slice(0, 3).map((col) => ({ fieldKey: col, label: col }))}
+            />
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                    Extractos encontrados
+                  </p>
+                  <h3 className="mt-2 text-lg font-extrabold text-center text-slate-900">
+                    Elige el extracto bancario para comparar
+                  </h3>
+                </div>
+                {selectedBankStatement ? (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
+                    {selectedBankStatement.rowCount} filas
+                  </span>
+                ) : null}
+              </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Fecha</th>
+                        <th className="px-3 py-2">Banco y Cuenta</th>
+                        <th className="px-3 py-2">Alias del Extracto</th>
+                        <th className="px-3 py-2 text-right">Seleccionar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bankStatements.map((statement) => (
+                        <StatementRow
+                          key={statement.id}
+                          statement={statement}
+                          selected={statement.id === selectedBankStatementId}
+                          onSelect={setSelectedBankStatementId}
+                        />
+                      ))}
+                      {bankStatements.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="px-4 py-6 text-center text-sm text-slate-500"
+                          >
+                            No hay extractos guardados para los filtros elegidos.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+                <span>
+                  Página <span className="font-semibold">{page}</span> de{" "}
+                  <span className="font-semibold">{totalPages}</span>
+                  {totalStatements > 0 ? (
+                    <>
+                      {" "}
+                      · <span className="font-semibold">
+                        {totalStatements}
+                      </span>{" "}
+                      extractos
+                    </>
+                  ) : null}
+                </span>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => void runComparison()}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                    disabled={page <= 1}
+                    onClick={() => goToPage(page - 1)}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
                   >
-                    <FiUploadCloud className="h-4 w-4" /> Comparar
+                    Anterior
                   </button>
                   <button
                     type="button"
-                    onClick={clearAll}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                    disabled={page >= totalPages}
+                    onClick={() => goToPage(page + 1)}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
                   >
-                    <FiRefreshCw className="h-4 w-4" /> Limpiar
+                    Siguiente
                   </button>
                 </div>
               </div>
-            </div>
-          </section>
-        </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowComparison(false);
+                    setSmartMatches([]);
+                  }}
+                  disabled={!showComparison}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiRefreshCw className="h-4 w-4" /> Limpiar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runComparison()}
+                  disabled={!selectedBankStatementId || !systemFile}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiUploadCloud className="h-4 w-4" /> Comparar
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-5">
+              <div className="space-y-4">
+                <UploadCard
+                  title={`Excel del ${systemLabel}`}
+                  file={systemFile}
+                  onChange={onFileChange(setSystemFile)}
+                  onClear={() => setSystemFile(null)}
+                />
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                    Extracto seleccionado
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {selectedBankStatement?.name ?? "Selecciona un extracto"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {selectedBankStatement
+                      ? `${bankLabel}: ${selectedBankStatement.fileName}`
+                      : "Busca y elige un extracto bancario guardado para habilitar la comparacion."}
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {showComparison && preview && selectedLayout ? (
+            <>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <DataTable
+                  title={bankLabel}
+                  rows={preview.bankRows}
+                  mappings={selectedLayout.mappings}
+                />
+                <DataTable
+                  title={systemLabel}
+                  rows={preview.systemRows}
+                  mappings={selectedLayout.mappings}
+                />
+              </div>
+              <SmartMatchesTable
+                matches={smartMatches}
+                columns={selectedLayout.mappings
+                  .filter((m) => m.active)
+                  .slice(0, 3)
+                  .map((m) => ({ fieldKey: m.fieldKey, label: m.label }))}
+              />
+            </>
+          ) : null}
+        </>
       )}
 
       {!isSapB1QueryMode && preview && metrics ? (
@@ -623,43 +855,6 @@ export default function ConciliationWorkbenchPage() {
   );
 }
 
-function SapB1QueryPreviewSection({
-  result,
-  loading,
-  erpName,
-}: {
-  result: SapB1QueryPreviewResult | null;
-  loading: boolean;
-  erpName: string;
-}) {
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        {result ? (
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
-            {result.accountCode}
-          </span>
-        ) : null}
-      </div>
-
-      {loading ? (
-        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-          Ejecutando consultas...
-        </div>
-      ) : result ? (
-        <div className="mt-5 grid gap-5 xl:grid-cols-2">
-          <SapB1QueryTableView title="Query banco" table={result.bank} />
-          <SapB1QueryTableView title="Query sistema" table={result.system} />
-        </div>
-      ) : (
-        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-          Selecciona cuenta, fechas y pulsa buscar para ejecutar las consultas.
-        </div>
-      )}
-    </section>
-  );
-}
-
 function SapB1QueryTableView({
   title,
   table,
@@ -733,6 +928,163 @@ function formatQueryValue(value: unknown) {
     return new Date(value).toLocaleDateString();
   }
   return String(value);
+}
+
+function DataTable({
+  title,
+  rows,
+  mappings,
+}: {
+  title: string;
+  rows: PreviewRow[];
+  mappings: LayoutMapping[];
+}) {
+  const activeMappings = mappings.filter((m) => m.active);
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+          {rows.length} filas
+        </span>
+      </div>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+        <div className="max-h-[520px] overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+              <tr>
+                {activeMappings.map((m) => (
+                  <th key={m.fieldKey} className="whitespace-nowrap px-3 py-2">
+                    {m.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.rowId}
+                  className="border-t border-slate-100 text-slate-700"
+                >
+                  {activeMappings.map((m) => (
+                    <td
+                      key={m.fieldKey}
+                      className="whitespace-nowrap px-3 py-2"
+                    >
+                      {row.values[m.fieldKey] ?? "-"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={Math.max(activeMappings.length, 1)}
+                    className="px-4 py-8 text-center text-sm text-slate-500"
+                  >
+                    Sin filas.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type MatchColumn = { fieldKey: string; label: string };
+
+function SmartMatchesTable({
+  matches,
+  columns,
+}: {
+  matches: SmartMatch[];
+  columns: MatchColumn[];
+}) {
+  const visibleColumns = columns.slice(0, 3);
+
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg font-extrabold text-slate-900">
+          Resultados del matching
+        </h3>
+        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+          {matches.length} coincidencias
+        </span>
+      </div>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+        <div className="max-h-[520px] overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-center text-slate-400" colSpan={visibleColumns.length}>
+                  Sistema
+                </th>
+                <th className="px-3 py-2 text-center text-slate-400" colSpan={visibleColumns.length}>
+                  Banco
+                </th>
+                <th className="px-3 py-2 text-right">Score</th>
+              </tr>
+              <tr>
+                {visibleColumns.map((c) => (
+                  <th key={`sys-${c.fieldKey}`} className="px-3 py-2">
+                    {c.label}
+                  </th>
+                ))}
+                {visibleColumns.map((c) => (
+                  <th key={`bank-${c.fieldKey}`} className="px-3 py-2">
+                    {c.label}
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-right">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matches.map((match, idx) => (
+                <tr
+                  key={idx}
+                  className="border-t border-slate-100 text-slate-700"
+                >
+                  {visibleColumns.map((c) => (
+                    <td
+                      key={`sys-${c.fieldKey}`}
+                      className="px-3 py-2 whitespace-nowrap"
+                    >
+                      {match.systemRow.values[c.fieldKey] ?? "-"}
+                    </td>
+                  ))}
+                  {visibleColumns.map((c) => (
+                    <td
+                      key={`bank-${c.fieldKey}`}
+                      className="px-3 py-2 whitespace-nowrap"
+                    >
+                      {match.bankRow.values[c.fieldKey] ?? "-"}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                    {Math.round(match.score * 100)}%
+                  </td>
+                </tr>
+              ))}
+              {matches.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={visibleColumns.length * 2 + 1}
+                    className="px-4 py-8 text-center text-sm text-slate-500"
+                  >
+                    No se encontraron coincidencias con las reglas actuales.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 // Memoized para evitar re-render de filas al cambiar filtros/paginacion sin
