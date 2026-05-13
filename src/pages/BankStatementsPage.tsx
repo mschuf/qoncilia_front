@@ -13,6 +13,7 @@ import {
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import AppModal from "../components/AppModal";
+import ConfirmModal from "../components/ConfirmModal";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -21,8 +22,11 @@ import type { AuthUser } from "../types/auth";
 import type {
   BankStatementDetail,
   BankStatementPreviewResponse,
+  BankStatementSummary,
+  DeleteBankStatementResponse,
   Layout,
   LayoutMapping,
+  PaginatedResponse,
   PreviewRow,
   UserBankWithLayouts,
 } from "../types/conciliation";
@@ -39,6 +43,13 @@ type SapBankPageProcessResponse = BankStatementDetail & {
   sap?: {
     processedRows: number;
   };
+};
+
+type BankStatementPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  lastPage: number;
 };
 
 function formatDateTimeTag(value: Date) {
@@ -64,6 +75,13 @@ function buildSuggestedStatementName(accountName?: string | null) {
   return `${normalizedAccountName || "extracto"}${formatDateTimeTag(new Date())}`;
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("es-PY", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export default function BankStatementsPage() {
   const { role, user } = useAuth();
   const toast = useToast();
@@ -87,6 +105,19 @@ export default function BankStatementsPage() {
   const [excludedRowIds, setExcludedRowIds] = useState<string[]>([]);
   const [selectedDetail, setSelectedDetail] =
     useState<BankStatementDetail | null>(null);
+  const [bankStatements, setBankStatements] = useState<BankStatementSummary[]>(
+    [],
+  );
+  const [bankStatementsPagination, setBankStatementsPagination] =
+    useState<BankStatementPagination>({
+      page: 1,
+      limit: 10,
+      total: 0,
+      lastPage: 1,
+    });
+  const [deleteStatementTarget, setDeleteStatementTarget] =
+    useState<BankStatementSummary | null>(null);
+  const [isLoadingStatements, setIsLoadingStatements] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [sapB1ConfigStatus, setSapB1ConfigStatus] =
@@ -167,6 +198,63 @@ export default function BankStatementsPage() {
       }
     },
     [role, toast],
+  );
+
+  const loadBankStatements = useCallback(
+    async (targetPage = 1) => {
+      if (!selectedUserId || !selectedBankId) {
+        setBankStatements([]);
+        setBankStatementsPagination((current) => ({
+          ...current,
+          page: 1,
+          total: 0,
+          lastPage: 1,
+        }));
+        return;
+      }
+
+      setIsLoadingStatements(true);
+      try {
+        const params = new URLSearchParams({
+          userBankId: String(selectedBankId),
+          page: String(targetPage),
+          limit: String(bankStatementsPagination.limit),
+        });
+
+        if (isAdminRole(role)) {
+          params.set("userId", String(selectedUserId));
+        }
+
+        const response = await apiClient.get<
+          PaginatedResponse<BankStatementSummary>
+        >(`/conciliation/bank-statements?${params.toString()}`, {
+          showBackdrop: false,
+        });
+
+        setBankStatements(response.data ?? []);
+        setBankStatementsPagination({
+          page: response.page,
+          limit: response.limit,
+          total: response.total,
+          lastPage: response.lastPage,
+        });
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar los ultimos extractos.",
+        );
+      } finally {
+        setIsLoadingStatements(false);
+      }
+    },
+    [
+      bankStatementsPagination.limit,
+      role,
+      selectedBankId,
+      selectedUserId,
+      toast,
+    ],
   );
 
   useEffect(() => {
@@ -257,6 +345,10 @@ export default function BankStatementsPage() {
     setExcludedRowIds([]);
   }, [selectedBankId, selectedCompanyBankAccountId, selectedLayoutId]);
 
+  useEffect(() => {
+    void loadBankStatements(1);
+  }, [loadBankStatements]);
+
   const handleSearch = () => {
     if (!selectedUserId) {
       toast.error("Selecciona un usuario.");
@@ -300,6 +392,44 @@ export default function BankStatementsPage() {
     },
     [preview, toast],
   );
+
+  const openSavedStatement = async (statementId: number) => {
+    try {
+      const response = await apiClient.get<BankStatementDetail>(
+        `/conciliation/bank-statements/${statementId}`,
+      );
+      setSelectedDetail(response);
+      setPreview(null);
+      setIsPreviewModalOpen(true);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo abrir el extracto.",
+      );
+    }
+  };
+
+  const deleteSavedStatement = async () => {
+    if (!deleteStatementTarget) return;
+
+    try {
+      await apiClient.delete<DeleteBankStatementResponse>(
+        `/conciliation/bank-statements/${deleteStatementTarget.id}`,
+      );
+      if (selectedDetail?.id === deleteStatementTarget.id) {
+        setSelectedDetail(null);
+      }
+      await loadBankStatements(bankStatementsPagination.page);
+      toast.success("Extracto eliminado.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar el extracto.",
+      );
+    }
+  };
 
   const previewBankStatement = async () => {
     if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
@@ -369,6 +499,7 @@ export default function BankStatementsPage() {
       setBankFile(null);
       setExcludedRowIds([]);
       setStatementSuggestionSeed((current) => current + 1);
+      await loadBankStatements(1);
       toast.success("Extracto bancario guardado.");
     } catch (error) {
       toast.error(
@@ -420,6 +551,7 @@ export default function BankStatementsPage() {
       setBankFile(null);
       setExcludedRowIds([]);
       setStatementSuggestionSeed((current) => current + 1);
+      await loadBankStatements(1);
       toast.success(
         `Extracto procesado en SAP_B1 (${response.sap?.processedRows ?? response.rowCount} fila(s)).`,
       );
@@ -582,7 +714,56 @@ export default function BankStatementsPage() {
             </div>
           </div>
         </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                Ultimos ingresos
+              </p>
+              <h2 className="mt-1 text-lg font-extrabold text-slate-900">
+                Extractos guardados por banco
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadBankStatements(bankStatementsPagination.page)}
+              disabled={isLoadingStatements || !selectedBankId}
+              title="Actualizar extractos"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FiSearch className="h-4 w-4" />
+            </button>
+          </div>
+
+          <BankStatementsTable
+            statements={bankStatements}
+            pagination={bankStatementsPagination}
+            loading={isLoadingStatements}
+            onPageChange={(page) => void loadBankStatements(page)}
+            onOpen={(statementId) => void openSavedStatement(statementId)}
+            onDelete={(statement) => setDeleteStatementTarget(statement)}
+          />
+        </section>
       </section>
+
+      <ConfirmModal
+        open={Boolean(deleteStatementTarget)}
+        onClose={() => setDeleteStatementTarget(null)}
+        title="Eliminar extracto"
+        message={
+          <span>
+            Seguro que quieres eliminar el extracto{" "}
+            <strong>"{deleteStatementTarget?.name ?? ""}"</strong>?
+            {deleteStatementTarget?.status === "sap_b1_processed"
+              ? " Tambien se eliminara fila por fila en SAP_B1."
+              : ""}
+          </span>
+        }
+        confirmLabel="Eliminar extracto"
+        confirmVariant="danger"
+        onConfirm={() => void deleteSavedStatement()}
+      />
 
       <AppModal
         open={isPreviewModalOpen}
@@ -628,6 +809,151 @@ function buildStatementFormData({
   formData.append("file", file);
   return formData;
 }
+
+const BankStatementsTable = memo(function BankStatementsTable({
+  statements,
+  pagination,
+  loading,
+  onPageChange,
+  onOpen,
+  onDelete,
+}: {
+  statements: BankStatementSummary[];
+  pagination: BankStatementPagination;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+  onOpen: (statementId: number) => void;
+  onDelete: (statement: BankStatementSummary) => void;
+}) {
+  const firstItem =
+    pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const lastItem = Math.min(
+    pagination.page * pagination.limit,
+    pagination.total,
+  );
+
+  return (
+    <section>
+      <div className="overflow-hidden rounded-2xl border border-slate-200">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+              <tr>
+                <th className="px-3 py-2">Fecha</th>
+                <th className="px-3 py-2">Extracto</th>
+                <th className="px-3 py-2">Cuenta</th>
+                <th className="px-3 py-2">Estado</th>
+                <th className="px-3 py-2 text-right">Filas</th>
+                <th className="w-24 px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {statements.map((statement) => (
+                <tr
+                  key={statement.id}
+                  className="border-t border-slate-100 text-slate-700"
+                >
+                  <td className="whitespace-nowrap px-3 py-3 text-slate-500">
+                    {formatDateTime(statement.createdAt)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <p className="font-semibold text-slate-900">
+                      {statement.name}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {statement.fileName}
+                    </p>
+                  </td>
+                  <td className="px-3 py-3">
+                    <p className="font-semibold text-slate-900">
+                      {statement.companyBankAccountName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {statement.companyBankAccountNumber} ·{" "}
+                      {statement.companyBankAccountCurrency}
+                    </p>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                      {statement.status === "sap_b1_processed"
+                        ? "SAP_B1"
+                        : "Guardado"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right font-semibold">
+                    {statement.rowCount}
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onOpen(statement.id)}
+                        title="Ver extracto"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100"
+                      >
+                        <FiEye className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(statement)}
+                        title="Eliminar extracto"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
+                      >
+                        <FiTrash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {statements.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-4 py-8 text-center text-sm text-slate-500"
+                  >
+                    {loading
+                      ? "Cargando extractos..."
+                      : "No hay extractos guardados para este banco."}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+        <span>
+          Mostrando {firstItem}-{lastItem} de {pagination.total}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={loading || pagination.page <= 1}
+            onClick={() => onPageChange(Math.max(1, pagination.page - 1))}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FiChevronLeft className="h-3.5 w-3.5" /> Anterior
+          </button>
+          <span>
+            Pagina <strong>{pagination.page}</strong> de{" "}
+            <strong>{pagination.lastPage}</strong>
+          </span>
+          <button
+            type="button"
+            disabled={loading || pagination.page >= pagination.lastPage}
+            onClick={() =>
+              onPageChange(Math.min(pagination.lastPage, pagination.page + 1))
+            }
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Siguiente <FiChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+});
 
 // Memo para evitar re-render por cada keystroke del search/cambio de pagina.
 const RowsTable = memo(function RowsTable({
