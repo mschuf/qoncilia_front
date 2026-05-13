@@ -280,7 +280,9 @@ export default function BankStatementsPage() {
       if (!preview || rowIds.length === 0) return;
 
       const idsToDelete = new Set(rowIds);
-      const nextRows = preview.rows.filter((row) => !idsToDelete.has(row.rowId));
+      const nextRows = preview.rows.filter(
+        (row) => !idsToDelete.has(row.rowId),
+      );
       const deletedCount = preview.rows.length - nextRows.length;
 
       if (deletedCount === 0) return;
@@ -543,7 +545,9 @@ export default function BankStatementsPage() {
                   <input
                     value={statementName}
                     onChange={(event) => setStatementName(event.target.value)}
-                    placeholder={suggestedStatementName || "Banco - cuenta - fecha"}
+                    placeholder={
+                      suggestedStatementName || "Banco - cuenta - fecha"
+                    }
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
                   />
                 </label>

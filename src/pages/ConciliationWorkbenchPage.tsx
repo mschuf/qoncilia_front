@@ -314,17 +314,6 @@ export default function ConciliationWorkbenchPage() {
             />
           </label>
 
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Buscar</span>
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Alias, archivo, banco..."
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            />
-          </label>
-
           <div className="flex items-end">
             <button
               type="button"
@@ -340,133 +329,124 @@ export default function ConciliationWorkbenchPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-              Extractos encontrados
-            </p>
-            <h3 className="mt-2 text-lg font-extrabold text-slate-900">
-              Elige el extracto bancario para comparar
-            </h3>
-          </div>
-          {selectedBankStatement ? (
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
-              {selectedBankStatement.rowCount} filas
-            </span>
-          ) : null}
-        </div>
-
-        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Fecha</th>
-                  <th className="px-3 py-2">Banco y Cuenta</th>
-                  <th className="px-3 py-2">Alias del Extracto</th>
-                  <th className="px-3 py-2">Layout</th>
-                  <th className="px-3 py-2">Filas</th>
-                  <th className="px-3 py-2 text-right">Seleccionar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bankStatements.map((statement) => (
-                  <StatementRow
-                    key={statement.id}
-                    statement={statement}
-                    selected={statement.id === selectedBankStatementId}
-                    onSelect={setSelectedBankStatementId}
-                  />
-                ))}
-                {bankStatements.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-6 text-center text-sm text-slate-500"
-                    >
-                      No hay extractos guardados para los filtros elegidos.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-          <span>
-            Página <span className="font-semibold">{page}</span> de{" "}
-            <span className="font-semibold">{totalPages}</span>
-            {totalStatements > 0 ? (
-              <>
-                {" "}
-                · <span className="font-semibold">{totalStatements}</span>{" "}
-                extractos
-              </>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                Extractos encontrados
+              </p>
+              <h3 className="mt-2 text-lg font-extrabold text-center text-slate-900">
+                Elige el extracto bancario para comparar
+              </h3>
+            </div>
+            {selectedBankStatement ? (
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
+                {selectedBankStatement.rowCount} filas
+              </span>
             ) : null}
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => goToPage(page - 1)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => goToPage(page + 1)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
-            >
-              Siguiente
-            </button>
           </div>
-        </div>
-      </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-4 lg:grid-cols-[1fr_0.7fr]">
-          <UploadCard
-            title={`Excel del ${systemLabel}`}
-            file={systemFile}
-            onChange={onFileChange(setSystemFile)}
-            onClear={() => setSystemFile(null)}
-          />
+          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Fecha</th>
+                    <th className="px-3 py-2">Banco y Cuenta</th>
+                    <th className="px-3 py-2">Alias del Extracto</th>
+                    <th className="px-3 py-2 text-right">Seleccionar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bankStatements.map((statement) => (
+                    <StatementRow
+                      key={statement.id}
+                      statement={statement}
+                      selected={statement.id === selectedBankStatementId}
+                      onSelect={setSelectedBankStatementId}
+                    />
+                  ))}
+                  {bankStatements.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-4 py-6 text-center text-sm text-slate-500"
+                      >
+                        No hay extractos guardados para los filtros elegidos.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-              Extracto seleccionado
-            </p>
-            <p className="mt-2 text-sm font-semibold text-slate-900">
-              {selectedBankStatement?.name ?? "Selecciona un extracto"}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {selectedBankStatement
-                ? `${bankLabel}: ${selectedBankStatement.fileName}`
-                : "Busca y elige un extracto bancario guardado para habilitar la comparacion."}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+            <span>
+              Página <span className="font-semibold">{page}</span> de{" "}
+              <span className="font-semibold">{totalPages}</span>
+              {totalStatements > 0 ? (
+                <>
+                  {" "}
+                  · <span className="font-semibold">
+                    {totalStatements}
+                  </span>{" "}
+                  extractos
+                </>
+              ) : null}
+            </span>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => void runComparison()}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                disabled={page <= 1}
+                onClick={() => goToPage(page - 1)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
               >
-                <FiUploadCloud className="h-4 w-4" /> Comparar
+                Anterior
               </button>
               <button
                 type="button"
-                onClick={clearAll}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                disabled={page >= totalPages}
+                onClick={() => goToPage(page + 1)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
               >
-                <FiRefreshCw className="h-4 w-4" /> Limpiar
+                Siguiente
               </button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="space-y-4">
+            <UploadCard
+              title={`Excel del ${systemLabel}`}
+              file={systemFile}
+              onChange={onFileChange(setSystemFile)}
+              onClear={() => setSystemFile(null)}
+            />
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void runComparison()}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                >
+                  <FiUploadCloud className="h-4 w-4" /> Comparar
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                >
+                  <FiRefreshCw className="h-4 w-4" /> Limpiar
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
 
       {preview && metrics ? (
         <>
@@ -646,10 +626,6 @@ const StatementRow = memo(function StatementRow({
       <td className="px-3 py-3">
         <p className="font-semibold text-slate-900">{statement.name}</p>
         <p className="mt-1 text-xs text-slate-500">{statement.fileName}</p>
-      </td>
-      <td className="px-3 py-3 text-slate-600">{statement.layoutName}</td>
-      <td className="px-3 py-3 font-semibold text-slate-800">
-        {statement.rowCount}
       </td>
       <td className="px-3 py-3 text-right">
         <button

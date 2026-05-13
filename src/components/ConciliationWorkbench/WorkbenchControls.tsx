@@ -177,10 +177,6 @@ export function UploadCard({
           <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
             {title}
           </p>
-          <p className="mt-1 text-sm text-slate-500">
-            Arrastra un archivo o <span className="font-semibold text-brand-600">click para elegir</span>
-          </p>
-          <p className="mt-0.5 text-xs text-slate-400">.xlsx, .xls</p>
         </>
       )}
     </div>
