@@ -6,6 +6,7 @@ import {
   FiSave,
   FiSearch,
   FiSend,
+  FiTrash2,
 } from "react-icons/fi";
 import {
   SelectBlock,
@@ -83,6 +84,7 @@ export default function BankStatementsPage() {
   const [preview, setPreview] = useState<BankStatementPreviewResponse | null>(
     null,
   );
+  const [excludedRowIds, setExcludedRowIds] = useState<string[]>([]);
   const [selectedDetail, setSelectedDetail] =
     useState<BankStatementDetail | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -249,6 +251,12 @@ export default function BankStatementsPage() {
     }
   }, [selectedLayout]);
 
+  useEffect(() => {
+    setPreview(null);
+    setSelectedDetail(null);
+    setExcludedRowIds([]);
+  }, [selectedBankId, selectedCompanyBankAccountId, selectedLayoutId]);
+
   const handleSearch = () => {
     if (!selectedUserId) {
       toast.error("Selecciona un usuario.");
@@ -259,6 +267,37 @@ export default function BankStatementsPage() {
       loadSapB1ConfigStatus(selectedUserId),
     ]);
   };
+
+  const handleBankFileChange = (file: File | null) => {
+    setBankFile(file);
+    setPreview(null);
+    setSelectedDetail(null);
+    setExcludedRowIds([]);
+  };
+
+  const handleDeletePreviewRows = useCallback(
+    (rowIds: string[]) => {
+      if (!preview || rowIds.length === 0) return;
+
+      const idsToDelete = new Set(rowIds);
+      const nextRows = preview.rows.filter((row) => !idsToDelete.has(row.rowId));
+      const deletedCount = preview.rows.length - nextRows.length;
+
+      if (deletedCount === 0) return;
+
+      setPreview({
+        ...preview,
+        rows: nextRows,
+        rowCount: nextRows.length,
+      });
+      setExcludedRowIds((current) => [
+        ...current,
+        ...rowIds.filter((rowId) => !current.includes(rowId)),
+      ]);
+      toast.success(`${deletedCount} fila(s) eliminada(s) de la vista previa.`);
+    },
+    [preview, toast],
+  );
 
   const previewBankStatement = async () => {
     if (!selectedBankId || !selectedCompanyBankAccountId || !selectedLayoutId) {
@@ -280,6 +319,7 @@ export default function BankStatementsPage() {
       layoutId: selectedLayoutId,
       name: statementName,
       file: bankFile,
+      excludedRowIds,
     });
 
     try {
@@ -314,6 +354,7 @@ export default function BankStatementsPage() {
       layoutId: selectedLayoutId,
       name: statementName,
       file: bankFile,
+      excludedRowIds,
     });
 
     try {
@@ -324,6 +365,7 @@ export default function BankStatementsPage() {
       setSelectedDetail(response);
       setPreview(null);
       setBankFile(null);
+      setExcludedRowIds([]);
       setStatementSuggestionSeed((current) => current + 1);
       toast.success("Extracto bancario guardado.");
     } catch (error) {
@@ -363,6 +405,7 @@ export default function BankStatementsPage() {
       layoutId: selectedLayoutId,
       name: statementName,
       file: bankFile,
+      excludedRowIds,
     });
 
     try {
@@ -373,6 +416,7 @@ export default function BankStatementsPage() {
       setSelectedDetail(response);
       setPreview(null);
       setBankFile(null);
+      setExcludedRowIds([]);
       setStatementSuggestionSeed((current) => current + 1);
       toast.success(
         `Extracto procesado en SAP_B1 (${response.sap?.processedRows ?? response.rowCount} fila(s)).`,
@@ -466,8 +510,10 @@ export default function BankStatementsPage() {
             <UploadCard
               title="Excel del banco"
               file={bankFile}
-              onChange={(event) => setBankFile(event.target.files?.[0] ?? null)}
-              onClear={() => setBankFile(null)}
+              onChange={(event) =>
+                handleBankFileChange(event.target.files?.[0] ?? null)
+              }
+              onClear={() => handleBankFileChange(null)}
             />
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -502,23 +548,22 @@ export default function BankStatementsPage() {
                 >
                   <FiEye className="h-4 w-4" /> Visualizar
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void saveBankStatement()}
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                >
+                  <FiSave className="h-4 w-4" /> Guardar extracto
+                </button>
                 {hasActiveSapB1 ? (
                   <button
                     type="button"
                     onClick={() => void processBankStatement()}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                    className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-bold text-brand-700 transition hover:bg-brand-100"
                   >
                     <FiSend className="h-4 w-4" /> Procesar
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => void saveBankStatement()}
-                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
-                  >
-                    <FiSave className="h-4 w-4" /> Guardar extracto
-                  </button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -532,7 +577,12 @@ export default function BankStatementsPage() {
         widthClass="w-[70vw] max-w-[70vw]"
         contentClassName="h-[80vh] overflow-y-auto px-6 py-5"
       >
-        <RowsTable rows={visibleRows} layout={visibleLayout} />
+        <RowsTable
+          rows={visibleRows}
+          layout={visibleLayout}
+          editable={Boolean(preview)}
+          onDeleteRows={handleDeletePreviewRows}
+        />
       </AppModal>
     </>
   );
@@ -544,18 +594,23 @@ function buildStatementFormData({
   layoutId,
   name,
   file,
+  excludedRowIds = [],
 }: {
   userBankId: number;
   companyBankAccountId: number;
   layoutId: number;
   name: string;
   file: File;
+  excludedRowIds?: string[];
 }) {
   const formData = new FormData();
   formData.append("userBankId", String(userBankId));
   formData.append("companyBankAccountId", String(companyBankAccountId));
   formData.append("layoutId", String(layoutId));
   if (name.trim()) formData.append("name", name.trim());
+  if (excludedRowIds.length > 0) {
+    formData.append("excludedRowIds", JSON.stringify(excludedRowIds));
+  }
   formData.append("file", file);
   return formData;
 }
@@ -564,13 +619,18 @@ function buildStatementFormData({
 const RowsTable = memo(function RowsTable({
   rows,
   layout,
+  editable = false,
+  onDeleteRows,
 }: {
   rows: PreviewRow[];
   layout: Layout | null;
+  editable?: boolean;
+  onDeleteRows?: (rowIds: string[]) => void;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const debouncedSearch = useDebounce(search, 300);
 
   const columns = useMemo(
@@ -597,6 +657,7 @@ const RowsTable = memo(function RowsTable({
   // Reset de paginacion ante cambios de input/filas/pageSize.
   useEffect(() => {
     setPage(1);
+    setSelectedRowIds([]);
   }, [debouncedSearch, rows, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
@@ -606,11 +667,46 @@ const RowsTable = memo(function RowsTable({
     () => filteredRows.slice(sliceStart, sliceStart + pageSize),
     [filteredRows, pageSize, sliceStart],
   );
+  const selectedRowsOnPage = useMemo(
+    () => visibleRows.filter((row) => selectedRowIds.includes(row.rowId)),
+    [selectedRowIds, visibleRows],
+  );
+  const allVisibleSelected =
+    visibleRows.length > 0 && selectedRowsOnPage.length === visibleRows.length;
+
+  const toggleRowSelection = (rowId: string) => {
+    setSelectedRowIds((current) =>
+      current.includes(rowId)
+        ? current.filter((item) => item !== rowId)
+        : [...current, rowId],
+    );
+  };
+
+  const toggleVisibleSelection = () => {
+    const visibleIds = visibleRows.map((row) => row.rowId);
+    setSelectedRowIds((current) => {
+      if (allVisibleSelected) {
+        return current.filter((rowId) => !visibleIds.includes(rowId));
+      }
+
+      return [
+        ...current,
+        ...visibleIds.filter((rowId) => !current.includes(rowId)),
+      ];
+    });
+  };
+
+  const deleteRows = (rowIds: string[]) => {
+    onDeleteRows?.(rowIds);
+    setSelectedRowIds((current) =>
+      current.filter((rowId) => !rowIds.includes(rowId)),
+    );
+  };
 
   return (
     <section>
       {rows.length > 0 ? (
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
           <input
             type="search"
             value={search}
@@ -628,6 +724,17 @@ const RowsTable = memo(function RowsTable({
             <option value={100}>100 por página</option>
             <option value={200}>200 por página</option>
           </select>
+          {editable ? (
+            <button
+              type="button"
+              disabled={selectedRowIds.length === 0}
+              onClick={() => deleteRows(selectedRowIds)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FiTrash2 className="h-4 w-4" />
+              Eliminar ({selectedRowIds.length})
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -636,12 +743,24 @@ const RowsTable = memo(function RowsTable({
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
               <tr>
+                {editable ? (
+                  <th className="w-10 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleVisibleSelection}
+                      aria-label="Seleccionar filas visibles"
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                  </th>
+                ) : null}
                 <th className="px-3 py-2">Fila</th>
                 {columns.map((column) => (
                   <th key={column.fieldKey} className="px-3 py-2">
                     {column.label}
                   </th>
                 ))}
+                {editable ? <th className="w-12 px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -650,18 +769,41 @@ const RowsTable = memo(function RowsTable({
                   key={row.rowId}
                   className="border-t border-slate-100 text-slate-700"
                 >
+                  {editable ? (
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedRowIds.includes(row.rowId)}
+                        onChange={() => toggleRowSelection(row.rowId)}
+                        aria-label={`Seleccionar fila ${row.rowNumber}`}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                    </td>
+                  ) : null}
                   <td className="px-3 py-2 font-semibold">{row.rowNumber}</td>
                   {columns.map((column) => (
                     <td key={column.fieldKey} className="px-3 py-2">
                       {formatCell(row, column)}
                     </td>
                   ))}
+                  {editable ? (
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => deleteRows([row.rowId])}
+                        title={`Eliminar fila ${row.rowNumber}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
+                      >
+                        <FiTrash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(columns.length + 1, 1)}
+                    colSpan={Math.max(columns.length + (editable ? 3 : 1), 1)}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     Sube un Excel y pulsa Visualizar.
@@ -671,7 +813,7 @@ const RowsTable = memo(function RowsTable({
               {rows.length > 0 && filteredRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(columns.length + 1, 1)}
+                    colSpan={Math.max(columns.length + (editable ? 3 : 1), 1)}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     Sin resultados para "{debouncedSearch}".
