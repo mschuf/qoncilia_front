@@ -237,6 +237,15 @@ export default function ConciliationWorkbenchPage() {
 
   return (
     <section className="space-y-6">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+          Conciliacion bancaria
+        </p>
+        <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
+          Conciliar extracto bancario
+        </h1>
+      </div>
+
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto]">
           {isSuperAdminRole(role) ? (
