@@ -3,17 +3,16 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiEye,
-  FiRefreshCw,
   FiSave,
   FiSearch,
-  FiX,
+  FiSend,
 } from "react-icons/fi";
 import {
   SelectBlock,
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import AppModal from "../components/AppModal";
-import { apiClient, ApiError } from "../api/apiClient";
+import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useDebounce } from "../hooks/useDebounce";
@@ -27,6 +26,19 @@ import type {
   UserBankWithLayouts,
 } from "../types/conciliation";
 import { isAdminRole, isSuperAdminRole } from "../utils/role";
+
+type SapB1ConfigStatus = {
+  enabled: boolean;
+  companyErpConfigId: number | null;
+  companyErpConfigName: string | null;
+  code: string | null;
+};
+
+type SapBankPageProcessResponse = BankStatementDetail & {
+  sap?: {
+    processedRows: number;
+  };
+};
 
 function formatDateTimeTag(value: Date) {
   const year = value.getFullYear();
@@ -75,6 +87,8 @@ export default function BankStatementsPage() {
     useState<BankStatementDetail | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [sapB1ConfigStatus, setSapB1ConfigStatus] =
+    useState<SapB1ConfigStatus | null>(null);
 
   // Cache de catalogos por usuario para evitar refetch al cambiar de usuario
   // (admin/superadmin) y volver a uno ya consultado.
@@ -127,6 +141,32 @@ export default function BankStatementsPage() {
     [role, toast],
   );
 
+  const loadSapB1ConfigStatus = useCallback(
+    async (userId: number) => {
+      if (!userId) {
+        setSapB1ConfigStatus(null);
+        return;
+      }
+
+      try {
+        const query = isSuperAdminRole(role) ? `?userId=${userId}` : "";
+        const response = await apiClient.get<SapB1ConfigStatus>(
+          `/conciliation/bank-statements/sap-b1-config${query}`,
+          { showBackdrop: false },
+        );
+        setSapB1ConfigStatus(response);
+      } catch (error) {
+        setSapB1ConfigStatus(null);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo validar la configuracion SAP_B1.",
+        );
+      }
+    },
+    [role, toast],
+  );
+
   useEffect(() => {
     void loadUsers().catch((error) => {
       toast.error(
@@ -143,6 +183,18 @@ export default function BankStatementsPage() {
     if (isSuperAdminRole(role)) return; // solo superadmin usa busqueda manual
     void loadCatalog(selectedUserId);
   }, [loadCatalog, role, selectedUserId, toast]);
+
+  useEffect(() => {
+    if (!selectedUserId) return;
+    if (isSuperAdminRole(role)) return;
+    void loadSapB1ConfigStatus(selectedUserId);
+  }, [loadSapB1ConfigStatus, role, selectedUserId]);
+
+  useEffect(() => {
+    if (isSuperAdminRole(role)) {
+      setSapB1ConfigStatus(null);
+    }
+  }, [role, selectedUserId]);
 
   const selectedBank = useMemo(
     () => banks.find((item) => item.id === selectedBankId) ?? null,
@@ -163,6 +215,7 @@ export default function BankStatementsPage() {
       null,
     [layouts, selectedLayoutId],
   );
+  const hasActiveSapB1 = sapB1ConfigStatus?.enabled === true;
   const suggestedStatementName = useMemo(() => {
     return buildSuggestedStatementName(selectedCompanyBankAccount?.name);
   }, [selectedCompanyBankAccount?.name, statementSuggestionSeed]);
@@ -201,7 +254,10 @@ export default function BankStatementsPage() {
       toast.error("Selecciona un usuario.");
       return;
     }
-    void loadCatalog(selectedUserId);
+    void Promise.all([
+      loadCatalog(selectedUserId),
+      loadSapB1ConfigStatus(selectedUserId),
+    ]);
   };
 
   const previewBankStatement = async () => {
@@ -275,6 +331,57 @@ export default function BankStatementsPage() {
         error instanceof Error
           ? error.message
           : "No se pudo guardar el extracto.",
+      );
+    }
+  };
+
+  const processBankStatement = async () => {
+    if (!hasActiveSapB1) {
+      toast.error("La empresa no tiene una configuracion SAP_B1 activa.");
+      return;
+    }
+    if (!selectedBankId || !selectedLayoutId) {
+      toast.error("Selecciona banco y layout.");
+      return;
+    }
+    if (!selectedCompanyBankAccountId) {
+      toast.error("Selecciona una cuenta bancaria para procesar.");
+      return;
+    }
+    if (!bankFile) {
+      toast.error("Sube el Excel del extracto bancario.");
+      return;
+    }
+    if (!statementName.trim()) {
+      toast.error("Carga el alias del extracto antes de procesar.");
+      return;
+    }
+
+    const formData = buildStatementFormData({
+      userBankId: selectedBankId,
+      companyBankAccountId: selectedCompanyBankAccountId,
+      layoutId: selectedLayoutId,
+      name: statementName,
+      file: bankFile,
+    });
+
+    try {
+      const response = await apiClient.post<SapBankPageProcessResponse>(
+        "/conciliation/bank-statements/process-sap-b1",
+        formData,
+      );
+      setSelectedDetail(response);
+      setPreview(null);
+      setBankFile(null);
+      setStatementSuggestionSeed((current) => current + 1);
+      toast.success(
+        `Extracto procesado en SAP_B1 (${response.sap?.processedRows ?? response.rowCount} fila(s)).`,
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo procesar el extracto en SAP_B1.",
       );
     }
   };
@@ -368,9 +475,9 @@ export default function BankStatementsPage() {
                 Acciones
               </p>
               <p className="mt-2 text-sm text-slate-600">
-                Primero puedes visualizar las filas que se van a guardar.
-                Guardar vuelve a leer el archivo y persiste solo los registros
-                del banco.
+                {hasActiveSapB1
+                  ? "SAP_B1 activo: Procesar envia el extracto a BankPages y guarda las secuencias devueltas."
+                  : "Primero puedes visualizar las filas que se van a guardar. Guardar vuelve a leer el archivo y persiste solo los registros del banco."}
               </p>
 
               <div className="mt-4">
@@ -395,24 +502,23 @@ export default function BankStatementsPage() {
                 >
                   <FiEye className="h-4 w-4" /> Visualizar
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void saveBankStatement()}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
-                >
-                  <FiSave className="h-4 w-4" /> Guardar extracto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreview(null);
-                    setSelectedDetail(null);
-                    setBankFile(null);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
-                >
-                  <FiRefreshCw className="h-4 w-4" /> Limpiar
-                </button>
+                {hasActiveSapB1 ? (
+                  <button
+                    type="button"
+                    onClick={() => void processBankStatement()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                  >
+                    <FiSend className="h-4 w-4" /> Procesar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void saveBankStatement()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+                  >
+                    <FiSave className="h-4 w-4" /> Guardar extracto
+                  </button>
+                )}
               </div>
             </div>
           </div>

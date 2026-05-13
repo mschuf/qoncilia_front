@@ -1,4 +1,5 @@
 import type { PublicCompany } from "./access-control"
+export type { PublicCompany } from "./access-control"
 
 export interface PublicBank {
   id: number
