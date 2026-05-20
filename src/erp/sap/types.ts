@@ -38,7 +38,10 @@ export interface SapB1QueryPreviewResult {
   system: SapB1QueryTable
 }
 
-export type SapExternalReconciliationAccountType = "rat_GLAccount" | "rat_BusinessPartner"
+export type SapExternalReconciliationAccountType =
+  | "rat_Account"
+  | "rat_GLAccount"
+  | "rat_BusinessPartner"
 
 export interface SapExternalReconciliationMatchInput {
   systemRowId?: string
@@ -66,8 +69,9 @@ export interface SapExternalReconciliationRequest {
   accountCode?: string
   reconciliationAccountType?: SapExternalReconciliationAccountType
   matches?: SapExternalReconciliationMatchInput[]
-  bankStatementLines: SapExternalReconciliationBankStatementLineInput[]
-  journalEntryLines: SapExternalReconciliationJournalEntryLineInput[]
+  bankStatementLines?: SapExternalReconciliationBankStatementLineInput[]
+  journalEntryLines?: SapExternalReconciliationJournalEntryLineInput[]
+  payload?: Record<string, unknown>
 }
 
 export interface SapExternalReconciliationResult {

@@ -235,6 +235,7 @@ export default function ConciliationWorkbenchPage() {
     onDragEnd,
     removeManualMatch,
     sendExternalReconciliationToErp,
+    sendSapB1QueryMatchesToErp,
     clearAll,
     searchBankStatements,
     loadCatalog,
@@ -326,6 +327,18 @@ export default function ConciliationWorkbenchPage() {
     "Sin pendientes fuera del envio";
   const isExternalReconciliationDisabled =
     externalReconciliationBlockers.length > 0;
+  const sapB1ExternalReconciliationBlockers = [
+    !showSapB1Comparison ? "Primero compara las consultas SAP_B1." : null,
+    sapB1SmartMatches.length === 0 ? "No hay coincidencias para conciliar." : null,
+    !selectedErpConfigId ? "No hay ERP seleccionado." : null,
+    isSendingExternalReconciliation ? "Se esta enviando la conciliacion." : null,
+    !erpSession?.authenticated ? "La sesion ERP no esta autenticada." : null,
+    !canSendExternalReconciliation
+      ? `El rol actual (${role ?? "sin rol"}) no puede enviar conciliaciones al ERP.`
+      : null,
+  ].filter(Boolean) as string[];
+  const isSapB1ExternalReconciliationDisabled =
+    sapB1ExternalReconciliationBlockers.length > 0;
 
   useEffect(() => {
     if (!preview) return;
@@ -534,11 +547,41 @@ export default function ConciliationWorkbenchPage() {
             ) : null}
           </section>
 
-          {showSapB1Comparison && sapB1SmartMatches.length > 0 && sapB1QueryPreview ? (
-            <SmartMatchesTable
-              matches={sapB1SmartMatches}
-              columns={sapB1QueryPreview.bank.columns.slice(0, 3).map((col) => ({ fieldKey: col, label: col }))}
-            />
+          {showSapB1Comparison && sapB1QueryPreview ? (
+            <>
+              <SmartMatchesTable
+                matches={sapB1SmartMatches}
+                columns={sapB1QueryPreview.bank.columns.slice(0, 3).map((col) => ({ fieldKey: col, label: col }))}
+              />
+              <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                      Envio ERP
+                    </p>
+                    <h3 className="mt-2 text-lg font-extrabold text-slate-900">
+                      Conciliacion externa SAP B1
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Se enviaran {sapB1SmartMatches.length} coincidencias a
+                      ExternalReconciliationsService_Reconcile.
+                      {!canSendExternalReconciliation
+                        ? " Disponible solo para admin y superadmin."
+                        : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void sendSapB1QueryMatchesToErp(sapB1SmartMatches)}
+                    disabled={isSapB1ExternalReconciliationDisabled}
+                    className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FiSend className="h-4 w-4" />
+                    {isSendingExternalReconciliation ? "Conciliando..." : "Conciliar"}
+                  </button>
+                </div>
+              </section>
+            </>
           ) : null}
         </>
       ) : (
