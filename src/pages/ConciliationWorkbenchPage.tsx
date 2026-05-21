@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   FiRefreshCw,
   FiSearch,
@@ -32,23 +32,154 @@ interface SmartMatch {
   column1Match: boolean;
   column2Match: boolean;
   column3Match: boolean;
+  matchReason: "reference" | "date_amount";
+  dateDifferenceDays: number | null;
 }
+
+const SAP_B1_DATE_TOLERANCE_DAYS = 7;
 
 function getRowValue(row: PreviewRow, fieldKey: string | undefined): string | number | null {
   if (!fieldKey) return null;
   return row.normalized[fieldKey] ?? row.values[fieldKey] ?? null;
 }
 
-function likeMatch(a: string | number | null, b: string | number | null): boolean {
-  if (a == null || b == null) return false;
-  const sa = String(a).toLowerCase().trim();
-  const sb = String(b).toLowerCase().trim();
-  return sa.includes(sb) || sb.includes(sa);
+function getRowRawValue(row: PreviewRow, fieldKey: string | undefined): string | number | null {
+  if (!fieldKey) return null;
+  return row.values[fieldKey] ?? row.normalized[fieldKey] ?? null;
+}
+
+function normalizeComparableText(value: string | number | null): string | null {
+  if (value == null) return null;
+  const text = String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  return text || null;
 }
 
 function exactMatch(a: string | number | null, b: string | number | null): boolean {
-  if (a == null || b == null) return false;
-  return String(a).trim() === String(b).trim();
+  const sa = normalizeComparableText(a);
+  const sb = normalizeComparableText(b);
+  if (!sa || !sb) return false;
+  return sa === sb;
+}
+
+function normalizeNumericText(value: string) {
+  if (!value) return null;
+
+  const sign = value.startsWith("-") ? "-" : value.startsWith("+") ? "+" : "";
+  const unsigned = value.replace(/^[-+]/, "");
+  const lastDot = unsigned.lastIndexOf(".");
+  const lastComma = unsigned.lastIndexOf(",");
+
+  if (lastDot >= 0 && lastComma >= 0) {
+    const decimalSeparator = lastDot > lastComma ? "." : ",";
+    const thousandsSeparator = decimalSeparator === "." ? "," : ".";
+    return `${sign}${unsigned
+      .replace(new RegExp(`\\${thousandsSeparator}`, "g"), "")
+      .replace(decimalSeparator, ".")}`;
+  }
+
+  if (lastComma >= 0) {
+    const groups = unsigned.split(",");
+    const isThousandsOnly =
+      groups.length > 1 && groups.slice(1).every((group) => group.length === 3);
+    return `${sign}${isThousandsOnly ? groups.join("") : unsigned.replace(",", ".")}`;
+  }
+
+  if (lastDot >= 0) {
+    const groups = unsigned.split(".");
+    const isThousandsOnly =
+      groups.length > 1 && groups.slice(1).every((group) => group.length === 3);
+    return `${sign}${isThousandsOnly ? groups.join("") : unsigned}`;
+  }
+
+  return `${sign}${unsigned}`;
+}
+
+function parseAmountValue(value: string | number | null) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value == null) return null;
+
+  const text = String(value).trim();
+  if (!text || text === "-") return null;
+
+  const cleaned = text
+    .replace(/[A-Za-z$%]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[^\d,.\-+]/g, "");
+  const normalized = normalizeNumericText(cleaned);
+  if (!normalized || !/^[-+]?\d+(\.\d+)?$/.test(normalized)) return null;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function amountMatch(a: string | number | null, b: string | number | null): boolean {
+  const left = parseAmountValue(a);
+  const right = parseAmountValue(b);
+  if (left === null || right === null) return exactMatch(a, b);
+  return Math.abs(left - right) < 0.0001;
+}
+
+function parseDateDayNumber(value: string | number | null) {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    return buildUtcDayNumber(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+  }
+
+  const slashMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/);
+  if (slashMatch) {
+    let year = Number(slashMatch[3]);
+    if (year < 100) year += year >= 70 ? 1900 : 2000;
+    return buildUtcDayNumber(year, Number(slashMatch[2]), Number(slashMatch[1]));
+  }
+
+  const parsed = Date.parse(raw);
+  return Number.isNaN(parsed) ? null : Math.floor(parsed / 86400000);
+}
+
+function buildUtcDayNumber(year: number, month: number, day: number) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return Math.floor(date.getTime() / 86400000);
+}
+
+function dateMatchWithinDays(
+  a: string | number | null,
+  b: string | number | null,
+  toleranceDays: number
+) {
+  const left = parseDateDayNumber(a);
+  const right = parseDateDayNumber(b);
+  if (left === null || right === null) {
+    return {
+      matched: exactMatch(a, b),
+      differenceDays: null,
+    };
+  }
+
+  const differenceDays = Math.abs(left - right);
+  return {
+    matched: differenceDays <= toleranceDays,
+    differenceDays,
+  };
 }
 
 function calculateSmartMatches(
@@ -67,44 +198,63 @@ function calculateSmartMatches(
   const usedBankRows = new Set<string>();
 
   for (const sysRow of systemRows) {
-    // Paso 1: filtrar por columna 1 (LIKE)
-    let candidates = bankRows.filter((bankRow) => {
-      if (usedBankRows.has(bankRow.rowId)) return false;
-      return likeMatch(getRowValue(sysRow, col1), getRowValue(bankRow, col1));
-    });
+    const candidates = bankRows
+      .filter((bankRow) => !usedBankRows.has(bankRow.rowId))
+      .map((bankRow) => {
+        const referenceMatched = exactMatch(getRowValue(sysRow, col1), getRowValue(bankRow, col1));
+        const dateResult = col2
+          ? dateMatchWithinDays(
+              getRowRawValue(sysRow, col2),
+              getRowRawValue(bankRow, col2),
+              SAP_B1_DATE_TOLERANCE_DAYS
+            )
+          : { matched: false, differenceDays: null };
+        const amountMatched = col3
+          ? amountMatch(getRowRawValue(sysRow, col3), getRowRawValue(bankRow, col3))
+          : false;
+        const matchReason = referenceMatched
+          ? "reference"
+          : dateResult.matched && amountMatched
+            ? "date_amount"
+            : null;
 
-    if (candidates.length === 0) continue;
+        if (!matchReason) return null;
 
-    // Paso 2: si hay ambiguedad, filtrar por columna 2 (fecha =)
-    if (candidates.length > 1 && col2) {
-      const filtered = candidates.filter((bankRow) =>
-        exactMatch(getRowValue(sysRow, col2), getRowValue(bankRow, col2))
-      );
-      if (filtered.length > 0) candidates = filtered;
-    }
+        return {
+          bankRow,
+          score: matchReason === "reference" ? 1 : 0.95,
+          column1Match: referenceMatched,
+          column2Match: dateResult.matched,
+          column3Match: amountMatched,
+          matchReason,
+          dateDifferenceDays: dateResult.differenceDays,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((left, right) => {
+        if (left.matchReason !== right.matchReason) {
+          return left.matchReason === "reference" ? -1 : 1;
+        }
+        if (left.score !== right.score) return right.score - left.score;
 
-    // Paso 3: si aun hay ambiguedad, filtrar por columna 3 (monto =)
-    if (candidates.length > 1 && col3) {
-      const filtered = candidates.filter((bankRow) =>
-        exactMatch(getRowValue(sysRow, col3), getRowValue(bankRow, col3))
-      );
-      if (filtered.length > 0) candidates = filtered;
-    }
+        const leftDateDiff = left.dateDifferenceDays ?? Number.MAX_SAFE_INTEGER;
+        const rightDateDiff = right.dateDifferenceDays ?? Number.MAX_SAFE_INTEGER;
+        return leftDateDiff - rightDateDiff;
+      });
 
     const chosen = candidates[0];
-    usedBankRows.add(chosen.rowId);
-
-    const c1m = likeMatch(getRowValue(sysRow, col1), getRowValue(chosen, col1));
-    const c2m = col2 ? exactMatch(getRowValue(sysRow, col2), getRowValue(chosen, col2)) : false;
-    const c3m = col3 ? exactMatch(getRowValue(sysRow, col3), getRowValue(chosen, col3)) : false;
+    if (!chosen) continue;
+    usedBankRows.add(chosen.bankRow.rowId);
 
     matches.push({
       systemRow: sysRow,
-      bankRow: chosen,
-      score: (c1m ? 0.7 : 0) + (c2m ? 0.15 : 0) + (c3m ? 0.15 : 0),
-      column1Match: c1m,
-      column2Match: c2m,
-      column3Match: c3m,
+      bankRow: chosen.bankRow,
+      score: chosen.score,
+      column1Match: chosen.column1Match,
+      column2Match: chosen.column2Match,
+      column3Match: chosen.column3Match,
+      matchReason: chosen.matchReason,
+      dateDifferenceDays: chosen.dateDifferenceDays,
     });
   }
 
@@ -132,6 +282,35 @@ function convertSapB1TableToPreviewRows(table: SapB1QueryTable): PreviewRow[] {
       normalized,
     };
   });
+}
+
+function normalizeColumnKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+function resolveSapB1ComparisonColumns(preview: SapB1QueryPreviewResult): string[] {
+  const systemColumnsByKey = new Map(
+    preview.system.columns.map((column) => [normalizeColumnKey(column), column])
+  );
+  const bankColumnsByKey = new Map(
+    preview.bank.columns.map((column) => [normalizeColumnKey(column), column])
+  );
+  const preferredKeys = ["referencia", "fecha", "monto"];
+  const preferredColumns = preferredKeys
+    .map((key) => bankColumnsByKey.get(key) ?? systemColumnsByKey.get(key) ?? null)
+    .filter((column): column is string => Boolean(column));
+
+  if (preferredColumns.length === 3) return preferredColumns;
+
+  const commonColumns = preview.bank.columns.filter((column) =>
+    systemColumnsByKey.has(normalizeColumnKey(column))
+  );
+
+  return (commonColumns.length > 0 ? commonColumns : preview.bank.columns).slice(0, 3);
 }
 
 function resolveErpStatus(session: SapErpSession | null) {
@@ -263,6 +442,10 @@ export default function ConciliationWorkbenchPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [sapB1SmartMatches, setSapB1SmartMatches] = useState<SmartMatch[]>([]);
   const [showSapB1Comparison, setShowSapB1Comparison] = useState(false);
+  const sapB1ComparisonColumns = useMemo(
+    () => (sapB1QueryPreview ? resolveSapB1ComparisonColumns(sapB1QueryPreview) : []),
+    [sapB1QueryPreview]
+  );
 
   useEffect(() => {
     if (preview && selectedLayout) {
@@ -533,8 +716,11 @@ export default function ConciliationWorkbenchPage() {
                     if (!sapB1QueryPreview) return;
                     const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
                     const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
-                    const fieldKeys = sapB1QueryPreview.bank.columns.slice(0, 3);
-                    const matches = calculateSmartMatches(systemRows, bankRows, fieldKeys);
+                    const matches = calculateSmartMatches(
+                      systemRows,
+                      bankRows,
+                      sapB1ComparisonColumns
+                    );
                     setSapB1SmartMatches(matches);
                     setShowSapB1Comparison(true);
                   }}
@@ -551,7 +737,7 @@ export default function ConciliationWorkbenchPage() {
             <>
               <SmartMatchesTable
                 matches={sapB1SmartMatches}
-                columns={sapB1QueryPreview.bank.columns.slice(0, 3).map((col) => ({ fieldKey: col, label: col }))}
+                columns={sapB1ComparisonColumns.map((col) => ({ fieldKey: col, label: col }))}
               />
               <section className="rounded-3xl border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
@@ -1069,6 +1255,7 @@ function SmartMatchesTable({
                 <th className="px-3 py-2 text-center text-slate-400" colSpan={visibleColumns.length}>
                   Banco
                 </th>
+                <th className="px-3 py-2">Regla</th>
                 <th className="px-3 py-2 text-right">Score</th>
               </tr>
               <tr>
@@ -1082,6 +1269,7 @@ function SmartMatchesTable({
                     {c.label}
                   </th>
                 ))}
+                <th className="px-3 py-2">Match</th>
                 <th className="px-3 py-2 text-right">%</th>
               </tr>
             </thead>
@@ -1107,6 +1295,13 @@ function SmartMatchesTable({
                       {match.bankRow.values[c.fieldKey] ?? "-"}
                     </td>
                   ))}
+                  <td className="px-3 py-2 whitespace-nowrap text-xs font-bold text-slate-600">
+                    {match.matchReason === "reference"
+                      ? "Referencia"
+                      : match.dateDifferenceDays === null
+                        ? "Fecha + monto"
+                        : `Fecha +/- ${match.dateDifferenceDays}d + monto`}
+                  </td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-900">
                     {Math.round(match.score * 100)}%
                   </td>
@@ -1115,7 +1310,7 @@ function SmartMatchesTable({
               {matches.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={visibleColumns.length * 2 + 1}
+                    colSpan={visibleColumns.length * 2 + 2}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     No se encontraron coincidencias con las reglas actuales.

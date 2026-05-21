@@ -155,34 +155,6 @@ function findRowText(row: PreviewRow | undefined, keys: string[]) {
   return text || undefined
 }
 
-function findRowRawValue(row: PreviewRow | undefined, keys: string[]) {
-  if (!row) return null
-  const sources = [row.values, row.normalized]
-
-  for (const key of keys) {
-    const normalizedKey = normalizeLookupKey(key)
-    for (const source of sources) {
-      const direct = source[key]
-      if (direct !== undefined && direct !== null && String(direct).trim()) return direct
-
-      const foundEntry = Object.entries(source).find(
-        ([entryKey]) => normalizeLookupKey(entryKey) === normalizedKey
-      )
-      const foundValue = foundEntry?.[1]
-      if (foundValue !== undefined && foundValue !== null && String(foundValue).trim()) return foundValue
-    }
-  }
-
-  return null
-}
-
-function findRowRawText(row: PreviewRow | undefined, keys: string[]) {
-  const value = findRowRawValue(row, keys)
-  if (value === null) return undefined
-  const text = String(value).trim()
-  return text || undefined
-}
-
 function parseRowNumber(row: PreviewRow | undefined, keys: string[]) {
   const value = findRowValue(row, keys)
   if (typeof value === "number" && Number.isFinite(value)) return Math.abs(value)
@@ -194,113 +166,6 @@ function parseRowNumber(row: PreviewRow | undefined, keys: string[]) {
     : Number(normalized)
 
   return Number.isFinite(numberValue) ? Math.abs(numberValue) : undefined
-}
-
-function parseRowAmount(row: PreviewRow | undefined, keys: string[]) {
-  const value = findRowRawValue(row, keys)
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (value === null || value === undefined) return undefined
-
-  const text = String(value).trim()
-  if (!text || text === "-") return undefined
-
-  const cleaned = text
-    .replace(/[A-Za-z$%]/g, "")
-    .replace(/\s+/g, "")
-    .replace(/[^\d,.\-+]/g, "")
-  const normalized = normalizeNumericText(cleaned)
-  if (!normalized || !/^[-+]?\d+(\.\d+)?$/.test(normalized)) return undefined
-
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
-function normalizeNumericText(value: string) {
-  if (!value) return null
-
-  const sign = value.startsWith("-") ? "-" : value.startsWith("+") ? "+" : ""
-  const unsigned = value.replace(/^[-+]/, "")
-  const lastDot = unsigned.lastIndexOf(".")
-  const lastComma = unsigned.lastIndexOf(",")
-
-  if (lastDot >= 0 && lastComma >= 0) {
-    const decimalSeparator = lastDot > lastComma ? "." : ","
-    const thousandsSeparator = decimalSeparator === "." ? "," : "."
-    return `${sign}${unsigned
-      .replace(new RegExp(`\\${thousandsSeparator}`, "g"), "")
-      .replace(decimalSeparator, ".")}`
-  }
-
-  if (lastComma >= 0) {
-    const groups = unsigned.split(",")
-    const isThousandsOnly = groups.length > 1 && groups.slice(1).every((group) => group.length === 3)
-    return `${sign}${isThousandsOnly ? groups.join("") : unsigned.replace(",", ".")}`
-  }
-
-  if (lastDot >= 0) {
-    const groups = unsigned.split(".")
-    const isThousandsOnly = groups.length > 1 && groups.slice(1).every((group) => group.length === 3)
-    return `${sign}${isThousandsOnly ? groups.join("") : unsigned}`
-  }
-
-  return `${sign}${unsigned}`
-}
-
-function findRowDate(row: PreviewRow | undefined, keys: string[]) {
-  const text = findRowRawText(row, keys)
-  if (!text) return undefined
-  return normalizeSapDate(text)
-}
-
-function normalizeSapDate(value: string) {
-  const raw = value.trim()
-  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
-  if (isoMatch) {
-    return formatSapDateParts(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]))
-  }
-
-  const slashMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/)
-  if (slashMatch) {
-    let year = Number(slashMatch[3])
-    if (year < 100) year += year >= 70 ? 1900 : 2000
-    return formatSapDateParts(year, Number(slashMatch[2]), Number(slashMatch[1]))
-  }
-
-  const nativeDate = new Date(raw)
-  return Number.isNaN(nativeDate.getTime()) ? undefined : nativeDate.toISOString().slice(0, 10)
-}
-
-function formatSapDateParts(year: number, month: number, day: number) {
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return undefined
-  if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return undefined
-
-  const date = new Date(Date.UTC(year, month - 1, day))
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return undefined
-  }
-
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-}
-
-function formatSapLocalDate(date = new Date()) {
-  return (
-    formatSapDateParts(date.getFullYear(), date.getMonth() + 1, date.getDate()) ??
-    date.toISOString().slice(0, 10)
-  )
-}
-
-function resolveCurrencyType(value?: string | null) {
-  const normalized = String(value ?? "").trim().toUpperCase()
-  if (normalized === "PYG") return "GS"
-  return normalized || "GS"
-}
-
-function roundSapAmount(value: number) {
-  return Math.round(value * 10000) / 10000
 }
 
 function sapSessionMessage(session: SapErpSession): string {
@@ -507,10 +372,6 @@ export default function useConciliationWorkbench() {
   )
 
   const accounts = selectedBank?.accounts ?? []
-  const selectedCompanyBankAccount = useMemo(
-    () => accounts.find((item) => item.id === selectedCompanyBankAccountId) ?? null,
-    [accounts, selectedCompanyBankAccountId]
-  )
 
   useEffect(() => {
     setSelectedCompanyBankAccountId((current) => {
@@ -1015,22 +876,11 @@ export default function useConciliationWorkbench() {
     }
 
     const accountCode = sapB1QueryPreview.accountCode
-    const reconciliationDate = formatSapLocalDate()
-    const currencyType = resolveCurrencyType(
-      findRowRawText(matches[0]?.bankRow, ["CurrencyType", "Currency", "Moneda"]) ??
-        findRowRawText(matches[0]?.systemRow, ["CurrencyType", "Currency", "Moneda"]) ??
-        selectedCompanyBankAccount?.currency
-    )
-    const journalLines: Array<Record<string, unknown>> = []
-    const bankLines: Array<Record<string, unknown>> = []
-    let totalAmount = 0
-    const defaultedLineNumbers: Array<{
-      match: number
-      systemRow: number
-      transactionNumber: number
-    }> = []
+    const journalEntryLines: NonNullable<SapExternalReconciliationRequest["journalEntryLines"]> = []
+    const bankStatementLines: NonNullable<SapExternalReconciliationRequest["bankStatementLines"]> = []
+    const sapMatches: NonNullable<SapExternalReconciliationRequest["matches"]> = []
 
-    for (const [index, match] of matches.entries()) {
+    for (const match of matches) {
       const { systemRow, bankRow } = match
       const transactionNumber = parseRowNumber(systemRow, [
         "TransactionNumber",
@@ -1073,13 +923,9 @@ export default function useConciliationWorkbench() {
         return
       }
 
-      const lineNumber = rawLineNumber ?? 0
       if (rawLineNumber === undefined) {
-        defaultedLineNumbers.push({
-          match: index + 1,
-          systemRow: systemRow.rowNumber,
-          transactionNumber
-        })
+        toast.error(`Falta LineNumber/Line_ID en la fila ${systemRow.rowNumber} del sistema.`)
+        return
       }
 
       if (!sequence) {
@@ -1087,166 +933,32 @@ export default function useConciliationWorkbench() {
         return
       }
 
-      const bankAmount =
-        parseRowAmount(bankRow, ["Amount", "amount", "Monto", "monto", "Importe", "importe"]) ??
-        parseRowAmount(bankRow, [
-          "CreditAmount",
-          "creditAmount",
-          "Credit",
-          "credit",
-          "Creditos",
-          "Credito",
-          "haber"
-        ]) ??
-        parseRowAmount(bankRow, [
-          "DebitAmount",
-          "debitAmount",
-          "Debit",
-          "debit",
-          "Debitos",
-          "Debito",
-          "debe"
-        ])
-
-      if (bankAmount === undefined || bankAmount === 0) {
-        toast.error(`Falta Amount/CreditAmount/DebitAmount en la fila ${bankRow.rowNumber} del banco.`)
-        return
-      }
-
-      const systemDebit = parseRowAmount(systemRow, [
-        "DebitAmount",
-        "debitAmount",
-        "Debit",
-        "debit",
-        "Debito",
-        "Debitos",
-        "debe"
-      ])
-      const systemCredit = parseRowAmount(systemRow, [
-        "CreditAmount",
-        "creditAmount",
-        "Credit",
-        "credit",
-        "Credito",
-        "Creditos",
-        "haber"
-      ])
-      const systemAmount =
-        parseRowAmount(systemRow, ["Amount", "amount", "Monto", "monto", "Importe", "importe"]) ??
-        bankAmount
-      const debitAmount =
-        systemDebit !== undefined
-          ? Math.abs(systemDebit)
-          : systemCredit !== undefined
-            ? 0
-            : systemAmount >= 0
-              ? Math.abs(systemAmount)
-              : 0
-      const creditAmount =
-        systemCredit !== undefined
-          ? Math.abs(systemCredit)
-          : systemDebit !== undefined
-            ? 0
-            : systemAmount < 0
-              ? Math.abs(systemAmount)
-              : 0
-      const postingDate =
-        findRowDate(systemRow, [
-          "PostingDate",
-          "postingDate",
-          "RefDate",
-          "refDate",
-          "FechaContabilizacion",
-          "Fecha de contabilizacion",
-          "Fecha"
-        ]) ?? reconciliationDate
-      const systemDueDate =
-        findRowDate(systemRow, [
-          "DueDate",
-          "dueDate",
-          "TaxDate",
-          "taxDate",
-          "FechaVencimiento",
-          "Fecha de vencimiento",
-          "Fecha"
-        ]) ?? postingDate
-      const bankDate =
-        findRowDate(bankRow, [
-          "Date",
-          "date",
-          "DueDate",
-          "dueDate",
-          "Fecha",
-          "FechaMovimiento",
-          "Fecha movimiento"
-        ]) ?? systemDueDate
-
-      journalLines.push({
-        TransactionNumber: transactionNumber,
-        LineNumber: lineNumber,
-        PostingDate: postingDate,
-        DueDate: systemDueDate,
-        Ref1: findRowRawText(systemRow, ["Ref1", "Ref.1", "Referencia", "Reference"]) ?? "",
-        Ref2: findRowRawText(systemRow, ["Ref2", "Ref.2"]) ?? "",
-        Ref3: findRowRawText(systemRow, ["Ref3", "Ref.3"]) ?? "",
-        DebitAmount: roundSapAmount(debitAmount),
-        CreditAmount: roundSapAmount(creditAmount),
-        Details:
-          findRowRawText(systemRow, ["Details", "details", "Memo", "Descripcion", "descripcion"]) ??
-          ""
+      const lineNumber = rawLineNumber
+      journalEntryLines.push({
+        transactionNumber,
+        lineNumber
       })
-      bankLines.push({
-        BankStatementAccountCode:
-          findRowRawText(bankRow, [
-            "BankStatementAccountCode",
-            "bankStatementAccountCode",
-            "AccountCode",
-            "accountCode",
-            "cuentaSap",
-            "cuentaSAP"
-          ]) ?? accountCode,
-        Sequence: sequence,
-        Date: bankDate,
-        Ref1:
-          findRowRawText(bankRow, [
-            "Ref1",
-            "Ref.1",
-            "Reference",
-            "reference",
-            "Movimiento",
-            "movimiento",
-            "Referencia",
-            "referencia"
-          ]) ?? "",
-        Amount: roundSapAmount(Math.abs(bankAmount)),
-        Details:
-          findRowRawText(bankRow, ["Details", "details", "Memo", "memo", "Descripcion", "descripcion"]) ??
-          ""
+      bankStatementLines.push({
+        bankStatementAccountCode: accountCode,
+        sequence
       })
-      totalAmount += Math.abs(bankAmount)
-    }
-
-    if (defaultedLineNumbers.length > 0) {
-      console.warn(
-        "[Qoncilia] SAP LineNumber no vino en las consultas. Se usara LineNumber = 0 para estos matches."
-      )
-      console.table(defaultedLineNumbers)
+      sapMatches.push({
+        systemRowId: systemRow.rowId,
+        bankRowId: bankRow.rowId,
+        transactionNumber,
+        lineNumber,
+        sequence,
+        bankStatementAccountCode: accountCode
+      })
     }
 
     const request: SapExternalReconciliationRequest = {
       companyErpConfigId: selectedErpConfigId,
       accountCode,
-      payload: {
-        ReconciliationAccountType: "rat_Account",
-        AccountCode: accountCode,
-        Amount: roundSapAmount(totalAmount),
-        CurrencyType: currencyType,
-        ReconciliationType: "0",
-        ReconciliationDate: reconciliationDate,
-        CreationDate: reconciliationDate,
-        ReconciliationJournalEntryLines: journalLines,
-        ReconciliationBankStatementLines: bankLines
-      }
+      reconciliationAccountType: "rat_GLAccount",
+      matches: sapMatches,
+      bankStatementLines,
+      journalEntryLines
     }
 
     try {
