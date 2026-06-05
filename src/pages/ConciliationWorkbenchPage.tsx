@@ -5,6 +5,7 @@ import {
   FiSend,
   FiUploadCloud,
   FiX,
+  FiArrowDown,
 } from "react-icons/fi";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
@@ -32,7 +33,7 @@ interface SmartMatch {
   column1Match: boolean;
   column2Match: boolean;
   column3Match: boolean;
-  matchReason: "reference" | "date_amount";
+  matchReason: "reference" | "date_amount" | "manual";
   dateDifferenceDays: number | null;
 }
 
@@ -450,6 +451,8 @@ export default function ConciliationWorkbenchPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [sapB1SmartMatches, setSapB1SmartMatches] = useState<SmartMatch[]>([]);
   const [showSapB1Comparison, setShowSapB1Comparison] = useState(false);
+  const [selectedSapB1BankRowIndex, setSelectedSapB1BankRowIndex] = useState<number | null>(null);
+  const [selectedSapB1SystemRowIndex, setSelectedSapB1SystemRowIndex] = useState<number | null>(null);
   const sapB1ComparisonColumns = useMemo(
     () => (sapB1QueryPreview ? resolveSapB1ComparisonColumns(sapB1QueryPreview) : []),
     [sapB1QueryPreview]
@@ -737,8 +740,20 @@ export default function ConciliationWorkbenchPage() {
               </div>
             ) : sapB1QueryPreview ? (
               <div className="mt-5 grid gap-5 xl:grid-cols-2">
-                <SapB1QueryTableView title="Query banco" table={sapB1QueryPreview.bank} />
-                <SapB1QueryTableView title="Query sistema" table={sapB1QueryPreview.system} />
+                <SapB1QueryTableView 
+                  title="Query banco" 
+                  table={sapB1QueryPreview.bank} 
+                  selectedRowIndex={selectedSapB1BankRowIndex}
+                  onSelectRow={setSelectedSapB1BankRowIndex}
+                  matchedIndices={new Set(sapB1SmartMatches.map(m => m.bankRow.rowNumber - 1))}
+                />
+                <SapB1QueryTableView 
+                  title="Query sistema" 
+                  table={sapB1QueryPreview.system} 
+                  selectedRowIndex={selectedSapB1SystemRowIndex}
+                  onSelectRow={setSelectedSapB1SystemRowIndex}
+                  matchedIndices={new Set(sapB1SmartMatches.map(m => m.systemRow.rowNumber - 1))}
+                />
               </div>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
@@ -753,31 +768,73 @@ export default function ConciliationWorkbenchPage() {
                   onClick={() => {
                     setShowSapB1Comparison(false);
                     setSapB1SmartMatches([]);
+                    setSelectedSapB1BankRowIndex(null);
+                    setSelectedSapB1SystemRowIndex(null);
                   }}
                   disabled={!showSapB1Comparison}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiRefreshCw className="h-4 w-4" /> Limpiar
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!sapB1QueryPreview) return;
-                    const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
-                    const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
-                    const matches = calculateSmartMatches(
-                      systemRows,
-                      bankRows,
-                      sapB1ComparisonColumns
-                    );
-                    setSapB1SmartMatches(matches);
-                    setShowSapB1Comparison(true);
-                  }}
-                  disabled={!sapB1QueryPreview || sapB1QueryPreview.bank.rows.length === 0 || sapB1QueryPreview.system.rows.length === 0}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <FiUploadCloud className="h-4 w-4" /> Comparar
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    title="Match Manual"
+                    onClick={() => {
+                      if (!sapB1QueryPreview || selectedSapB1BankRowIndex === null || selectedSapB1SystemRowIndex === null) return;
+                      const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
+                      const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
+                      
+                      const bankRow = bankRows[selectedSapB1BankRowIndex];
+                      const systemRow = systemRows[selectedSapB1SystemRowIndex];
+                      
+                      const manualMatch: SmartMatch = {
+                        systemRow,
+                        bankRow,
+                        score: 1,
+                        column1Match: true,
+                        column2Match: true,
+                        column3Match: true,
+                        matchReason: "manual",
+                        dateDifferenceDays: null,
+                      };
+                      
+                      setSapB1SmartMatches(prev => [...prev, manualMatch]);
+                      setShowSapB1Comparison(true);
+                      setSelectedSapB1BankRowIndex(null);
+                      setSelectedSapB1SystemRowIndex(null);
+                    }}
+                    disabled={selectedSapB1BankRowIndex === null || selectedSapB1SystemRowIndex === null}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FiArrowDown className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!sapB1QueryPreview) return;
+                      const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
+                      const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
+                      const matchedBankRowIds = new Set(sapB1SmartMatches.map(m => m.bankRow.rowId));
+                      const matchedSystemRowIds = new Set(sapB1SmartMatches.map(m => m.systemRow.rowId));
+                      
+                      const pendingBankRows = bankRows.filter(r => !matchedBankRowIds.has(r.rowId));
+                      const pendingSystemRows = systemRows.filter(r => !matchedSystemRowIds.has(r.rowId));
+
+                      const matches = calculateSmartMatches(
+                        pendingSystemRows,
+                        pendingBankRows,
+                        sapB1ComparisonColumns
+                      );
+                      setSapB1SmartMatches(prev => [...prev, ...matches]);
+                      setShowSapB1Comparison(true);
+                    }}
+                    disabled={!sapB1QueryPreview || sapB1QueryPreview.bank.rows.length === 0 || sapB1QueryPreview.system.rows.length === 0}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FiUploadCloud className="h-4 w-4" /> Comparar
+                  </button>
+                </div>
               </div>
             ) : null}
           </section>
@@ -801,10 +858,12 @@ export default function ConciliationWorkbenchPage() {
                     <p className="mt-1 text-sm text-slate-500">
                       Se enviaran {sapB1SmartMatches.length} coincidencias a
                       ExternalReconciliationsService_Reconcile.
-                      {!canSendExternalReconciliation
-                        ? " Disponible solo para admin y superadmin."
-                        : ""}
                     </p>
+                    {isSapB1ExternalReconciliationDisabled && sapB1ExternalReconciliationBlockers.length > 0 ? (
+                      <p className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-lg inline-block">
+                        {sapB1ExternalReconciliationBlockers.join(" • ")}
+                      </p>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -1139,11 +1198,18 @@ export default function ConciliationWorkbenchPage() {
 function SapB1QueryTableView({
   title,
   table,
+  selectedRowIndex,
+  onSelectRow,
+  matchedIndices,
 }: {
   title: string;
   table: SapB1QueryTable;
+  selectedRowIndex?: number | null;
+  onSelectRow?: (index: number | null) => void;
+  matchedIndices?: Set<number>;
 }) {
   const columns = table.columns.slice(0, 12);
+  const hasSelection = onSelectRow !== undefined;
 
   return (
     <div className="min-w-0">
@@ -1158,6 +1224,7 @@ function SapB1QueryTableView({
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
               <tr>
+                {hasSelection ? <th className="px-3 py-2 w-10"></th> : null}
                 {columns.map((column) => (
                   <th key={column} className="whitespace-nowrap px-3 py-2">
                     {column}
@@ -1166,22 +1233,48 @@ function SapB1QueryTableView({
               </tr>
             </thead>
             <tbody>
-              {table.rows.map((row, index) => (
-                <tr
-                  key={index}
-                  className="border-t border-slate-100 text-slate-700"
-                >
-                  {columns.map((column) => (
-                    <td key={column} className="whitespace-nowrap px-3 py-2">
-                      {formatQueryValue(row[column])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {table.rows.map((row, index) => {
+                const isMatched = matchedIndices?.has(index);
+                const isSelected = selectedRowIndex === index;
+                return (
+                  <tr
+                    key={index}
+                    className={`border-t border-slate-100 ${
+                      isMatched
+                        ? "bg-slate-50 opacity-50 cursor-not-allowed"
+                        : isSelected
+                          ? "bg-brand-50"
+                          : hasSelection ? "text-slate-700 cursor-pointer hover:bg-slate-50" : "text-slate-700"
+                    }`}
+                    onClick={() => {
+                      if (hasSelection && !isMatched) {
+                        onSelectRow(isSelected ? null : index);
+                      }
+                    }}
+                  >
+                    {hasSelection ? (
+                      <td className="px-3 py-2 w-10 text-center">
+                        <input
+                          type="radio"
+                          checked={isSelected}
+                          disabled={isMatched}
+                          readOnly
+                          className="cursor-pointer"
+                        />
+                      </td>
+                    ) : null}
+                    {columns.map((column) => (
+                      <td key={column} className="whitespace-nowrap px-3 py-2">
+                        {formatQueryValue(row[column])}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
               {table.rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(columns.length, 1)}
+                    colSpan={Math.max(columns.length + (hasSelection ? 1 : 0), 1)}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     La consulta no devolvio filas.
@@ -1355,9 +1448,11 @@ function SmartMatchesTable({
                   <td className="px-3 py-2 whitespace-nowrap text-xs font-bold text-slate-600">
                     {match.matchReason === "reference"
                       ? "Referencia"
-                      : match.dateDifferenceDays === null
-                        ? "Fecha + monto"
-                        : `Fecha +/- ${match.dateDifferenceDays}d + monto`}
+                      : match.matchReason === "manual"
+                        ? "Manual"
+                        : match.dateDifferenceDays === null
+                          ? "Fecha + monto"
+                          : `Fecha +/- ${match.dateDifferenceDays}d + monto`}
                   </td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-900">
                     {Math.round(match.score * 100)}%
