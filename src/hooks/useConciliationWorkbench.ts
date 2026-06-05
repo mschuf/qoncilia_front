@@ -1019,8 +1019,10 @@ export default function useConciliationWorkbench() {
           ? `Conciliacion enviada a SAP_B1. Nro ${response.externalReconciliationNo}.`
           : "Conciliacion enviada a SAP_B1."
       )
+      return true
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo conciliar en SAP_B1.")
+      return false
     } finally {
       setIsSendingExternalReconciliation(false)
     }

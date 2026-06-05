@@ -867,7 +867,16 @@ export default function ConciliationWorkbenchPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => void sendSapB1QueryMatchesToErp(sapB1SmartMatches)}
+                    onClick={async () => {
+                      const success = await sendSapB1QueryMatchesToErp(sapB1SmartMatches);
+                      if (success) {
+                        setSapB1SmartMatches([]);
+                        setShowSapB1Comparison(false);
+                        setSelectedSapB1BankRowIndex(null);
+                        setSelectedSapB1SystemRowIndex(null);
+                        await runSapB1QueryPreview();
+                      }
+                    }}
                     disabled={isSapB1ExternalReconciliationDisabled}
                     className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
