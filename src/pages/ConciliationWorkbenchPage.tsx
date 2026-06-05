@@ -212,7 +212,7 @@ function calculateSmartMatches(
         const amountMatched = col3
           ? amountMatch(getRowRawValue(sysRow, col3), getRowRawValue(bankRow, col3))
           : false;
-        const matchReason = referenceMatched
+        const matchReason: SmartMatch["matchReason"] | null = referenceMatched
           ? "reference"
           : dateResult.matched && amountMatched
             ? "date_amount"
@@ -259,6 +259,13 @@ function calculateSmartMatches(
   }
 
   return matches;
+}
+
+function isSameSmartMatch(left: SmartMatch, right: SmartMatch) {
+  return (
+    left.systemRow.rowId === right.systemRow.rowId &&
+    left.bankRow.rowId === right.bankRow.rowId
+  );
 }
 
 function convertSapB1TableToPreviewRows(table: SapB1QueryTable): PreviewRow[] {
@@ -412,6 +419,7 @@ export default function ConciliationWorkbenchPage() {
     onFileChange,
     runComparison,
     onDragEnd,
+    removeAutoMatch,
     removeManualMatch,
     sendExternalReconciliationToErp,
     sendSapB1QueryMatchesToErp,
@@ -448,20 +456,24 @@ export default function ConciliationWorkbenchPage() {
   );
 
   useEffect(() => {
-    if (preview && selectedLayout) {
-      const fieldKeys = selectedLayout.mappings
-        .filter((m) => m.active)
-        .map((m) => m.fieldKey)
-        .slice(0, 3);
-      const matches = calculateSmartMatches(
-        preview.systemRows,
-        preview.bankRows,
-        fieldKeys
-      );
-      setSmartMatches(matches);
-      setShowComparison(true);
+    if (!preview || !selectedLayout) {
+      setSmartMatches([]);
+      setShowComparison(false);
+      return;
     }
-  }, [preview, selectedLayout]);
+
+    const fieldKeys = selectedLayout.mappings
+      .filter((m) => m.active)
+      .map((m) => m.fieldKey)
+      .slice(0, 3);
+    const matches = calculateSmartMatches(
+      preview.systemRows,
+      preview.bankRows,
+      fieldKeys
+    );
+    setSmartMatches(matches);
+    setShowComparison(true);
+  }, [preview?.bankRows, preview?.systemRows, selectedLayout]);
 
   const handleSearch = async () => {
     if (isSuperAdminRole(role) && banks.length === 0) {
@@ -522,6 +534,43 @@ export default function ConciliationWorkbenchPage() {
   ].filter(Boolean) as string[];
   const isSapB1ExternalReconciliationDisabled =
     sapB1ExternalReconciliationBlockers.length > 0;
+  const removeSmartMatchFromTable = (target: SmartMatch) => {
+    setSmartMatches((current) =>
+      current.filter((item) => !isSameSmartMatch(item, target))
+    );
+  };
+  const handleRemoveAutoMatch = (match: {
+    systemRowId: string;
+    bankRowId: string;
+  }) => {
+    const autoMatch = preview?.autoMatches.find(
+      (item) =>
+        item.systemRowId === match.systemRowId &&
+        item.bankRowId === match.bankRowId
+    );
+    if (autoMatch) {
+      removeAutoMatch(autoMatch);
+    }
+    setSmartMatches((current) =>
+      current.filter(
+        (item) =>
+          item.systemRow.rowId !== match.systemRowId ||
+          item.bankRow.rowId !== match.bankRowId
+      )
+    );
+  };
+  const handleRemoveSmartMatch = (target: SmartMatch) => {
+    handleRemoveAutoMatch({
+      systemRowId: target.systemRow.rowId,
+      bankRowId: target.bankRow.rowId,
+    });
+    removeSmartMatchFromTable(target);
+  };
+  const handleRemoveSapB1SmartMatch = (target: SmartMatch) => {
+    setSapB1SmartMatches((current) =>
+      current.filter((item) => !isSameSmartMatch(item, target))
+    );
+  };
 
   useEffect(() => {
     if (!preview) return;
@@ -738,6 +787,7 @@ export default function ConciliationWorkbenchPage() {
               <SmartMatchesTable
                 matches={sapB1SmartMatches}
                 columns={sapB1ComparisonColumns.map((col) => ({ fieldKey: col, label: col }))}
+                onRemove={handleRemoveSapB1SmartMatch}
               />
               <section className="rounded-3xl border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
@@ -928,6 +978,7 @@ export default function ConciliationWorkbenchPage() {
                   .filter((m) => m.active)
                   .slice(0, 3)
                   .map((m) => ({ fieldKey: m.fieldKey, label: m.label }))}
+                onRemove={handleRemoveSmartMatch}
               />
             </>
           ) : null}
@@ -978,6 +1029,7 @@ export default function ConciliationWorkbenchPage() {
             unmatchedSystemRows={unmatchedSystemRows}
             unmatchedBankRows={unmatchedBankRows}
             onDragEnd={onDragEnd}
+            onRemoveAutoMatch={handleRemoveAutoMatch}
             onRemoveManualMatch={removeManualMatch}
           />
 
@@ -1228,11 +1280,14 @@ type MatchColumn = { fieldKey: string; label: string };
 function SmartMatchesTable({
   matches,
   columns,
+  onRemove,
 }: {
   matches: SmartMatch[];
   columns: MatchColumn[];
+  onRemove?: (match: SmartMatch) => void;
 }) {
   const visibleColumns = columns.slice(0, 3);
+  const hasActions = Boolean(onRemove);
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -1257,6 +1312,7 @@ function SmartMatchesTable({
                 </th>
                 <th className="px-3 py-2">Regla</th>
                 <th className="px-3 py-2 text-right">Score</th>
+                {hasActions ? <th className="px-3 py-2" /> : null}
               </tr>
               <tr>
                 {visibleColumns.map((c) => (
@@ -1271,6 +1327,7 @@ function SmartMatchesTable({
                 ))}
                 <th className="px-3 py-2">Match</th>
                 <th className="px-3 py-2 text-right">%</th>
+                {hasActions ? <th className="px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -1305,12 +1362,25 @@ function SmartMatchesTable({
                   <td className="px-3 py-2 text-right font-semibold text-slate-900">
                     {Math.round(match.score * 100)}%
                   </td>
+                  {hasActions ? (
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onRemove?.(match)}
+                        aria-label="Quitar coincidencia"
+                        title="Quitar coincidencia"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                      >
+                        <FiX className="h-4 w-4" />
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
               {matches.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={visibleColumns.length * 2 + 2}
+                    colSpan={visibleColumns.length * 2 + 2 + (hasActions ? 1 : 0)}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     No se encontraron coincidencias con las reglas actuales.

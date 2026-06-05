@@ -16,6 +16,7 @@ interface MatchesSectionProps {
   unmatchedSystemRows: PreviewRow[];
   unmatchedBankRows: PreviewRow[];
   onDragEnd: (event: DragEndEvent) => void;
+  onRemoveAutoMatch: (match: PreviewMatch) => void;
   onRemoveManualMatch: (match: PreviewMatch) => void;
   manualMatcherInitiallyOpen?: boolean;
 }
@@ -26,27 +27,12 @@ export default function MatchesSection({
   unmatchedSystemRows,
   unmatchedBankRows,
   onDragEnd,
+  onRemoveAutoMatch,
   onRemoveManualMatch,
   manualMatcherInitiallyOpen = true,
 }: MatchesSectionProps) {
   const [isManualMatcherOpen, setIsManualMatcherOpen] = useState(
     manualMatcherInitiallyOpen,
-  );
-
-  const matchedSystemIds = useMemo(
-    () =>
-      new Set(
-        [...preview.autoMatches, ...manualMatches].map((match) => match.systemRowId),
-      ),
-    [manualMatches, preview.autoMatches],
-  );
-
-  const matchedBankIds = useMemo(
-    () =>
-      new Set(
-        [...preview.autoMatches, ...manualMatches].map((match) => match.bankRowId),
-      ),
-    [manualMatches, preview.autoMatches],
   );
 
   // Indices O(1) para los lookups por rowId. Sin esto, cada celda hace
@@ -109,7 +95,17 @@ export default function MatchesSection({
                       Auto
                     </span>
                   </td>
-                  <td className="px-4 py-3" />
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onRemoveAutoMatch(match)}
+                      aria-label="Quitar coincidencia automatica"
+                      title="Quitar coincidencia"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      <FiXCircle className="h-4 w-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
               {manualMatches.map((match) => (
@@ -135,13 +131,15 @@ export default function MatchesSection({
                       Manual
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-right">
                     <button
                       type="button"
                       onClick={() => onRemoveManualMatch(match)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
+                      aria-label="Quitar coincidencia manual"
+                      title="Quitar coincidencia"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                     >
-                      <FiXCircle className="h-3.5 w-3.5" /> Deshacer
+                      <FiXCircle className="h-4 w-4" />
                     </button>
                   </td>
                 </tr>
@@ -170,8 +168,8 @@ export default function MatchesSection({
               Emparejar
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Arrastra una fila del sistema hacia una fila del banco solo cuando
-              necesites ajustar coincidencias manualmente.
+              Arrastra una fila del banco sobre una fila del sistema para crear
+              una coincidencia manual.
             </p>
           </div>
 
@@ -230,13 +228,13 @@ function UnmatchedColumn({
       <div className="mt-4 space-y-3">
         {rows.map((row) =>
           variant === "system" ? (
-            <DraggableRow
+            <DroppableRow
               key={row.rowId}
               id={`system:${row.rowId}`}
               label={summarizeRow(row, mappings)}
             />
           ) : (
-            <DroppableRow
+            <DraggableRow
               key={row.rowId}
               id={`bank:${row.rowId}`}
               label={summarizeRow(row, mappings)}
@@ -262,7 +260,7 @@ function DraggableRow({ id, label }: { id: string; label: string }) {
       style={{ transform: CSS.Translate.toString(transform) }}
       {...listeners}
       {...attributes}
-      className={`rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm ${
+      className={`cursor-grab rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm active:cursor-grabbing ${
         isDragging ? "opacity-50" : ""
       }`}
     >

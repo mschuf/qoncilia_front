@@ -119,6 +119,27 @@ function sortRows(rows: PreviewRow[]) {
   return [...rows].sort((left, right) => left.rowNumber - right.rowNumber)
 }
 
+function addSortedUniqueRow(rows: PreviewRow[], row: PreviewRow) {
+  if (rows.some((item) => item.rowId === row.rowId)) return rows
+  return sortRows([...rows, row])
+}
+
+function getMatchKey(match: Pick<PreviewMatch, "systemRowId" | "bankRowId">) {
+  return `${match.systemRowId}::${match.bankRowId}`
+}
+
+function parseDragRowId(value: unknown) {
+  const text = String(value ?? "")
+  const separatorIndex = text.indexOf(":")
+  if (separatorIndex < 1) return null
+
+  const source = text.slice(0, separatorIndex)
+  const rowId = text.slice(separatorIndex + 1)
+  if ((source !== "system" && source !== "bank") || !rowId) return null
+
+  return { source, rowId }
+}
+
 function normalizeLookupKey(value: string) {
   return value
     .normalize("NFD")
@@ -651,9 +672,12 @@ export default function useConciliationWorkbench() {
 
   const onDragEnd = (event: DragEndEvent) => {
     if (!preview || !selectedLayout) return
-    const systemRowId = String(event.active.id).replace("system:", "")
-    const bankRowId = String(event.over?.id ?? "").replace("bank:", "")
-    if (!systemRowId || !bankRowId) return
+    const activeRow = parseDragRowId(event.active.id)
+    const overRow = parseDragRowId(event.over?.id)
+    if (!activeRow || !overRow || activeRow.source === overRow.source) return
+
+    const systemRowId = activeRow.source === "system" ? activeRow.rowId : overRow.rowId
+    const bankRowId = activeRow.source === "bank" ? activeRow.rowId : overRow.rowId
 
     const systemRow = unmatchedSystemRows.find((item) => item.rowId === systemRowId)
     const bankRow = unmatchedBankRows.find((item) => item.rowId === bankRowId)
@@ -668,12 +692,34 @@ export default function useConciliationWorkbench() {
   const removeManualMatch = (target: PreviewMatch) => {
     const systemRow = preview?.systemRows.find((item) => item.rowId === target.systemRowId)
     const bankRow = preview?.bankRows.find((item) => item.rowId === target.bankRowId)
-    setManualMatches((prev) => prev.filter((item) => item !== target))
+    const targetKey = getMatchKey(target)
+    setManualMatches((prev) => prev.filter((item) => getMatchKey(item) !== targetKey))
     if (systemRow) {
-      setUnmatchedSystemRows((prev) => sortRows([...prev, systemRow]))
+      setUnmatchedSystemRows((prev) => addSortedUniqueRow(prev, systemRow))
     }
     if (bankRow) {
-      setUnmatchedBankRows((prev) => sortRows([...prev, bankRow]))
+      setUnmatchedBankRows((prev) => addSortedUniqueRow(prev, bankRow))
+    }
+  }
+
+  const removeAutoMatch = (target: PreviewMatch) => {
+    const systemRow = preview?.systemRows.find((item) => item.rowId === target.systemRowId)
+    const bankRow = preview?.bankRows.find((item) => item.rowId === target.bankRowId)
+    const targetKey = getMatchKey(target)
+
+    setPreview((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        autoMatches: current.autoMatches.filter((item) => getMatchKey(item) !== targetKey)
+      }
+    })
+
+    if (systemRow) {
+      setUnmatchedSystemRows((prev) => addSortedUniqueRow(prev, systemRow))
+    }
+    if (bankRow) {
+      setUnmatchedBankRows((prev) => addSortedUniqueRow(prev, bankRow))
     }
   }
 
@@ -1041,6 +1087,7 @@ export default function useConciliationWorkbench() {
     onFileChange,
     runComparison,
     onDragEnd,
+    removeAutoMatch,
     removeManualMatch,
     sendExternalReconciliationToErp,
     sendSapB1QueryMatchesToErp,
