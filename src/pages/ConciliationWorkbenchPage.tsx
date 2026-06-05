@@ -6,6 +6,8 @@ import {
   FiUploadCloud,
   FiX,
   FiArrowDown,
+  FiChevronUp,
+  FiChevronDown,
 } from "react-icons/fi";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
@@ -451,6 +453,7 @@ export default function ConciliationWorkbenchPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [sapB1SmartMatches, setSapB1SmartMatches] = useState<SmartMatch[]>([]);
   const [showSapB1Comparison, setShowSapB1Comparison] = useState(false);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
   const [selectedSapB1BankRowIndex, setSelectedSapB1BankRowIndex] = useState<number | null>(null);
   const [selectedSapB1SystemRowIndex, setSelectedSapB1SystemRowIndex] = useState<number | null>(null);
   const sapB1ComparisonColumns = useMemo(
@@ -637,7 +640,20 @@ export default function ConciliationWorkbenchPage() {
       </div>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto]">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-900">Filtros de consulta</h2>
+          <button
+            type="button"
+            onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            {isFiltersExpanded ? "Ocultar" : "Mostrar"}
+            {isFiltersExpanded ? <FiChevronUp className="h-4 w-4" /> : <FiChevronDown className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {isFiltersExpanded ? (
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto]">
           {isSuperAdminRole(role) ? (
             <SelectBlock
               label="Usuario"
@@ -707,7 +723,10 @@ export default function ConciliationWorkbenchPage() {
           <div className="flex items-end">
             <button
               type="button"
-              onClick={handleSearch}
+              onClick={() => {
+                setIsFiltersExpanded(false);
+                handleSearch();
+              }}
               disabled={isLoadingCatalog || isRunningSapB1Queries}
               aria-label={
                 isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
@@ -715,12 +734,14 @@ export default function ConciliationWorkbenchPage() {
               title={
                 isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
               }
-              className="inline-flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-[42px] w-full sm:w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
               <FiSearch className="h-4 w-4" />
+              <span className="ml-2 sm:hidden">Buscar</span>
             </button>
           </div>
         </div>
+        ) : null}
       </section>
 
       {isSapB1QueryMode ? (
