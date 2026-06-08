@@ -9,6 +9,7 @@ import {
   FiChevronUp,
   FiChevronDown,
 } from "react-icons/fi";
+import ComparisonBackdrop from "../components/ConciliationWorkbench/ComparisonBackdrop";
 import { DateRangePicker } from "../components/ConciliationWorkbench/DateRangePicker";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
@@ -17,9 +18,16 @@ import {
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
-import type { BankStatementSummary, LayoutMapping, PreviewRow } from "../types/conciliation";
+import type {
+  BankStatementSummary,
+  LayoutMapping,
+  PreviewMatch,
+  PreviewResponse,
+  PreviewRow,
+} from "../types/conciliation";
 import type {
   SapB1QueryPreviewResult,
+  SapB1SmartMatch,
   SapB1QueryTable,
   SapErpSession,
 } from "../erp/sap";
@@ -29,247 +37,47 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
 }
 
-interface SmartMatch {
-  systemRow: PreviewRow;
-  bankRow: PreviewRow;
-  score: number;
-  column1Match: boolean;
-  column2Match: boolean;
-  column3Match: boolean;
-  matchReason: "reference" | "date_amount" | "manual";
-  dateDifferenceDays: number | null;
-}
-
-const SAP_B1_DATE_TOLERANCE_DAYS = 7;
-
-function getRowValue(row: PreviewRow, fieldKey: string | undefined): string | number | null {
-  if (!fieldKey) return null;
-  return row.normalized[fieldKey] ?? row.values[fieldKey] ?? null;
-}
-
-function getRowRawValue(row: PreviewRow, fieldKey: string | undefined): string | number | null {
-  if (!fieldKey) return null;
-  return row.values[fieldKey] ?? row.normalized[fieldKey] ?? null;
-}
-
-function normalizeComparableText(value: string | number | null): string | null {
-  if (value == null) return null;
-  const text = String(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-  return text || null;
-}
-
-function exactMatch(a: string | number | null, b: string | number | null): boolean {
-  const sa = normalizeComparableText(a);
-  const sb = normalizeComparableText(b);
-  if (!sa || !sb) return false;
-  return sa === sb;
-}
-
-function normalizeNumericText(value: string) {
-  if (!value) return null;
-
-  const sign = value.startsWith("-") ? "-" : value.startsWith("+") ? "+" : "";
-  const unsigned = value.replace(/^[-+]/, "");
-  const lastDot = unsigned.lastIndexOf(".");
-  const lastComma = unsigned.lastIndexOf(",");
-
-  if (lastDot >= 0 && lastComma >= 0) {
-    const decimalSeparator = lastDot > lastComma ? "." : ",";
-    const thousandsSeparator = decimalSeparator === "." ? "," : ".";
-    return `${sign}${unsigned
-      .replace(new RegExp(`\\${thousandsSeparator}`, "g"), "")
-      .replace(decimalSeparator, ".")}`;
-  }
-
-  if (lastComma >= 0) {
-    const groups = unsigned.split(",");
-    const isThousandsOnly =
-      groups.length > 1 && groups.slice(1).every((group) => group.length === 3);
-    return `${sign}${isThousandsOnly ? groups.join("") : unsigned.replace(",", ".")}`;
-  }
-
-  if (lastDot >= 0) {
-    const groups = unsigned.split(".");
-    const isThousandsOnly =
-      groups.length > 1 && groups.slice(1).every((group) => group.length === 3);
-    return `${sign}${isThousandsOnly ? groups.join("") : unsigned}`;
-  }
-
-  return `${sign}${unsigned}`;
-}
-
-function parseAmountValue(value: string | number | null) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (value == null) return null;
-
-  const text = String(value).trim();
-  if (!text || text === "-") return null;
-
-  const cleaned = text
-    .replace(/[A-Za-z$%]/g, "")
-    .replace(/\s+/g, "")
-    .replace(/[^\d,.\-+]/g, "");
-  const normalized = normalizeNumericText(cleaned);
-  if (!normalized || !/^[-+]?\d+(\.\d+)?$/.test(normalized)) return null;
-
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function amountMatch(a: string | number | null, b: string | number | null): boolean {
-  const left = parseAmountValue(a);
-  const right = parseAmountValue(b);
-  if (left === null || right === null) return exactMatch(a, b);
-  return Math.abs(left - right) < 0.0001;
-}
-
-function parseDateDayNumber(value: string | number | null) {
-  if (value == null) return null;
-  const raw = String(value).trim();
-  if (!raw) return null;
-
-  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (isoMatch) {
-    return buildUtcDayNumber(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
-  }
-
-  const slashMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/);
-  if (slashMatch) {
-    let year = Number(slashMatch[3]);
-    if (year < 100) year += year >= 70 ? 1900 : 2000;
-    return buildUtcDayNumber(year, Number(slashMatch[2]), Number(slashMatch[1]));
-  }
-
-  const parsed = Date.parse(raw);
-  return Number.isNaN(parsed) ? null : Math.floor(parsed / 86400000);
-}
-
-function buildUtcDayNumber(year: number, month: number, day: number) {
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return null;
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return null;
-  }
-
-  return Math.floor(date.getTime() / 86400000);
-}
-
-function dateMatchWithinDays(
-  a: string | number | null,
-  b: string | number | null,
-  toleranceDays: number
-) {
-  const left = parseDateDayNumber(a);
-  const right = parseDateDayNumber(b);
-  if (left === null || right === null) {
-    return {
-      matched: exactMatch(a, b),
-      differenceDays: null,
-    };
-  }
-
-  const differenceDays = Math.abs(left - right);
-  return {
-    matched: differenceDays <= toleranceDays,
-    differenceDays,
-  };
-}
-
-function calculateSmartMatches(
-  systemRows: PreviewRow[],
-  bankRows: PreviewRow[],
-  fieldKeys: string[]
-): SmartMatch[] {
-  const keys = fieldKeys.slice(0, 3);
-  if (keys.length === 0) return [];
-
-  const col1 = keys[0];
-  const col2 = keys[1];
-  const col3 = keys[2];
-
-  const matches: SmartMatch[] = [];
-  const usedBankRows = new Set<string>();
-
-  for (const sysRow of systemRows) {
-    const candidates = bankRows
-      .filter((bankRow) => !usedBankRows.has(bankRow.rowId))
-      .map((bankRow) => {
-        const referenceMatched = exactMatch(getRowValue(sysRow, col1), getRowValue(bankRow, col1));
-        const dateResult = col2
-          ? dateMatchWithinDays(
-            getRowRawValue(sysRow, col2),
-            getRowRawValue(bankRow, col2),
-            SAP_B1_DATE_TOLERANCE_DAYS
-          )
-          : { matched: false, differenceDays: null };
-        const amountMatched = col3
-          ? amountMatch(getRowRawValue(sysRow, col3), getRowRawValue(bankRow, col3))
-          : false;
-        const matchReason: SmartMatch["matchReason"] | null = referenceMatched
-          ? "reference"
-          : dateResult.matched && amountMatched
-            ? "date_amount"
-            : null;
-
-        if (!matchReason) return null;
-
-        return {
-          bankRow,
-          score: matchReason === "reference" ? 1 : 0.95,
-          column1Match: referenceMatched,
-          column2Match: dateResult.matched,
-          column3Match: amountMatched,
-          matchReason,
-          dateDifferenceDays: dateResult.differenceDays,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null)
-      .sort((left, right) => {
-        if (left.matchReason !== right.matchReason) {
-          return left.matchReason === "reference" ? -1 : 1;
-        }
-        if (left.score !== right.score) return right.score - left.score;
-
-        const leftDateDiff = left.dateDifferenceDays ?? Number.MAX_SAFE_INTEGER;
-        const rightDateDiff = right.dateDifferenceDays ?? Number.MAX_SAFE_INTEGER;
-        return leftDateDiff - rightDateDiff;
-      });
-
-    const chosen = candidates[0];
-    if (!chosen) continue;
-    usedBankRows.add(chosen.bankRow.rowId);
-
-    matches.push({
-      systemRow: sysRow,
-      bankRow: chosen.bankRow,
-      score: chosen.score,
-      column1Match: chosen.column1Match,
-      column2Match: chosen.column2Match,
-      column3Match: chosen.column3Match,
-      matchReason: chosen.matchReason,
-      dateDifferenceDays: chosen.dateDifferenceDays,
-    });
-  }
-
-  return matches;
-}
+type SmartMatch = SapB1SmartMatch;
 
 function isSameSmartMatch(left: SmartMatch, right: SmartMatch) {
   return (
     left.systemRow.rowId === right.systemRow.rowId &&
     left.bankRow.rowId === right.bankRow.rowId
   );
+}
+
+function convertPreviewMatchesToSmartMatches(
+  preview: PreviewResponse,
+  matches: PreviewMatch[],
+  fieldKeys: string[]
+): SmartMatch[] {
+  const systemRowsById = new Map(preview.systemRows.map((row) => [row.rowId, row]));
+  const bankRowsById = new Map(preview.bankRows.map((row) => [row.rowId, row]));
+
+  return matches
+    .map((match) => {
+      const systemRow = systemRowsById.get(match.systemRowId);
+      const bankRow = bankRowsById.get(match.bankRowId);
+      if (!systemRow || !bankRow) return null;
+
+      const rulePassed = (fieldKey: string | undefined) =>
+        Boolean(fieldKey && match.ruleResults.find((rule) => rule.fieldKey === fieldKey)?.passed);
+      const column1Match = rulePassed(fieldKeys[0]);
+      const column2Match = rulePassed(fieldKeys[1]);
+      const column3Match = rulePassed(fieldKeys[2]);
+
+      return {
+        systemRow,
+        bankRow,
+        score: match.score,
+        column1Match,
+        column2Match,
+        column3Match,
+        matchReason: column1Match ? "reference" : "date_amount",
+        dateDifferenceDays: null,
+      } satisfies SmartMatch;
+    })
+    .filter((match): match is SmartMatch => match !== null);
 }
 
 function convertSapB1TableToPreviewRows(table: SapB1QueryTable): PreviewRow[] {
@@ -413,7 +221,9 @@ export default function ConciliationWorkbenchPage() {
     isSapB1QueryMode,
     sapB1QueryPreview,
     isRunningSapB1Queries,
+    isComparing,
     runSapB1QueryPreview,
+    runSapB1QueryComparison,
     isSendingExternalReconciliation,
     preview,
     manualMatches,
@@ -463,24 +273,19 @@ export default function ConciliationWorkbenchPage() {
   );
 
   useEffect(() => {
-    if (!preview || !selectedLayout) {
+    if (!preview) {
       setSmartMatches([]);
       setShowComparison(false);
       return;
     }
 
-    const fieldKeys = selectedLayout.mappings
+    const fieldKeys = preview.layout.mappings
       .filter((m) => m.active)
       .map((m) => m.fieldKey)
       .slice(0, 3);
-    const matches = calculateSmartMatches(
-      preview.systemRows,
-      preview.bankRows,
-      fieldKeys
-    );
-    setSmartMatches(matches);
+    setSmartMatches(convertPreviewMatchesToSmartMatches(preview, preview.autoMatches, fieldKeys));
     setShowComparison(true);
-  }, [preview?.bankRows, preview?.systemRows, selectedLayout]);
+  }, [preview]);
 
   const handleSearch = async () => {
     setSmartMatches([]);
@@ -637,6 +442,12 @@ export default function ConciliationWorkbenchPage() {
 
   return (
     <section className="space-y-6">
+      <ComparisonBackdrop
+        isVisible={isComparing}
+        label={isSapB1QueryMode ? "Comparando consultas SAP_B1" : "Comparando extractos"}
+        detail="Calculando coincidencias en el backend."
+      />
+
       <div>
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
           Conciliacion bancaria
@@ -731,7 +542,7 @@ export default function ConciliationWorkbenchPage() {
                   setIsFiltersExpanded(false);
                   handleSearch();
                 }}
-                disabled={isLoadingCatalog || isRunningSapB1Queries}
+                disabled={isLoadingCatalog || isRunningSapB1Queries || isComparing}
                 aria-label={
                   isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
                 }
@@ -836,25 +647,22 @@ export default function ConciliationWorkbenchPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!sapB1QueryPreview) return;
-                      const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
-                      const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
                       const matchedBankRowIds = new Set(sapB1SmartMatches.map(m => m.bankRow.rowId));
                       const matchedSystemRowIds = new Set(sapB1SmartMatches.map(m => m.systemRow.rowId));
 
-                      const pendingBankRows = bankRows.filter(r => !matchedBankRowIds.has(r.rowId));
-                      const pendingSystemRows = systemRows.filter(r => !matchedSystemRowIds.has(r.rowId));
+                      const result = await runSapB1QueryComparison({
+                        columns: sapB1ComparisonColumns,
+                        excludedBankRowIds: [...matchedBankRowIds],
+                        excludedSystemRowIds: [...matchedSystemRowIds],
+                      });
+                      if (!result) return;
 
-                      const matches = calculateSmartMatches(
-                        pendingSystemRows,
-                        pendingBankRows,
-                        sapB1ComparisonColumns
-                      );
-                      setSapB1SmartMatches(prev => [...prev, ...matches]);
+                      setSapB1SmartMatches(prev => [...prev, ...result.matches]);
                       setShowSapB1Comparison(true);
                     }}
-                    disabled={!sapB1QueryPreview || sapB1QueryPreview.bank.rows.length === 0 || sapB1QueryPreview.system.rows.length === 0}
+                    disabled={!sapB1QueryPreview || sapB1QueryPreview.bank.rows.length === 0 || sapB1QueryPreview.system.rows.length === 0 || isComparing}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <FiUploadCloud className="h-4 w-4" /> Comparar
@@ -1021,7 +829,7 @@ export default function ConciliationWorkbenchPage() {
                 <button
                   type="button"
                   onClick={() => void runComparison()}
-                  disabled={!selectedBankStatementId || !systemFile}
+                  disabled={!selectedBankStatementId || !systemFile || isComparing}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiUploadCloud className="h-4 w-4" /> Comparar
