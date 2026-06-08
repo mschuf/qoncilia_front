@@ -27,6 +27,7 @@ import type {
 } from "../types/conciliation"
 import type { CompanyErpConfig } from "../types/erp"
 import { isAdminRole, isSuperAdminRole } from "../utils/role"
+import { getDefaultEsteMesDates } from "../components/ConciliationWorkbench/DateRangePicker"
 
 function hasComparableMapping(mapping: LayoutMapping) {
   return Boolean(mapping.systemColumn?.trim() && mapping.bankColumn?.trim())
@@ -234,8 +235,10 @@ export default function useConciliationWorkbench() {
   const [pageSize, setPageSize] = useState(10)
   const [totalPages, setTotalPages] = useState(1)
   const [totalStatements, setTotalStatements] = useState(0)
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  
+  const defaultDates = useMemo(() => getDefaultEsteMesDates(), [])
+  const [dateFrom, setDateFrom] = useState(defaultDates.from)
+  const [dateTo, setDateTo] = useState(defaultDates.to)
   const [searchTerm, setSearchTerm] = useState("")
   const debouncedDateFrom = useDebounce(dateFrom, 350)
   const debouncedDateTo = useDebounce(dateTo, 350)

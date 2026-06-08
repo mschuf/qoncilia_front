@@ -9,6 +9,7 @@ import {
   FiChevronUp,
   FiChevronDown,
 } from "react-icons/fi";
+import { DateRangePicker } from "../components/ConciliationWorkbench/DateRangePicker";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
   Metric,
@@ -207,10 +208,10 @@ function calculateSmartMatches(
         const referenceMatched = exactMatch(getRowValue(sysRow, col1), getRowValue(bankRow, col1));
         const dateResult = col2
           ? dateMatchWithinDays(
-              getRowRawValue(sysRow, col2),
-              getRowRawValue(bankRow, col2),
-              SAP_B1_DATE_TOLERANCE_DAYS
-            )
+            getRowRawValue(sysRow, col2),
+            getRowRawValue(bankRow, col2),
+            SAP_B1_DATE_TOLERANCE_DAYS
+          )
           : { matched: false, differenceDays: null };
         const amountMatched = col3
           ? amountMatch(getRowRawValue(sysRow, col3), getRowRawValue(bankRow, col3))
@@ -589,8 +590,7 @@ export default function ConciliationWorkbenchPage() {
     if (!preview) return;
 
     console.groupCollapsed(
-      `[Qoncilia] Boton Conciliar ERP ${
-        isExternalReconciliationDisabled ? "deshabilitado" : "habilitado"
+      `[Qoncilia] Boton Conciliar ERP ${isExternalReconciliationDisabled ? "deshabilitado" : "habilitado"
       }`,
     );
     console.table({
@@ -660,94 +660,91 @@ export default function ConciliationWorkbenchPage() {
         </div>
 
         {isFiltersExpanded ? (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,1fr)_auto]">
-          {isSuperAdminRole(role) ? (
-            <SelectBlock
-              label="Usuario"
-              value={selectedUserId}
-              onChange={(value) => setSelectedUserId(Number(value))}
-              options={users.map((item) => ({
-                value: Number(item.id),
-                label: `${item.usrLogin}${item.usrNombre ? ` - ${item.usrNombre}` : ""}`,
-              }))}
-            />
-          ) : null}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-12">
+            {isSuperAdminRole(role) ? (
+              <div className="col-span-2 md:col-span-4 lg:col-span-2">
+                <SelectBlock
+                  label="Usuario"
+                  value={selectedUserId}
+                  onChange={(value) => setSelectedUserId(Number(value))}
+                  options={users.map((item) => ({
+                    value: Number(item.id),
+                    label: `${item.usrLogin}${item.usrNombre ? ` - ${item.usrNombre}` : ""}`,
+                  }))}
+                />
+              </div>
+            ) : null}
 
-          <SelectBlock
-            label="Banco"
-            value={selectedBankId}
-            onChange={(value) => setSelectedBankId(Number(value))}
-            options={banks.map((item) => ({
-              value: item.id,
-              label: item.bankName,
-            }))}
-            disabled={banks.length === 0}
-          />
+            <div className="col-span-1 md:col-span-1 lg:col-span-2">
+              <SelectBlock
+                label="Banco"
+                value={selectedBankId}
+                onChange={(value) => setSelectedBankId(Number(value))}
+                options={banks.map((item) => ({
+                  value: item.id,
+                  label: item.bankName,
+                }))}
+                disabled={banks.length === 0}
+              />
+            </div>
 
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">
-              Cuenta bancaria
-            </span>
-            <select
-              value={selectedCompanyBankAccountId}
-              onChange={(event) =>
-                setSelectedCompanyBankAccountId(Number(event.target.value))
-              }
-              disabled={accounts.length === 0}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-            >
-              {accounts.length === 0 ? (
-                <option value={0}>Sin cuentas para este banco</option>
-              ) : null}
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} - {account.accountNumber} ({account.currency})
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="col-span-1 md:col-span-1 lg:col-span-3">
+              <label className="space-y-1.5 block">
+                <span className="text-sm font-semibold text-slate-700">
+                  Cuenta bancaria
+                </span>
+                <select
+                  value={selectedCompanyBankAccountId}
+                  onChange={(event) =>
+                    setSelectedCompanyBankAccountId(Number(event.target.value))
+                  }
+                  disabled={accounts.length === 0}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
+                  {accounts.length === 0 ? (
+                    <option value={0}>Sin cuentas para este banco</option>
+                  ) : null}
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} - {account.accountNumber} ({account.currency})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Desde</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(event) => setDateFrom(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            />
-          </label>
+            <div className={`col-span-2 md:col-span-2 ${isSuperAdminRole(role) ? "lg:col-span-3" : "lg:col-span-5"}`}>
+              <DateRangePicker
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onChange={(from, to) => {
+                  setDateFrom(from);
+                  setDateTo(to);
+                }}
+              />
+            </div>
 
-          <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-700">Hasta</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(event) => setDateTo(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-            />
-          </label>
-
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={() => {
-                setIsFiltersExpanded(false);
-                handleSearch();
-              }}
-              disabled={isLoadingCatalog || isRunningSapB1Queries}
-              aria-label={
-                isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
-              }
-              title={
-                isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
-              }
-              className="inline-flex h-[42px] w-full sm:w-[42px] items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <FiSearch className="h-4 w-4" />
-              <span className="ml-2 sm:hidden">Buscar</span>
-            </button>
+            <div className="col-span-2 md:col-span-4 lg:col-span-2 flex items-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFiltersExpanded(false);
+                  handleSearch();
+                }}
+                disabled={isLoadingCatalog || isRunningSapB1Queries}
+                aria-label={
+                  isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
+                }
+                title={
+                  isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
+                }
+                className="inline-flex h-[46px] w-full items-center justify-center rounded-xl bg-emerald-600 px-4 font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FiSearch className="h-4 w-4" />
+                <span className="ml-2">Buscar</span>
+              </button>
+            </div>
           </div>
-        </div>
         ) : null}
       </section>
 
@@ -768,16 +765,16 @@ export default function ConciliationWorkbenchPage() {
               </div>
             ) : sapB1QueryPreview ? (
               <div className="mt-5 grid gap-5 xl:grid-cols-2">
-                <SapB1QueryTableView 
-                  title="Query banco" 
-                  table={sapB1QueryPreview.bank} 
+                <SapB1QueryTableView
+                  title="Query banco"
+                  table={sapB1QueryPreview.bank}
                   selectedRowIndex={selectedSapB1BankRowIndex}
                   onSelectRow={setSelectedSapB1BankRowIndex}
                   matchedIndices={new Set(sapB1SmartMatches.map(m => m.bankRow.rowNumber - 1))}
                 />
-                <SapB1QueryTableView 
-                  title="Query sistema" 
-                  table={sapB1QueryPreview.system} 
+                <SapB1QueryTableView
+                  title="Query sistema"
+                  table={sapB1QueryPreview.system}
                   selectedRowIndex={selectedSapB1SystemRowIndex}
                   onSelectRow={setSelectedSapB1SystemRowIndex}
                   matchedIndices={new Set(sapB1SmartMatches.map(m => m.systemRow.rowNumber - 1))}
@@ -812,10 +809,10 @@ export default function ConciliationWorkbenchPage() {
                       if (!sapB1QueryPreview || selectedSapB1BankRowIndex === null || selectedSapB1SystemRowIndex === null) return;
                       const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
                       const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
-                      
+
                       const bankRow = bankRows[selectedSapB1BankRowIndex];
                       const systemRow = systemRows[selectedSapB1SystemRowIndex];
-                      
+
                       const manualMatch: SmartMatch = {
                         systemRow,
                         bankRow,
@@ -826,7 +823,7 @@ export default function ConciliationWorkbenchPage() {
                         matchReason: "manual",
                         dateDifferenceDays: null,
                       };
-                      
+
                       setSapB1SmartMatches(prev => [...prev, manualMatch]);
                       setShowSapB1Comparison(true);
                       setSelectedSapB1BankRowIndex(null);
@@ -845,7 +842,7 @@ export default function ConciliationWorkbenchPage() {
                       const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
                       const matchedBankRowIds = new Set(sapB1SmartMatches.map(m => m.bankRow.rowId));
                       const matchedSystemRowIds = new Set(sapB1SmartMatches.map(m => m.systemRow.rowId));
-                      
+
                       const pendingBankRows = bankRows.filter(r => !matchedBankRowIds.has(r.rowId));
                       const pendingSystemRows = systemRows.filter(r => !matchedSystemRowIds.has(r.rowId));
 
@@ -1237,11 +1234,10 @@ export default function ConciliationWorkbenchPage() {
           type="button"
           onClick={() => setIsErpPanelOpen((current) => !current)}
           title="ERP"
-          className={`inline-flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition hover:scale-105 ${
-            erpSession?.authenticated
+          className={`inline-flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition hover:scale-105 ${erpSession?.authenticated
               ? "bg-emerald-600 text-white shadow-emerald-600/30"
               : "bg-slate-900 text-white shadow-slate-900/30"
-          }`}
+            }`}
         >
           <FiRefreshCw className="h-5 w-5" />
         </button>
@@ -1294,13 +1290,12 @@ function SapB1QueryTableView({
                 return (
                   <tr
                     key={index}
-                    className={`border-t border-slate-100 ${
-                      isMatched
+                    className={`border-t border-slate-100 ${isMatched
                         ? "bg-slate-50 opacity-50 cursor-not-allowed"
                         : isSelected
                           ? "bg-brand-50"
                           : hasSelection ? "text-slate-700 cursor-pointer hover:bg-slate-50" : "text-slate-700"
-                    }`}
+                      }`}
                     onClick={() => {
                       if (hasSelection && !isMatched) {
                         onSelectRow(isSelected ? null : index);
@@ -1591,11 +1586,10 @@ const StatementRow = memo(function StatementRow({
         <button
           type="button"
           onClick={() => onSelect(statement.id)}
-          className={`rounded-xl px-3 py-2 text-sm font-semibold transition cursor-pointer ${
-            selected
+          className={`rounded-xl px-3 py-2 text-sm font-semibold transition cursor-pointer ${selected
               ? "bg-slate-900 text-white"
               : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-          }`}
+            }`}
         >
           {selected ? "Seleccionado" : "Usar"}
         </button>
