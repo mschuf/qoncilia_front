@@ -9,7 +9,7 @@ interface ComparisonBackdropProps {
 export default function ComparisonBackdrop({
   isVisible,
   label = "Comparando extractos",
-  detail = "Calculando coincidencias en el servidor."
+  detail = "Calculando coincidencias con IA.",
 }: ComparisonBackdropProps) {
   if (!isVisible) return null;
 
@@ -43,7 +43,8 @@ export default function ComparisonBackdrop({
           <div
             className="h-full w-1/2 rounded-sm bg-sky-500 shadow-[0_0_14px_rgba(14,165,233,0.45)]"
             style={{
-              animation: "qoncilia-comparison-bar 1.35s cubic-bezier(0.45, 0, 0.2, 1) infinite"
+              animation:
+                "qoncilia-comparison-bar 1.35s cubic-bezier(0.45, 0, 0.2, 1) infinite",
             }}
           />
         </div>
