@@ -134,6 +134,15 @@ export function DateRangePicker({
 
   const isCustom = selectedRange === "personalizado";
 
+  const formatDisplayDate = (value: string) => {
+    if (!value) return "";
+    const parts = value.split("-");
+    if (parts.length !== 3) return value;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+
+  const rangeLabel = RANGE_LABELS[selectedRange];
+
   return (
     <div className="relative" ref={containerRef}>
       <label className="space-y-1.5 block">
@@ -143,11 +152,17 @@ export function DateRangePicker({
           onClick={() => setIsOpen(!isOpen)}
           className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <FiCalendar className="h-4 w-4 text-slate-400" />
-            <span className={isCustom ? "text-slate-900" : "font-semibold text-slate-900"}>
-              {isCustom ? (dateFrom && dateTo ? `${dateFrom} a ${dateTo}` : "Personalizado") : RANGE_LABELS[selectedRange]}
-            </span>
+            <span className="font-semibold text-slate-900">{rangeLabel}</span>
+            {dateFrom && dateTo ? (
+              <>
+                <span className="text-slate-300">-</span>
+                <span className="text-xs font-medium text-slate-500">
+                  {formatDisplayDate(dateFrom)} – {formatDisplayDate(dateTo)}
+                </span>
+              </>
+            ) : null}
           </div>
           <FiChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </button>
