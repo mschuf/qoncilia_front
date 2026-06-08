@@ -8,6 +8,7 @@ import { useDebounce } from "./useDebounce"
 import {
   getStoredSapConfigId,
   storeSapConfigId,
+  type SapB1QueryComparisonResult,
   type SapB1QueryPreviewResult,
   type SapExternalReconciliationRequest,
   type SapExternalReconciliationResult,
@@ -246,6 +247,7 @@ export default function useConciliationWorkbench() {
   const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
   const [sapB1QueryPreview, setSapB1QueryPreview] = useState<SapB1QueryPreviewResult | null>(null)
   const [isRunningSapB1Queries, setIsRunningSapB1Queries] = useState(false)
+  const [isComparing, setIsComparing] = useState(false)
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
   const [isSendingExternalReconciliation, setIsSendingExternalReconciliation] = useState(false)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
@@ -587,9 +589,11 @@ export default function useConciliationWorkbench() {
     formData.append("systemFile", systemFile)
 
     try {
+      setIsComparing(true)
       const response = await apiClient.post<PreviewResponse>(
         "/conciliation/compare-bank-statement",
-        formData
+        formData,
+        { showBackdrop: false, timeoutMs: 45000 }
       )
       setPreview(response)
       setManualMatches([])
@@ -629,6 +633,8 @@ export default function useConciliationWorkbench() {
       console.error(error)
       console.groupEnd()
       toast.error(error instanceof Error ? error.message : "No se pudo comparar el extracto.")
+    } finally {
+      setIsComparing(false)
     }
   }
 
@@ -667,6 +673,54 @@ export default function useConciliationWorkbench() {
       toast.error(error instanceof Error ? error.message : "No se pudieron ejecutar las consultas SAP_B1.")
     } finally {
       setIsRunningSapB1Queries(false)
+    }
+  }
+
+  const runSapB1QueryComparison = async ({
+    columns,
+    excludedBankRowIds = [],
+    excludedSystemRowIds = []
+  }: {
+    columns: string[]
+    excludedBankRowIds?: string[]
+    excludedSystemRowIds?: string[]
+  }) => {
+    if (!selectedErpConfigId || !isSapB1QueryMode) {
+      toast.error("Selecciona una configuracion ERP SAP_B1 activa.")
+      return null
+    }
+
+    if (!sapB1QueryPreview) {
+      toast.error("Primero ejecuta las consultas SAP_B1.")
+      return null
+    }
+
+    if (columns.length === 0) {
+      toast.error("No hay columnas disponibles para comparar.")
+      return null
+    }
+
+    try {
+      setIsComparing(true)
+      const response = await apiClient.post<SapB1QueryComparisonResult>(
+        "/erp/sap/query-preview/compare",
+        {
+          companyErpConfigId: selectedErpConfigId,
+          bank: sapB1QueryPreview.bank,
+          system: sapB1QueryPreview.system,
+          columns,
+          excludedBankRowIds,
+          excludedSystemRowIds
+        },
+        { showBackdrop: false, timeoutMs: 45000 }
+      )
+      toast.success("Comparacion lista.")
+      return response
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo comparar en SAP_B1.")
+      return null
+    } finally {
+      setIsComparing(false)
     }
   }
 
@@ -1079,7 +1133,9 @@ export default function useConciliationWorkbench() {
     isSapB1QueryMode,
     sapB1QueryPreview,
     isRunningSapB1Queries,
+    isComparing,
     runSapB1QueryPreview,
+    runSapB1QueryComparison,
     isSendingExternalReconciliation,
     preview,
     manualMatches,

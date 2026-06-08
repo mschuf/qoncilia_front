@@ -482,6 +482,13 @@ export default function ConciliationWorkbenchPage() {
   }, [preview?.bankRows, preview?.systemRows, selectedLayout]);
 
   const handleSearch = async () => {
+    setSmartMatches([]);
+    setShowComparison(false);
+    setSapB1SmartMatches([]);
+    setShowSapB1Comparison(false);
+    setSelectedSapB1BankRowIndex(null);
+    setSelectedSapB1SystemRowIndex(null);
+
     if (isSuperAdminRole(role) && banks.length === 0) {
       await loadCatalog(selectedUserId);
     }
@@ -866,6 +873,10 @@ export default function ConciliationWorkbenchPage() {
                 matches={sapB1SmartMatches}
                 columns={sapB1ComparisonColumns.map((col) => ({ fieldKey: col, label: col }))}
                 onRemove={handleRemoveSapB1SmartMatch}
+                onClear={() => {
+                  setSapB1SmartMatches([]);
+                  setShowSapB1Comparison(false);
+                }}
               />
               <section className="rounded-3xl border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
@@ -1068,6 +1079,20 @@ export default function ConciliationWorkbenchPage() {
                   .slice(0, 3)
                   .map((m) => ({ fieldKey: m.fieldKey, label: m.label }))}
                 onRemove={handleRemoveSmartMatch}
+                onClear={() => {
+                  smartMatches.forEach((match) => {
+                    const autoMatch = preview?.autoMatches.find(
+                      (item) =>
+                        item.systemRowId === match.systemRow.rowId &&
+                        item.bankRowId === match.bankRow.rowId
+                    );
+                    if (autoMatch) {
+                      removeAutoMatch(autoMatch);
+                    }
+                  });
+                  setSmartMatches([]);
+                  setShowComparison(false);
+                }}
               />
             </>
           ) : null}
@@ -1404,10 +1429,12 @@ function SmartMatchesTable({
   matches,
   columns,
   onRemove,
+  onClear,
 }: {
   matches: SmartMatch[];
   columns: MatchColumn[];
   onRemove?: (match: SmartMatch) => void;
+  onClear?: () => void;
 }) {
   const visibleColumns = columns.slice(0, 3);
   const hasActions = Boolean(onRemove);
@@ -1415,12 +1442,23 @@ function SmartMatchesTable({
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-lg font-extrabold text-slate-900">
-          Resultados del matching
-        </h3>
-        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
-          {matches.length} coincidencias
-        </span>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-extrabold text-slate-900">
+            Resultados del matching
+          </h3>
+          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+            {matches.length} coincidencias
+          </span>
+        </div>
+        {onClear && matches.length > 0 ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+          >
+            <FiX className="h-3.5 w-3.5" /> Limpiar tabla
+          </button>
+        ) : null}
       </div>
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
         <div className="max-h-[520px] overflow-auto">

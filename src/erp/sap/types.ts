@@ -1,3 +1,5 @@
+import type { PreviewRow } from "../../types/conciliation"
+
 export type SapSessionStatus =
   | "active"
   | "not_authenticated"
@@ -36,6 +38,32 @@ export interface SapB1QueryPreviewResult {
   dateTo: string
   bank: SapB1QueryTable
   system: SapB1QueryTable
+}
+
+export interface SapB1SmartMatch {
+  systemRow: PreviewRow
+  bankRow: PreviewRow
+  score: number
+  column1Match: boolean
+  column2Match: boolean
+  column3Match: boolean
+  matchReason: "reference" | "date_amount" | "manual"
+  dateDifferenceDays: number | null
+}
+
+export interface SapB1QueryComparisonResult {
+  columns: string[]
+  matches: SapB1SmartMatch[]
+  unmatchedSystemRows: PreviewRow[]
+  unmatchedBankRows: PreviewRow[]
+  metrics: {
+    totalSystemRows: number
+    totalBankRows: number
+    matches: number
+    unmatchedSystem: number
+    unmatchedBank: number
+    matchPercentage: number
+  }
 }
 
 export type SapExternalReconciliationAccountType =
