@@ -1,197 +1,32 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiRefreshCw,
-  FiSearch,
   FiSend,
   FiUploadCloud,
-  FiX,
   FiArrowDown,
-  FiChevronUp,
-  FiChevronDown,
 } from "react-icons/fi";
 import ComparisonBackdrop from "../components/ConciliationWorkbench/ComparisonBackdrop";
-import { DateRangePicker } from "../components/ConciliationWorkbench/DateRangePicker";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
 import {
   Metric,
-  SelectBlock,
   UploadCard,
 } from "../components/ConciliationWorkbench/WorkbenchControls";
+import FiltersSection from "../components/ConciliationWorkbench/FiltersSection";
+import SapB1QueryTableView from "../components/ConciliationWorkbench/SapB1QueryTableView";
+import DataTable from "../components/ConciliationWorkbench/DataTable";
+import SmartMatchesTable from "../components/ConciliationWorkbench/SmartMatchesTable";
+import StatementRow from "../components/ConciliationWorkbench/StatementRow";
+import ErpFloatingPanel from "../components/ConciliationWorkbench/ErpFloatingPanel";
+import {
+  convertPreviewMatchesToSmartMatches,
+  convertSapB1TableToPreviewRows,
+  isSameSmartMatch,
+  resolveErpStatus,
+  resolveSapB1ComparisonColumns,
+  type SmartMatch,
+} from "../components/ConciliationWorkbench/workbenchHelpers";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
-import type {
-  BankStatementSummary,
-  LayoutMapping,
-  PreviewMatch,
-  PreviewResponse,
-  PreviewRow,
-} from "../types/conciliation";
-import type {
-  SapB1QueryPreviewResult,
-  SapB1SmartMatch,
-  SapB1QueryTable,
-  SapErpSession,
-} from "../erp/sap";
 import { isAdminRole, isSuperAdminRole } from "../utils/role";
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
-}
-
-type SmartMatch = SapB1SmartMatch;
-
-function isSameSmartMatch(left: SmartMatch, right: SmartMatch) {
-  return (
-    left.systemRow.rowId === right.systemRow.rowId &&
-    left.bankRow.rowId === right.bankRow.rowId
-  );
-}
-
-function convertPreviewMatchesToSmartMatches(
-  preview: PreviewResponse,
-  matches: PreviewMatch[],
-  fieldKeys: string[]
-): SmartMatch[] {
-  const systemRowsById = new Map(preview.systemRows.map((row) => [row.rowId, row]));
-  const bankRowsById = new Map(preview.bankRows.map((row) => [row.rowId, row]));
-
-  return matches
-    .map((match) => {
-      const systemRow = systemRowsById.get(match.systemRowId);
-      const bankRow = bankRowsById.get(match.bankRowId);
-      if (!systemRow || !bankRow) return null;
-
-      const rulePassed = (fieldKey: string | undefined) =>
-        Boolean(fieldKey && match.ruleResults.find((rule) => rule.fieldKey === fieldKey)?.passed);
-      const column1Match = rulePassed(fieldKeys[0]);
-      const column2Match = rulePassed(fieldKeys[1]);
-      const column3Match = rulePassed(fieldKeys[2]);
-
-      return {
-        systemRow,
-        bankRow,
-        score: match.score,
-        column1Match,
-        column2Match,
-        column3Match,
-        matchReason: column1Match ? "reference" : "date_amount",
-        dateDifferenceDays: null,
-      } satisfies SmartMatch;
-    })
-    .filter((match): match is SmartMatch => match !== null);
-}
-
-function convertSapB1TableToPreviewRows(table: SapB1QueryTable): PreviewRow[] {
-  return table.rows.map((row, index) => {
-    const values: Record<string, string | null> = {};
-    const normalized: Record<string, string | number | null> = {};
-
-    for (const col of table.columns) {
-      const raw = row[col];
-      const str = raw == null ? null : String(raw);
-      values[col] = str;
-      normalized[col] = str == null
-        ? null
-        : str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-    }
-
-    return {
-      rowId: `sap-b1-${index}`,
-      rowNumber: index + 1,
-      values,
-      normalized,
-    };
-  });
-}
-
-function normalizeColumnKey(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toLowerCase();
-}
-
-function resolveSapB1ComparisonColumns(preview: SapB1QueryPreviewResult): string[] {
-  const systemColumnsByKey = new Map(
-    preview.system.columns.map((column) => [normalizeColumnKey(column), column])
-  );
-  const bankColumnsByKey = new Map(
-    preview.bank.columns.map((column) => [normalizeColumnKey(column), column])
-  );
-  const preferredKeys = ["referencia", "fecha", "monto"];
-  const preferredColumns = preferredKeys
-    .map((key) => bankColumnsByKey.get(key) ?? systemColumnsByKey.get(key) ?? null)
-    .filter((column): column is string => Boolean(column));
-
-  if (preferredColumns.length === 3) return preferredColumns;
-
-  const commonColumns = preview.bank.columns.filter((column) =>
-    systemColumnsByKey.has(normalizeColumnKey(column))
-  );
-
-  return (commonColumns.length > 0 ? commonColumns : preview.bank.columns).slice(0, 3);
-}
-
-function resolveErpStatus(session: SapErpSession | null) {
-  if (!session) {
-    return {
-      label: "ERP sin validar",
-      title: "Todavia no se valido la sesion ERP.",
-      detail:
-        "Presiona Validar para consultar si hay una sesion activa antes de conciliar.",
-      badgeClass: "bg-slate-100 text-slate-600",
-      panelClass: "border-slate-200 bg-slate-50 text-slate-600",
-    };
-  }
-
-  if (session.authenticated) {
-    return {
-      label: "ERP conectado",
-      title: session.username
-        ? `Sesion activa para ${session.username}.`
-        : "Sesion ERP activa.",
-      detail: session.lastValidatedAt
-        ? `Validada el ${formatDateTime(session.lastValidatedAt)}.`
-        : `Validada el ${formatDateTime(session.checkedAt)}.`,
-      badgeClass: "bg-emerald-100 text-emerald-700",
-      panelClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    };
-  }
-
-  const messages: Record<
-    SapErpSession["status"],
-    { title: string; detail: string }
-  > = {
-    active: {
-      title: "Sesion ERP activa.",
-      detail: "La sesion esta lista para conciliar.",
-    },
-    not_authenticated: {
-      title: "No hay una sesion ERP activa.",
-      detail: "Inicia sesion desde Configurar ERP y luego vuelve a validar.",
-    },
-    expired: {
-      title: "La sesion ERP expiro.",
-      detail: "Inicia sesion nuevamente desde Configurar ERP.",
-    },
-    invalid: {
-      title: "La sesion ERP no es valida.",
-      detail: "Inicia sesion nuevamente desde Configurar ERP.",
-    },
-    logged_out: {
-      title: "La sesion ERP esta cerrada.",
-      detail: "Inicia sesion desde Configurar ERP para poder conciliar.",
-    },
-  };
-
-  const message = messages[session.status] ?? messages.not_authenticated;
-  return {
-    label: "ERP sin sesion",
-    ...message,
-    badgeClass: "bg-amber-100 text-amber-700",
-    panelClass: "border-amber-200 bg-amber-50 text-amber-700",
-  };
-}
 
 export default function ConciliationWorkbenchPage() {
   const {
@@ -237,21 +72,17 @@ export default function ConciliationWorkbenchPage() {
     removeManualMatch,
     sendExternalReconciliationToErp,
     sendSapB1QueryMatchesToErp,
-    clearAll,
     searchBankStatements,
     loadCatalog,
     isLoadingCatalog,
     page,
     goToPage,
-    pageSize,
     totalPages,
     totalStatements,
     dateFrom,
     setDateFrom,
     dateTo,
     setDateTo,
-    searchTerm,
-    setSearchTerm,
   } = useConciliationWorkbench();
 
   const bankLabel =
@@ -265,11 +96,15 @@ export default function ConciliationWorkbenchPage() {
   const [sapB1SmartMatches, setSapB1SmartMatches] = useState<SmartMatch[]>([]);
   const [showSapB1Comparison, setShowSapB1Comparison] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
-  const [selectedSapB1BankRowIndex, setSelectedSapB1BankRowIndex] = useState<number | null>(null);
-  const [selectedSapB1SystemRowIndex, setSelectedSapB1SystemRowIndex] = useState<number | null>(null);
+  const [selectedSapB1BankRowIndex, setSelectedSapB1BankRowIndex] = useState<
+    number | null
+  >(null);
+  const [selectedSapB1SystemRowIndex, setSelectedSapB1SystemRowIndex] =
+    useState<number | null>(null);
   const sapB1ComparisonColumns = useMemo(
-    () => (sapB1QueryPreview ? resolveSapB1ComparisonColumns(sapB1QueryPreview) : []),
-    [sapB1QueryPreview]
+    () =>
+      sapB1QueryPreview ? resolveSapB1ComparisonColumns(sapB1QueryPreview) : [],
+    [sapB1QueryPreview],
   );
 
   useEffect(() => {
@@ -283,7 +118,13 @@ export default function ConciliationWorkbenchPage() {
       .filter((m) => m.active)
       .map((m) => m.fieldKey)
       .slice(0, 3);
-    setSmartMatches(convertPreviewMatchesToSmartMatches(preview, preview.autoMatches, fieldKeys));
+    setSmartMatches(
+      convertPreviewMatchesToSmartMatches(
+        preview,
+        preview.autoMatches,
+        fieldKeys,
+      ),
+    );
     setShowComparison(true);
   }, [preview]);
 
@@ -343,9 +184,13 @@ export default function ConciliationWorkbenchPage() {
     externalReconciliationBlockers.length > 0;
   const sapB1ExternalReconciliationBlockers = [
     !showSapB1Comparison ? "Primero compara las consultas SAP_B1." : null,
-    sapB1SmartMatches.length === 0 ? "No hay coincidencias para conciliar." : null,
+    sapB1SmartMatches.length === 0
+      ? "No hay coincidencias para conciliar."
+      : null,
     !selectedErpConfigId ? "No hay ERP seleccionado." : null,
-    isSendingExternalReconciliation ? "Se esta enviando la conciliacion." : null,
+    isSendingExternalReconciliation
+      ? "Se esta enviando la conciliacion."
+      : null,
     !erpSession?.authenticated ? "La sesion ERP no esta autenticada." : null,
     !canSendExternalReconciliation
       ? `El rol actual (${role ?? "sin rol"}) no puede enviar conciliaciones al ERP.`
@@ -355,7 +200,7 @@ export default function ConciliationWorkbenchPage() {
     sapB1ExternalReconciliationBlockers.length > 0;
   const removeSmartMatchFromTable = (target: SmartMatch) => {
     setSmartMatches((current) =>
-      current.filter((item) => !isSameSmartMatch(item, target))
+      current.filter((item) => !isSameSmartMatch(item, target)),
     );
   };
   const handleRemoveAutoMatch = (match: {
@@ -365,7 +210,7 @@ export default function ConciliationWorkbenchPage() {
     const autoMatch = preview?.autoMatches.find(
       (item) =>
         item.systemRowId === match.systemRowId &&
-        item.bankRowId === match.bankRowId
+        item.bankRowId === match.bankRowId,
     );
     if (autoMatch) {
       removeAutoMatch(autoMatch);
@@ -374,8 +219,8 @@ export default function ConciliationWorkbenchPage() {
       current.filter(
         (item) =>
           item.systemRow.rowId !== match.systemRowId ||
-          item.bankRow.rowId !== match.bankRowId
-      )
+          item.bankRow.rowId !== match.bankRowId,
+      ),
     );
   };
   const handleRemoveSmartMatch = (target: SmartMatch) => {
@@ -387,7 +232,7 @@ export default function ConciliationWorkbenchPage() {
   };
   const handleRemoveSapB1SmartMatch = (target: SmartMatch) => {
     setSapB1SmartMatches((current) =>
-      current.filter((item) => !isSameSmartMatch(item, target))
+      current.filter((item) => !isSameSmartMatch(item, target)),
     );
   };
 
@@ -395,7 +240,8 @@ export default function ConciliationWorkbenchPage() {
     if (!preview) return;
 
     console.groupCollapsed(
-      `[Qoncilia] Boton Conciliar ERP ${isExternalReconciliationDisabled ? "deshabilitado" : "habilitado"
+      `[Qoncilia] Boton Conciliar ERP ${
+        isExternalReconciliationDisabled ? "deshabilitado" : "habilitado"
       }`,
     );
     console.table({
@@ -444,8 +290,10 @@ export default function ConciliationWorkbenchPage() {
     <section className="space-y-6">
       <ComparisonBackdrop
         isVisible={isComparing}
-        label={isSapB1QueryMode ? "Comparando consultas SAP_B1" : "Comparando extractos"}
-        detail="Calculando coincidencias en el backend."
+        label={
+          isSapB1QueryMode ? "Comparando consultas" : "Comparando extractos"
+        }
+        detail="Calculando coincidencias con IA."
       />
 
       <div>
@@ -457,107 +305,29 @@ export default function ConciliationWorkbenchPage() {
         </h1>
       </div>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-slate-900">Filtros de consulta</h2>
-          <button
-            type="button"
-            onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-          >
-            {isFiltersExpanded ? "Ocultar" : "Mostrar"}
-            {isFiltersExpanded ? <FiChevronUp className="h-4 w-4" /> : <FiChevronDown className="h-4 w-4" />}
-          </button>
-        </div>
-
-        {isFiltersExpanded ? (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-12">
-            {isSuperAdminRole(role) ? (
-              <div className="col-span-2 md:col-span-4 lg:col-span-2">
-                <SelectBlock
-                  label="Usuario"
-                  value={selectedUserId}
-                  onChange={(value) => setSelectedUserId(Number(value))}
-                  options={users.map((item) => ({
-                    value: Number(item.id),
-                    label: `${item.usrLogin}${item.usrNombre ? ` - ${item.usrNombre}` : ""}`,
-                  }))}
-                />
-              </div>
-            ) : null}
-
-            <div className="col-span-1 md:col-span-1 lg:col-span-2">
-              <SelectBlock
-                label="Banco"
-                value={selectedBankId}
-                onChange={(value) => setSelectedBankId(Number(value))}
-                options={banks.map((item) => ({
-                  value: item.id,
-                  label: item.bankName,
-                }))}
-                disabled={banks.length === 0}
-              />
-            </div>
-
-            <div className="col-span-1 md:col-span-1 lg:col-span-3">
-              <label className="space-y-1.5 block">
-                <span className="text-sm font-semibold text-slate-700">
-                  Cuenta bancaria
-                </span>
-                <select
-                  value={selectedCompanyBankAccountId}
-                  onChange={(event) =>
-                    setSelectedCompanyBankAccountId(Number(event.target.value))
-                  }
-                  disabled={accounts.length === 0}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-                >
-                  {accounts.length === 0 ? (
-                    <option value={0}>Sin cuentas para este banco</option>
-                  ) : null}
-                  {accounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name} - {account.accountNumber} ({account.currency})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className={`col-span-2 md:col-span-2 ${isSuperAdminRole(role) ? "lg:col-span-3" : "lg:col-span-5"}`}>
-              <DateRangePicker
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                onChange={(from, to) => {
-                  setDateFrom(from);
-                  setDateTo(to);
-                }}
-              />
-            </div>
-
-            <div className="col-span-2 md:col-span-4 lg:col-span-2 flex items-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsFiltersExpanded(false);
-                  handleSearch();
-                }}
-                disabled={isLoadingCatalog || isRunningSapB1Queries || isComparing}
-                aria-label={
-                  isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
-                }
-                title={
-                  isSapB1QueryMode ? "Ejecutar consultas" : "Buscar extractos"
-                }
-                className="inline-flex h-[46px] w-full items-center justify-center rounded-xl bg-emerald-600 px-4 font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <FiSearch className="h-4 w-4" />
-                <span className="ml-2">Buscar</span>
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </section>
+      <FiltersSection
+        role={role}
+        users={users}
+        selectedUserId={selectedUserId}
+        setSelectedUserId={setSelectedUserId}
+        banks={banks}
+        selectedBankId={selectedBankId}
+        setSelectedBankId={setSelectedBankId}
+        accounts={accounts}
+        selectedCompanyBankAccountId={selectedCompanyBankAccountId}
+        setSelectedCompanyBankAccountId={setSelectedCompanyBankAccountId}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        setDateFrom={setDateFrom}
+        setDateTo={setDateTo}
+        isExpanded={isFiltersExpanded}
+        setIsExpanded={setIsFiltersExpanded}
+        onSearch={handleSearch}
+        isSapB1QueryMode={isSapB1QueryMode}
+        isSearchDisabled={
+          isLoadingCatalog || isRunningSapB1Queries || isComparing
+        }
+      />
 
       {isSapB1QueryMode ? (
         <>
@@ -581,19 +351,28 @@ export default function ConciliationWorkbenchPage() {
                   table={sapB1QueryPreview.bank}
                   selectedRowIndex={selectedSapB1BankRowIndex}
                   onSelectRow={setSelectedSapB1BankRowIndex}
-                  matchedIndices={new Set(sapB1SmartMatches.map(m => m.bankRow.rowNumber - 1))}
+                  matchedIndices={
+                    new Set(
+                      sapB1SmartMatches.map((m) => m.bankRow.rowNumber - 1),
+                    )
+                  }
                 />
                 <SapB1QueryTableView
                   title="Query sistema"
                   table={sapB1QueryPreview.system}
                   selectedRowIndex={selectedSapB1SystemRowIndex}
                   onSelectRow={setSelectedSapB1SystemRowIndex}
-                  matchedIndices={new Set(sapB1SmartMatches.map(m => m.systemRow.rowNumber - 1))}
+                  matchedIndices={
+                    new Set(
+                      sapB1SmartMatches.map((m) => m.systemRow.rowNumber - 1),
+                    )
+                  }
                 />
               </div>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                Selecciona cuenta, fechas y pulsa buscar para ejecutar las consultas.
+                Selecciona cuenta, fechas y pulsa buscar para ejecutar las
+                consultas.
               </div>
             )}
 
@@ -617,9 +396,18 @@ export default function ConciliationWorkbenchPage() {
                     type="button"
                     title="Match Manual"
                     onClick={() => {
-                      if (!sapB1QueryPreview || selectedSapB1BankRowIndex === null || selectedSapB1SystemRowIndex === null) return;
-                      const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
-                      const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
+                      if (
+                        !sapB1QueryPreview ||
+                        selectedSapB1BankRowIndex === null ||
+                        selectedSapB1SystemRowIndex === null
+                      )
+                        return;
+                      const bankRows = convertSapB1TableToPreviewRows(
+                        sapB1QueryPreview.bank,
+                      );
+                      const systemRows = convertSapB1TableToPreviewRows(
+                        sapB1QueryPreview.system,
+                      );
 
                       const bankRow = bankRows[selectedSapB1BankRowIndex];
                       const systemRow = systemRows[selectedSapB1SystemRowIndex];
@@ -635,12 +423,15 @@ export default function ConciliationWorkbenchPage() {
                         dateDifferenceDays: null,
                       };
 
-                      setSapB1SmartMatches(prev => [...prev, manualMatch]);
+                      setSapB1SmartMatches((prev) => [...prev, manualMatch]);
                       setShowSapB1Comparison(true);
                       setSelectedSapB1BankRowIndex(null);
                       setSelectedSapB1SystemRowIndex(null);
                     }}
-                    disabled={selectedSapB1BankRowIndex === null || selectedSapB1SystemRowIndex === null}
+                    disabled={
+                      selectedSapB1BankRowIndex === null ||
+                      selectedSapB1SystemRowIndex === null
+                    }
                     className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <FiArrowDown className="h-5 w-5" />
@@ -649,8 +440,12 @@ export default function ConciliationWorkbenchPage() {
                     type="button"
                     onClick={async () => {
                       if (!sapB1QueryPreview) return;
-                      const matchedBankRowIds = new Set(sapB1SmartMatches.map(m => m.bankRow.rowId));
-                      const matchedSystemRowIds = new Set(sapB1SmartMatches.map(m => m.systemRow.rowId));
+                      const matchedBankRowIds = new Set(
+                        sapB1SmartMatches.map((m) => m.bankRow.rowId),
+                      );
+                      const matchedSystemRowIds = new Set(
+                        sapB1SmartMatches.map((m) => m.systemRow.rowId),
+                      );
 
                       const result = await runSapB1QueryComparison({
                         columns: sapB1ComparisonColumns,
@@ -659,10 +454,18 @@ export default function ConciliationWorkbenchPage() {
                       });
                       if (!result) return;
 
-                      setSapB1SmartMatches(prev => [...prev, ...result.matches]);
+                      setSapB1SmartMatches((prev) => [
+                        ...prev,
+                        ...result.matches,
+                      ]);
                       setShowSapB1Comparison(true);
                     }}
-                    disabled={!sapB1QueryPreview || sapB1QueryPreview.bank.rows.length === 0 || sapB1QueryPreview.system.rows.length === 0 || isComparing}
+                    disabled={
+                      !sapB1QueryPreview ||
+                      sapB1QueryPreview.bank.rows.length === 0 ||
+                      sapB1QueryPreview.system.rows.length === 0 ||
+                      isComparing
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <FiUploadCloud className="h-4 w-4" /> Comparar
@@ -676,7 +479,10 @@ export default function ConciliationWorkbenchPage() {
             <>
               <SmartMatchesTable
                 matches={sapB1SmartMatches}
-                columns={sapB1ComparisonColumns.map((col) => ({ fieldKey: col, label: col }))}
+                columns={sapB1ComparisonColumns.map((col) => ({
+                  fieldKey: col,
+                  label: col,
+                }))}
                 onRemove={handleRemoveSapB1SmartMatch}
                 onClear={() => {
                   setSapB1SmartMatches([]);
@@ -696,7 +502,8 @@ export default function ConciliationWorkbenchPage() {
                       Se enviaran {sapB1SmartMatches.length} coincidencias a
                       ExternalReconciliationsService_Reconcile.
                     </p>
-                    {isSapB1ExternalReconciliationDisabled && sapB1ExternalReconciliationBlockers.length > 0 ? (
+                    {isSapB1ExternalReconciliationDisabled &&
+                    sapB1ExternalReconciliationBlockers.length > 0 ? (
                       <p className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-lg inline-block">
                         {sapB1ExternalReconciliationBlockers.join(" • ")}
                       </p>
@@ -705,7 +512,8 @@ export default function ConciliationWorkbenchPage() {
                   <button
                     type="button"
                     onClick={async () => {
-                      const success = await sendSapB1QueryMatchesToErp(sapB1SmartMatches);
+                      const success =
+                        await sendSapB1QueryMatchesToErp(sapB1SmartMatches);
                       if (success) {
                         setSapB1SmartMatches([]);
                         setShowSapB1Comparison(false);
@@ -718,7 +526,9 @@ export default function ConciliationWorkbenchPage() {
                     className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <FiSend className="h-4 w-4" />
-                    {isSendingExternalReconciliation ? "Conciliando..." : "Conciliar"}
+                    {isSendingExternalReconciliation
+                      ? "Conciliando..."
+                      : "Conciliar"}
                   </button>
                 </div>
               </section>
@@ -771,7 +581,8 @@ export default function ConciliationWorkbenchPage() {
                             colSpan={4}
                             className="px-4 py-6 text-center text-sm text-slate-500"
                           >
-                            No hay extractos guardados para los filtros elegidos.
+                            No hay extractos guardados para los filtros
+                            elegidos.
                           </td>
                         </tr>
                       ) : null}
@@ -829,7 +640,9 @@ export default function ConciliationWorkbenchPage() {
                 <button
                   type="button"
                   onClick={() => void runComparison()}
-                  disabled={!selectedBankStatementId || !systemFile || isComparing}
+                  disabled={
+                    !selectedBankStatementId || !systemFile || isComparing
+                  }
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiUploadCloud className="h-4 w-4" /> Comparar
@@ -889,7 +702,7 @@ export default function ConciliationWorkbenchPage() {
                     const autoMatch = preview?.autoMatches.find(
                       (item) =>
                         item.systemRowId === match.systemRow.rowId &&
-                        item.bankRowId === match.bankRow.rowId
+                        item.bankRowId === match.bankRow.rowId,
                     );
                     if (autoMatch) {
                       removeAutoMatch(autoMatch);
@@ -983,425 +796,17 @@ export default function ConciliationWorkbenchPage() {
         </>
       ) : null}
 
-      {/* ERP Floating Action Button */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
-        {isErpPanelOpen ? (
-          <div className="w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                ERP
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsErpPanelOpen(false)}
-                className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              >
-                <FiX className="h-4 w-4" />
-              </button>
-            </div>
-            <select
-              value={selectedErpConfigId}
-              onChange={(event) =>
-                setSelectedErpConfigId(Number(event.target.value))
-              }
-              className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            >
-              {erpConfigs.length === 0 ? (
-                <option value={0}>Sin ERPs activas</option>
-              ) : null}
-              {erpConfigs.map((config) => (
-                <option key={config.id} value={config.id}>
-                  {config.name} - {config.dbName ?? config.code}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 flex items-center gap-2">
-              <span
-                className={`inline-flex flex-1 items-center justify-center rounded-xl px-3 py-2 text-xs font-bold ${erpStatus.badgeClass}`}
-              >
-                {erpStatus.label}
-              </span>
-              <button
-                type="button"
-                onClick={() => void checkErpSession(true)}
-                disabled={!selectedErpConfigId}
-                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-              >
-                <FiRefreshCw className="h-3.5 w-3.5" /> Validar
-              </button>
-            </div>
-            <div
-              className={`mt-2 rounded-xl border px-3 py-2 text-xs ${erpStatus.panelClass}`}
-            >
-              <p className="font-bold">{erpStatus.title}</p>
-              <p className="mt-0.5 text-[11px]">{erpStatus.detail}</p>
-            </div>
-          </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => setIsErpPanelOpen((current) => !current)}
-          title="ERP"
-          className={`inline-flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition hover:scale-105 ${erpSession?.authenticated
-              ? "bg-emerald-600 text-white shadow-emerald-600/30"
-              : "bg-slate-900 text-white shadow-slate-900/30"
-            }`}
-        >
-          <FiRefreshCw className="h-5 w-5" />
-        </button>
-      </div>
+      <ErpFloatingPanel
+        isOpen={isErpPanelOpen}
+        onToggle={() => setIsErpPanelOpen((current) => !current)}
+        onClose={() => setIsErpPanelOpen(false)}
+        erpStatus={erpStatus}
+        erpSession={erpSession}
+        erpConfigs={erpConfigs}
+        selectedErpConfigId={selectedErpConfigId}
+        setSelectedErpConfigId={setSelectedErpConfigId}
+        checkErpSession={checkErpSession}
+      />
     </section>
   );
 }
-
-function SapB1QueryTableView({
-  title,
-  table,
-  selectedRowIndex,
-  onSelectRow,
-  matchedIndices,
-}: {
-  title: string;
-  table: SapB1QueryTable;
-  selectedRowIndex?: number | null;
-  onSelectRow?: (index: number | null) => void;
-  matchedIndices?: Set<number>;
-}) {
-  const columns = table.columns.slice(0, 12);
-  const hasSelection = onSelectRow !== undefined;
-
-  return (
-    <div className="min-w-0">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h4 className="text-sm font-extrabold text-slate-900">{title}</h4>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-          {table.rows.length} filas
-        </span>
-      </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200">
-        <div className="max-h-[520px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                {hasSelection ? <th className="px-3 py-2 w-10"></th> : null}
-                {columns.map((column) => (
-                  <th key={column} className="whitespace-nowrap px-3 py-2">
-                    {column}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {table.rows.map((row, index) => {
-                const isMatched = matchedIndices?.has(index);
-                const isSelected = selectedRowIndex === index;
-                return (
-                  <tr
-                    key={index}
-                    className={`border-t border-slate-100 ${isMatched
-                        ? "bg-slate-50 opacity-50 cursor-not-allowed"
-                        : isSelected
-                          ? "bg-brand-50"
-                          : hasSelection ? "text-slate-700 cursor-pointer hover:bg-slate-50" : "text-slate-700"
-                      }`}
-                    onClick={() => {
-                      if (hasSelection && !isMatched) {
-                        onSelectRow(isSelected ? null : index);
-                      }
-                    }}
-                  >
-                    {hasSelection ? (
-                      <td className="px-3 py-2 w-10 text-center">
-                        <input
-                          type="radio"
-                          checked={isSelected}
-                          disabled={isMatched}
-                          readOnly
-                          className="cursor-pointer"
-                        />
-                      </td>
-                    ) : null}
-                    {columns.map((column) => (
-                      <td key={column} className="whitespace-nowrap px-3 py-2">
-                        {formatQueryValue(row[column])}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-              {table.rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={Math.max(columns.length + (hasSelection ? 1 : 0), 1)}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
-                  >
-                    La consulta no devolvio filas.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {table.columns.length > columns.length ? (
-        <p className="mt-2 text-xs text-slate-500">
-          Mostrando las primeras {columns.length} columnas de{" "}
-          {table.columns.length}.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function formatQueryValue(value: unknown) {
-  if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "number") return value.toLocaleString("es-PY");
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
-    return new Date(value).toLocaleDateString();
-  }
-  return String(value);
-}
-
-function DataTable({
-  title,
-  rows,
-  mappings,
-}: {
-  title: string;
-  rows: PreviewRow[];
-  mappings: LayoutMapping[];
-}) {
-  const activeMappings = mappings.filter((m) => m.active);
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-          {rows.length} filas
-        </span>
-      </div>
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-        <div className="max-h-[520px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                {activeMappings.map((m) => (
-                  <th key={m.fieldKey} className="whitespace-nowrap px-3 py-2">
-                    {m.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.rowId}
-                  className="border-t border-slate-100 text-slate-700"
-                >
-                  {activeMappings.map((m) => (
-                    <td
-                      key={m.fieldKey}
-                      className="whitespace-nowrap px-3 py-2"
-                    >
-                      {row.values[m.fieldKey] ?? "-"}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              {rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={Math.max(activeMappings.length, 1)}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
-                  >
-                    Sin filas.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-type MatchColumn = { fieldKey: string; label: string };
-
-function SmartMatchesTable({
-  matches,
-  columns,
-  onRemove,
-  onClear,
-}: {
-  matches: SmartMatch[];
-  columns: MatchColumn[];
-  onRemove?: (match: SmartMatch) => void;
-  onClear?: () => void;
-}) {
-  const visibleColumns = columns.slice(0, 3);
-  const hasActions = Boolean(onRemove);
-
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-extrabold text-slate-900">
-            Resultados del matching
-          </h3>
-          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
-            {matches.length} coincidencias
-          </span>
-        </div>
-        {onClear && matches.length > 0 ? (
-          <button
-            type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
-          >
-            <FiX className="h-3.5 w-3.5" /> Limpiar tabla
-          </button>
-        ) : null}
-      </div>
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-        <div className="max-h-[520px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                <th className="px-3 py-2 text-center text-slate-400" colSpan={visibleColumns.length}>
-                  Sistema
-                </th>
-                <th className="px-3 py-2 text-center text-slate-400" colSpan={visibleColumns.length}>
-                  Banco
-                </th>
-                <th className="px-3 py-2">Regla</th>
-                <th className="px-3 py-2 text-right">Score</th>
-                {hasActions ? <th className="px-3 py-2" /> : null}
-              </tr>
-              <tr>
-                {visibleColumns.map((c) => (
-                  <th key={`sys-${c.fieldKey}`} className="px-3 py-2">
-                    {c.label}
-                  </th>
-                ))}
-                {visibleColumns.map((c) => (
-                  <th key={`bank-${c.fieldKey}`} className="px-3 py-2">
-                    {c.label}
-                  </th>
-                ))}
-                <th className="px-3 py-2">Match</th>
-                <th className="px-3 py-2 text-right">%</th>
-                {hasActions ? <th className="px-3 py-2" /> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {matches.map((match, idx) => (
-                <tr
-                  key={idx}
-                  className="border-t border-slate-100 text-slate-700"
-                >
-                  {visibleColumns.map((c) => (
-                    <td
-                      key={`sys-${c.fieldKey}`}
-                      className="px-3 py-2 whitespace-nowrap"
-                    >
-                      {match.systemRow.values[c.fieldKey] ?? "-"}
-                    </td>
-                  ))}
-                  {visibleColumns.map((c) => (
-                    <td
-                      key={`bank-${c.fieldKey}`}
-                      className="px-3 py-2 whitespace-nowrap"
-                    >
-                      {match.bankRow.values[c.fieldKey] ?? "-"}
-                    </td>
-                  ))}
-                  <td className="px-3 py-2 whitespace-nowrap text-xs font-bold text-slate-600">
-                    {match.matchReason === "reference"
-                      ? "Referencia"
-                      : match.matchReason === "manual"
-                        ? "Manual"
-                        : match.dateDifferenceDays === null
-                          ? "Fecha + monto"
-                          : `Fecha +/- ${match.dateDifferenceDays}d + monto`}
-                  </td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-900">
-                    {Math.round(match.score * 100)}%
-                  </td>
-                  {hasActions ? (
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onRemove?.(match)}
-                        aria-label="Quitar coincidencia"
-                        title="Quitar coincidencia"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                      >
-                        <FiX className="h-4 w-4" />
-                      </button>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-              {matches.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={visibleColumns.length * 2 + 2 + (hasActions ? 1 : 0)}
-                    className="px-4 py-8 text-center text-sm text-slate-500"
-                  >
-                    No se encontraron coincidencias con las reglas actuales.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// Memoized para evitar re-render de filas al cambiar filtros/paginacion sin
-// que las props de la fila cambien.
-const StatementRow = memo(function StatementRow({
-  statement,
-  selected,
-  onSelect,
-}: {
-  statement: BankStatementSummary;
-  selected: boolean;
-  onSelect: (id: number) => void;
-}) {
-  return (
-    <tr
-      className={`border-t border-slate-100 ${selected ? "bg-brand-50" : "bg-white hover:bg-slate-50"}`}
-    >
-      <td className="px-3 py-3 text-slate-600">
-        {formatDateTime(statement.createdAt)}
-      </td>
-      <td className="px-3 py-3">
-        <p className="font-semibold text-slate-900">{statement.bankName}</p>
-        <p className="mt-1 text-xs text-slate-500">
-          {statement.companyBankAccountName} -{" "}
-          {statement.companyBankAccountNumber}
-        </p>
-      </td>
-      <td className="px-3 py-3">
-        <p className="font-semibold text-slate-900">{statement.name}</p>
-        <p className="mt-1 text-xs text-slate-500">{statement.fileName}</p>
-      </td>
-      <td className="px-3 py-3 text-right">
-        <button
-          type="button"
-          onClick={() => onSelect(statement.id)}
-          className={`rounded-xl px-3 py-2 text-sm font-semibold transition cursor-pointer ${selected
-              ? "bg-slate-900 text-white"
-              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-        >
-          {selected ? "Seleccionado" : "Usar"}
-        </button>
-      </td>
-    </tr>
-  );
-});
