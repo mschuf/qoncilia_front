@@ -4,6 +4,7 @@ import {
   FiSend,
   FiUploadCloud,
   FiArrowDown,
+  FiLogIn,
 } from "react-icons/fi";
 import ComparisonBackdrop from "../components/ConciliationWorkbench/ComparisonBackdrop";
 import MatchesSection from "../components/ConciliationWorkbench/MatchesSection";
@@ -17,6 +18,7 @@ import DataTable from "../components/ConciliationWorkbench/DataTable";
 import SmartMatchesTable from "../components/ConciliationWorkbench/SmartMatchesTable";
 import StatementRow from "../components/ConciliationWorkbench/StatementRow";
 import ErpFloatingPanel from "../components/ConciliationWorkbench/ErpFloatingPanel";
+import ErpLoginModal from "../components/ConciliationWorkbench/ErpLoginModal";
 import {
   convertPreviewMatchesToSmartMatches,
   convertSapB1TableToPreviewRows,
@@ -53,6 +55,8 @@ export default function ConciliationWorkbenchPage() {
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
+    loginErpSession,
+    isErpLoggingIn,
     isSapB1QueryMode,
     sapB1QueryPreview,
     isRunningSapB1Queries,
@@ -91,6 +95,7 @@ export default function ConciliationWorkbenchPage() {
     preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
   const erpStatus = resolveErpStatus(erpSession);
   const [isErpPanelOpen, setIsErpPanelOpen] = useState(false);
+  const [isErpLoginModalOpen, setIsErpLoginModalOpen] = useState(false);
   const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
   const [showComparison, setShowComparison] = useState(false);
   const [sapB1SmartMatches, setSapB1SmartMatches] = useState<SmartMatch[]>([]);
@@ -198,6 +203,13 @@ export default function ConciliationWorkbenchPage() {
   ].filter(Boolean) as string[];
   const isSapB1ExternalReconciliationDisabled =
     sapB1ExternalReconciliationBlockers.length > 0;
+  const needsErpLogin = Boolean(
+    selectedErpConfigId && !erpSession?.authenticated,
+  );
+  const openErpLoginModal = () => {
+    setIsErpPanelOpen(false);
+    setIsErpLoginModalOpen(true);
+  };
   const removeSmartMatchFromTable = (target: SmartMatch) => {
     setSmartMatches((current) =>
       current.filter((item) => !isSameSmartMatch(item, target)),
@@ -499,14 +511,24 @@ export default function ConciliationWorkbenchPage() {
                       Conciliacion externa SAP B1
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      Se enviaran {sapB1SmartMatches.length} coincidencias a
-                      ExternalReconciliationsService_Reconcile.
+                      Se enviaran {sapB1SmartMatches.length} coincidencias
                     </p>
                     {isSapB1ExternalReconciliationDisabled &&
                     sapB1ExternalReconciliationBlockers.length > 0 ? (
                       <p className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-lg inline-block">
                         {sapB1ExternalReconciliationBlockers.join(" • ")}
                       </p>
+                    ) : null}
+                    {needsErpLogin ? (
+                      <button
+                        type="button"
+                        onClick={openErpLoginModal}
+                        disabled={isErpLoggingIn}
+                        className="mt-2 inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <FiLogIn className="h-3.5 w-3.5" />
+                        {isErpLoggingIn ? "Iniciando..." : "Iniciar sesion ERP"}
+                      </button>
                     ) : null}
                   </div>
                   <button
@@ -729,8 +751,7 @@ export default function ConciliationWorkbenchPage() {
                   Conciliacion externa SAP B1
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Se enviaran {matchedCount} coincidencias a
-                  ExternalReconciliationsService_Reconcile.
+                  Se enviaran {matchedCount} coincidencias.
                   {externalReconciliationPendingInfo.length > 0
                     ? " Las filas pendientes no se enviaran al ERP."
                     : ""}
@@ -738,6 +759,25 @@ export default function ConciliationWorkbenchPage() {
                     ? " Disponible solo para admin y superadmin."
                     : ""}
                 </p>
+                {isExternalReconciliationDisabled &&
+                externalReconciliationBlockers.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p className="rounded-lg bg-rose-50 p-2 text-xs font-bold text-rose-600">
+                      {externalReconciliationBlockers.join(" | ")}
+                    </p>
+                    {needsErpLogin ? (
+                      <button
+                        type="button"
+                        onClick={openErpLoginModal}
+                        disabled={isErpLoggingIn}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <FiLogIn className="h-3.5 w-3.5" />
+                        {isErpLoggingIn ? "Iniciando..." : "Iniciar sesion ERP"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-end gap-2">
                 <button
@@ -806,6 +846,16 @@ export default function ConciliationWorkbenchPage() {
         selectedErpConfigId={selectedErpConfigId}
         setSelectedErpConfigId={setSelectedErpConfigId}
         checkErpSession={checkErpSession}
+        onLoginClick={openErpLoginModal}
+        isLoginDisabled={!selectedErpConfigId || isErpLoggingIn}
+      />
+
+      <ErpLoginModal
+        open={isErpLoginModalOpen}
+        onClose={() => setIsErpLoginModalOpen(false)}
+        config={selectedErpConfig}
+        isSubmitting={isErpLoggingIn}
+        onSubmit={loginErpSession}
       />
     </section>
   );

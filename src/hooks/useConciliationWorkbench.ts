@@ -198,14 +198,14 @@ function sapSessionMessage(session: SapErpSession): string {
         ? `Sesion ERP activa para ${session.username}.`
         : "Sesion ERP activa."
     case "expired":
-      return "La sesion ERP expiro. Inicia sesion nuevamente desde Configurar ERP."
+      return "La sesion ERP expiro. Inicia sesion nuevamente."
     case "invalid":
-      return "La sesion ERP no es valida. Inicia sesion nuevamente desde Configurar ERP."
+      return "La sesion ERP no es valida. Inicia sesion nuevamente."
     case "logged_out":
-      return "La sesion ERP esta cerrada. Inicia sesion desde Configurar ERP."
+      return "La sesion ERP esta cerrada. Inicia sesion nuevamente."
     case "not_authenticated":
     default:
-      return "No hay una sesion ERP activa. Inicia sesion desde Configurar ERP."
+      return "No hay una sesion ERP activa. Inicia sesion para poder conciliar."
   }
 }
 
@@ -248,6 +248,7 @@ export default function useConciliationWorkbench() {
   const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
   const [selectedErpConfigId, setSelectedErpConfigId] = useState<number>(0)
   const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
+  const [isErpLoggingIn, setIsErpLoggingIn] = useState(false)
   const [sapB1QueryPreview, setSapB1QueryPreview] = useState<SapB1QueryPreviewResult | null>(null)
   const [isRunningSapB1Queries, setIsRunningSapB1Queries] = useState(false)
   const [isComparing, setIsComparing] = useState(false)
@@ -366,6 +367,42 @@ export default function useConciliationWorkbench() {
       throw error
     }
   }, [selectedErpConfigId, toast])
+
+  const loginErpSession = useCallback(
+    async (username?: string, password?: string): Promise<boolean> => {
+      if (!selectedErpConfigId) {
+        toast.error("Selecciona una configuracion ERP activa.")
+        return false
+      }
+
+      setIsErpLoggingIn(true)
+      try {
+        const response = await apiClient.post<SapErpSession>(
+          "/erp/sap/sessions/login",
+          {
+            companyErpConfigId: selectedErpConfigId,
+            username: username || undefined,
+            password: password || undefined
+          },
+          { timeoutMs: 20000 }
+        )
+        setErpSession(response)
+        if (response.authenticated) {
+          storeSapConfigId(selectedErpConfigId)
+          toast.success("Sesion ERP iniciada correctamente.")
+          return true
+        }
+        toast.error(sapSessionMessage(response))
+        return false
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "No se pudo iniciar sesion en el ERP.")
+        return false
+      } finally {
+        setIsErpLoggingIn(false)
+      }
+    },
+    [selectedErpConfigId, toast]
+  )
 
   useEffect(() => {
     void loadErpConfigs().catch((error) => {
@@ -1133,6 +1170,8 @@ export default function useConciliationWorkbench() {
     setSelectedErpConfigId,
     erpSession,
     checkErpSession,
+    loginErpSession,
+    isErpLoggingIn,
     isSapB1QueryMode,
     sapB1QueryPreview,
     isRunningSapB1Queries,

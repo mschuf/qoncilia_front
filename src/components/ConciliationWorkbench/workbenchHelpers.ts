@@ -165,19 +165,19 @@ export function resolveErpStatus(session: SapErpSession | null): ErpStatus {
     },
     not_authenticated: {
       title: "No hay una sesion ERP activa.",
-      detail: "Inicia sesion desde Configurar ERP y luego vuelve a validar.",
+      detail: "Inicia sesion para poder conciliar sin salir de esta pantalla.",
     },
     expired: {
       title: "La sesion ERP expiro.",
-      detail: "Inicia sesion nuevamente desde Configurar ERP.",
+      detail: "Inicia sesion nuevamente para poder conciliar.",
     },
     invalid: {
       title: "La sesion ERP no es valida.",
-      detail: "Inicia sesion nuevamente desde Configurar ERP.",
+      detail: "Inicia sesion nuevamente para poder conciliar.",
     },
     logged_out: {
       title: "La sesion ERP esta cerrada.",
-      detail: "Inicia sesion desde Configurar ERP para poder conciliar.",
+      detail: "Inicia sesion para poder conciliar.",
     },
   };
 
