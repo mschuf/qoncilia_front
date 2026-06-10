@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { FiCamera, FiCheck, FiLock, FiTrash2, FiUser } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { apiClient } from "../api/apiClient";
+import { ApiError, apiClient } from "../api/apiClient";
 import "react-phone-number-input/style.css";
 import InternationalPhoneField from "../components/forms/InternationalPhoneField";
 import { isValidInternationalPhoneNumber } from "../utils/phone";
@@ -92,7 +92,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const updatedUser = await apiClient.patch(`/users/update/${user?.id}`, {
+      const updatedUser = await apiClient.patch(`/users/me`, {
         usrNombre: formData.usrNombre,
         usrApellido: formData.usrApellido,
         usrCelular: formData.usrCelular,
@@ -103,9 +103,9 @@ export default function ProfilePage() {
       // @ts-expect-error type override
       updateUser({ ...user, ...updatedUser, enabledModules: user?.enabledModules });
       toast.success("Perfil actualizado correctamente.");
-    } catch (error: any) {
-      if (error?.response?.data?.message) {
-        toast.error(error.response.data.message);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast.error(error.message);
       } else {
         toast.error("Error al actualizar el perfil.");
       }
@@ -120,15 +120,18 @@ export default function ProfilePage() {
     }
 
     try {
-      // Assuming conventional endpoint for password change
-      await apiClient.post(`/users/${user?.id}/change-password`, {
+      await apiClient.post(`/users/me/change-password`, {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword
       });
       toast.success("Contraseña actualizada.");
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (error) {
-      toast.error("Error al cambiar la contraseña.");
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+      } else {
+        toast.error("Error al cambiar la contraseña.");
+      }
     }
   };
 
