@@ -188,7 +188,7 @@ export default function Navbar() {
             )}
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-600 font-black truncate max-w-[150px]">
+            <p className="text-xs uppercase tracking-[0.18em] text-brand-600 font-black leading-tight">
               {user?.companyName ? user.companyName : "Qoncilia"}
             </p>
           </div>
