@@ -301,7 +301,7 @@ export default function ConciliationWorkbenchPage() {
           Conciliacion bancaria
         </p>
         <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
-          Conciliar extracto bancario
+          Conciliar extracto con IA
         </h1>
       </div>
 

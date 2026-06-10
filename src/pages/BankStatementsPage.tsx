@@ -581,7 +581,7 @@ export default function BankStatementsPage() {
             Conciliacion bancaria
           </p>
           <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
-            Cargar extracto bancario
+            Cargar extracto con IA
           </h1>
         </div>
 

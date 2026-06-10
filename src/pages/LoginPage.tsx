@@ -11,7 +11,10 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const toast = useToast();
-  const [form, setForm] = useState<LoginPayload>({ identifier: "", password: "" });
+  const [form, setForm] = useState<LoginPayload>({
+    identifier: "",
+    password: "",
+  });
 
   const onChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -26,7 +29,8 @@ export default function LoginPage() {
       toast.success("Inicio de sesion correcto.");
       navigate("/", { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo iniciar sesion.";
+      const message =
+        error instanceof Error ? error.message : "No se pudo iniciar sesion.";
       toast.error(message);
     }
   };
@@ -41,7 +45,7 @@ export default function LoginPage() {
               Plataforma
             </p>
             <h1 className="mt-3 text-4xl font-extrabold tracking-[-0.05em] text-slate-950 sm:text-5xl">
-              Automatiza tu Conciliación contable con IA
+              Automatiza tus Conciliaciónes con IA
             </h1>
           </div>
         </section>
@@ -62,7 +66,9 @@ export default function LoginPage() {
 
           <form className="mt-8 space-y-5" onSubmit={onSubmit}>
             <label className="block space-y-1.5">
-              <span className="text-sm font-semibold text-slate-700">Email o usuario</span>
+              <span className="text-sm font-semibold text-slate-700">
+                Email o usuario
+              </span>
               <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 transition-all focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
                 <FiUser className="ml-1 text-slate-400" />
                 <input
@@ -78,7 +84,9 @@ export default function LoginPage() {
             </label>
 
             <label className="block space-y-1.5">
-              <span className="text-sm font-semibold text-slate-700">Contrasena</span>
+              <span className="text-sm font-semibold text-slate-700">
+                Contrasena
+              </span>
               <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 transition-all focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100">
                 <FiLock className="ml-1 text-slate-400" />
                 <input
@@ -103,8 +111,13 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-8 border-t border-slate-200 pt-6 text-center">
-            <p className="text-sm text-slate-500">Todavia no tienes empresa registrada?</p>
-            <Link to="/register" className="mt-3 inline-block font-bold text-brand-600 transition hover:text-brand-700">
+            <p className="text-sm text-slate-500">
+              Todavia no tienes empresa registrada?
+            </p>
+            <Link
+              to="/register"
+              className="mt-3 inline-block font-bold text-brand-600 transition hover:text-brand-700"
+            >
               Registra tu empresa
             </Link>
           </div>
