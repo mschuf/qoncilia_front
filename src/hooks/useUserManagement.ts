@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import type { AccessControlReferenceResponse, PublicCompany } from "../types/access-control";
 import type {
   CreateUserForm,
+  EditUserForm,
   ErrorLike,
   ManagedUser,
   ResetPasswordResponse
@@ -27,6 +28,18 @@ const formInitialState: CreateUserForm = {
   usrLogin: "",
   usrLegajo: "",
   password: "",
+  companyId: "",
+  roleCode: ROLE_VALUES.gestorCobranza,
+  activo: true
+};
+
+const editFormInitialState: EditUserForm = {
+  usrNombre: "",
+  usrApellido: "",
+  usrEmail: "",
+  usrCelular: "",
+  usrLogin: "",
+  usrLegajo: "",
   companyId: "",
   roleCode: ROLE_VALUES.gestorCobranza,
   activo: true
@@ -63,6 +76,8 @@ export default function useUserManagement() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateUserForm>(formInitialState);
+  const [editTarget, setEditTarget] = useState<ManagedUser | null>(null);
+  const [editForm, setEditForm] = useState<EditUserForm>(editFormInitialState);
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [companies, setCompanies] = useState<PublicCompany[]>([]);
   const [availableRoleCodes, setAvailableRoleCodes] = useState<string[]>([]);
@@ -213,6 +228,84 @@ export default function useUserManagement() {
     }
   };
 
+  const openEditModal = (targetUser: ManagedUser) => {
+    setEditForm({
+      usrNombre: targetUser.usrNombre ?? "",
+      usrApellido: targetUser.usrApellido ?? "",
+      usrEmail: targetUser.usrEmail ?? "",
+      usrCelular: targetUser.usrCelular ?? "",
+      usrLogin: targetUser.usrLogin ?? "",
+      usrLegajo: targetUser.usrLegajo ?? "",
+      companyId: Number(targetUser.companyId ?? 0) || "",
+      roleCode: resolveTargetRole(targetUser),
+      activo: Boolean(targetUser.activo)
+    });
+    setEditTarget(targetUser);
+  };
+
+  const closeEditModal = () => {
+    setEditTarget(null);
+    setEditForm(editFormInitialState);
+  };
+
+  const onEditFieldChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const key = event.target.name as keyof EditUserForm;
+    let value: string | boolean | number = event.target.value;
+
+    if (event.target instanceof HTMLInputElement && event.target.type === "checkbox") {
+      value = event.target.checked;
+    }
+
+    if (key === "companyId") {
+      value = value === "" ? "" : Number(value);
+    }
+
+    setEditForm((prev) => ({ ...prev, [key]: value }) as EditUserForm);
+  };
+
+  const onEditPhoneChange = (value?: string) => {
+    setEditForm((prev) => ({ ...prev, usrCelular: value || "" }));
+  };
+
+  const updateUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editTarget) return;
+
+    if (editForm.usrCelular && !isValidInternationalPhoneNumber(editForm.usrCelular)) {
+      toast.error("El numero de celular ingresado no es valido.");
+      return;
+    }
+
+    if (!editForm.companyId) {
+      toast.error("Debes seleccionar una empresa.");
+      return;
+    }
+
+    try {
+      const safeRole: Role = allowedRoles.includes(editForm.roleCode)
+        ? editForm.roleCode
+        : resolveTargetRole(editTarget);
+
+      await apiClient.patch<unknown>(`/users/update/${editTarget.id}`, {
+        usrNombre: editForm.usrNombre,
+        usrApellido: editForm.usrApellido,
+        usrEmail: editForm.usrEmail,
+        usrCelular: editForm.usrCelular,
+        usrLogin: editForm.usrLogin,
+        usrLegajo: editForm.usrLegajo,
+        companyId: Number(editForm.companyId),
+        roleCode: safeRole,
+        activo: editForm.activo
+      });
+
+      toast.success("Usuario actualizado correctamente.");
+      closeEditModal();
+      await loadUsers();
+    } catch (error) {
+      notifyError(error, "No se pudo actualizar el usuario.");
+    }
+  };
+
   const toggleActive = async (targetUser: ManagedUser) => {
     try {
       await apiClient.patch<unknown>(`/users/update/${targetUser.id}`, {
@@ -274,6 +367,13 @@ export default function useUserManagement() {
     onCreateFieldChange,
     onPhoneChange,
     createUser,
+    editTarget,
+    editForm,
+    openEditModal,
+    closeEditModal,
+    onEditFieldChange,
+    onEditPhoneChange,
+    updateUser,
     toggleActive,
     resetPassword,
     stats

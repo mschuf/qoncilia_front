@@ -278,6 +278,7 @@ export default function AdminBankingPage({
                           <th className="px-4 py-3">Banco</th>
                           <th className="px-4 py-3">Sucursal</th>
                           <th className="px-4 py-3">Cuentas</th>
+                          <th className="px-4 py-3">Plantilla</th>
                           <th className="px-4 py-3">Estado</th>
                           <th className="px-4 py-3 text-right">Acciones</th>
                         </tr>
@@ -306,6 +307,19 @@ export default function AdminBankingPage({
                               </td>
                               <td className="px-4 py-3 font-semibold">
                                 {accountCount}
+                              </td>
+                              <td className="px-4 py-3">
+                                {bank.activeLayoutName ? (
+                                  <span className={isSelected ? "text-white" : "text-slate-700"}>
+                                    {bank.activeLayoutName}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`font-bold ${isSelected ? "text-rose-200" : "text-rose-600"}`}
+                                  >
+                                    No Asignado
+                                  </span>
+                                )}
                               </td>
                               <td className="px-4 py-3">
                                 <span
@@ -353,7 +367,7 @@ export default function AdminBankingPage({
                         {banks.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={5}
+                              colSpan={6}
                               className="px-4 py-6 text-center text-sm text-slate-500"
                             >
                               {bankSearch.trim()

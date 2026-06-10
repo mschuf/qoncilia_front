@@ -15,6 +15,18 @@ export interface CreateUserForm {
   activo: boolean;
 }
 
+export interface EditUserForm {
+  usrNombre: string;
+  usrApellido: string;
+  usrEmail: string;
+  usrCelular: string;
+  usrLogin: string;
+  usrLegajo: string;
+  companyId: number | "";
+  roleCode: Role;
+  activo: boolean;
+}
+
 export interface ManagedUser extends AuthUser {
   id: number | string;
   usrLogin: string;

@@ -1,5 +1,6 @@
 import { FiPlus } from "react-icons/fi";
 import CreateUserModal from "../components/UserManagement/CreateUserModal";
+import EditUserModal from "../components/UserManagement/EditUserModal";
 import StatCard from "../components/UserManagement/StatCard";
 import TemporaryPasswordModal from "../components/UserManagement/TemporaryPasswordModal";
 import UserTable from "../components/UserManagement/UserTable";
@@ -22,6 +23,13 @@ export default function UserManagementPage() {
     onCreateFieldChange,
     onPhoneChange,
     createUser,
+    editTarget,
+    editForm,
+    openEditModal,
+    closeEditModal,
+    onEditFieldChange,
+    onEditPhoneChange,
+    updateUser,
     toggleActive,
     resetPassword,
     stats,
@@ -44,6 +52,7 @@ export default function UserManagementPage() {
       <UserTable
         users={users}
         canManageUser={canManageUser}
+        onEdit={openEditModal}
         onToggleActive={toggleActive}
         onResetPassword={resetPassword}
       />
@@ -58,6 +67,17 @@ export default function UserManagementPage() {
         onFieldChange={onCreateFieldChange}
         onPhoneChange={onPhoneChange}
         onSubmit={createUser}
+      />
+
+      <EditUserModal
+        open={editTarget !== null}
+        onClose={closeEditModal}
+        form={editForm}
+        companies={companies}
+        allowedRoles={allowedRoles}
+        onFieldChange={onEditFieldChange}
+        onPhoneChange={onEditPhoneChange}
+        onSubmit={updateUser}
       />
 
       <TemporaryPasswordModal

@@ -1,4 +1,4 @@
-import { FiKey, FiUserCheck, FiUserX } from "react-icons/fi";
+import { FiEdit3, FiKey, FiUserCheck, FiUserX } from "react-icons/fi";
 import type { ManagedUser } from "../../types/pages/user-management-page.types";
 import type { Role } from "../../utils/role";
 import { roleLabel } from "../../utils/role";
@@ -7,6 +7,7 @@ import { resolveTargetRole } from "../../hooks/useUserManagement";
 interface UserTableProps {
   users: ManagedUser[];
   canManageUser: (user: ManagedUser) => boolean;
+  onEdit: (user: ManagedUser) => void;
   onToggleActive: (user: ManagedUser) => void;
   onResetPassword: (user: ManagedUser) => void;
 }
@@ -14,6 +15,7 @@ interface UserTableProps {
 export default function UserTable({
   users,
   canManageUser,
+  onEdit,
   onToggleActive,
   onResetPassword,
 }: UserTableProps) {
@@ -64,6 +66,14 @@ export default function UserTable({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(targetUser)}
+                        disabled={!isAllowed}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <FiEdit3 className="h-3.5 w-3.5" /> Editar
+                      </button>
                       <button
                         type="button"
                         onClick={() => onResetPassword(targetUser)}
