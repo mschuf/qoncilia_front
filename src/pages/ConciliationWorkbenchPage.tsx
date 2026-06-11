@@ -28,7 +28,7 @@ import {
   type SmartMatch,
 } from "../components/ConciliationWorkbench/workbenchHelpers";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
-import { isAdminRole, isSuperAdminRole } from "../utils/role";
+import { isAdminRole, isSuperAdminRole, ROLE_VALUES } from "../utils/role";
 
 export default function ConciliationWorkbenchPage() {
   const {
@@ -153,7 +153,8 @@ export default function ConciliationWorkbenchPage() {
   const matchedCount = preview
     ? preview.autoMatches.length + manualMatches.length
     : 0;
-  const canSendExternalReconciliation = isAdminRole(role);
+  const canSendExternalReconciliation =
+    isAdminRole(role) || role === ROLE_VALUES.gestorCobranza;
   const isExternalReconciliationPanelVisible = Boolean(preview && metrics);
   const externalReconciliationPendingInfo = [
     unmatchedSystemRows.length > 0
