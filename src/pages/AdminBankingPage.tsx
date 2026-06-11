@@ -494,7 +494,7 @@ export default function AdminBankingPage({
                       label="Buscar cuenta"
                       value={accountSearch}
                       onChange={setAccountSearch}
-                      placeholder="Nro cuenta, ERP, moneda"
+                      placeholder="Nro cuenta, mayor, moneda"
                       disabled={!selectedBank}
                     />
                     <p className="pb-3 text-xs font-semibold text-slate-500">
@@ -543,8 +543,7 @@ export default function AdminBankingPage({
                                   </span>
                                 </div>
                                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                                  ERP: {account.bankErpId} | Mayor:{" "}
-                                  {account.majorAccountNumber}
+                                  Mayor: {account.majorAccountNumber}
                                   {account.paymentAccountNumber
                                     ? ` | Pago: ${account.paymentAccountNumber}`
                                     : ""}
@@ -617,7 +616,7 @@ export default function AdminBankingPage({
                       label="Buscar cuenta"
                       value={accountSearch}
                       onChange={setAccountSearch}
-                      placeholder="Nro cuenta, ERP, mayor, moneda"
+                      placeholder="Nro cuenta, mayor, moneda"
                       disabled={!selectedBank}
                     />
                     <p className="pb-3 text-xs font-semibold text-slate-500">
@@ -635,7 +634,6 @@ export default function AdminBankingPage({
                             <th className="px-3 py-2">Nro Cuenta</th>
                             <th className="px-3 py-2">Moneda</th>
                             <th className="px-3 py-2">Descripcion</th>
-                            <th className="px-3 py-2">ID Banco ERP</th>
                             <th className="px-3 py-2">Cuenta Mayor</th>
                             <th className="px-3 py-2">Cuenta Pago</th>
                             <th className="px-3 py-2">Estado</th>
@@ -653,7 +651,6 @@ export default function AdminBankingPage({
                               </td>
                               <td className="px-3 py-3">{account.currency}</td>
                               <td className="px-3 py-3">{account.name}</td>
-                              <td className="px-3 py-3">{account.bankErpId}</td>
                               <td className="px-3 py-3">
                                 {account.majorAccountNumber}
                               </td>
@@ -692,7 +689,7 @@ export default function AdminBankingPage({
                           {visibleAccounts.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={8}
+                                colSpan={7}
                                 className="px-4 py-6 text-center text-sm text-slate-500"
                               >
                                 {selectedBank
@@ -780,15 +777,6 @@ export default function AdminBankingPage({
                       value={accountForm.name}
                       onChange={onAccountFieldChange}
                       readOnly
-                      required
-                    />
-
-                    <Field
-                      label="ID Banco ERP"
-                      name="bankErpId"
-                      value={accountForm.bankErpId}
-                      onChange={onAccountFieldChange}
-                      placeholder="Codigo banco/cuenta ERP"
                       required
                     />
 
