@@ -54,16 +54,16 @@ const workspaceOptions: Array<{
 }> = [
   {
     key: "users",
-    label: "Usuarios y Bancos",
+    label: "Empresas y Bancos",
     description:
-      "Vista global de todos los usuarios con sus bancos y plantillas.",
+      "Vista global por empresa con sus bancos y plantillas.",
     icon: FiUsers,
   },
   {
     key: "banks",
     label: "Bancos y Plantillas",
     description:
-      "Asignacion por usuario y administracion de la plantilla aplicada.",
+      "Administracion por empresa de la plantilla aplicada.",
     icon: FiGrid,
   },
   {
@@ -104,9 +104,11 @@ function SuperadminLayoutManagementPage() {
   const [bankDeleteSubmitting, setBankDeleteSubmitting] = useState(false);
   const {
     users,
+    companyOptions,
+    selectedCompany,
+    selectedCompanyId,
+    setSelectedCompanyId,
     selectedUserId,
-    setSelectedUserId,
-    selectedUser,
     templates,
     templateCount,
     banks,
@@ -268,19 +270,18 @@ function SuperadminLayoutManagementPage() {
             <div className="flex flex-wrap items-end gap-3">
               <label className="min-w-[200px] flex-1 space-y-1.5">
                 <span className="text-sm font-semibold text-slate-700">
-                  Usuario
+                  Empresa
                 </span>
                 <select
-                  value={selectedUserId}
+                  value={selectedCompanyId}
                   onChange={(event) =>
-                    setSelectedUserId(Number(event.target.value))
+                    setSelectedCompanyId(Number(event.target.value))
                   }
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 >
-                  {users.map((user) => (
-                    <option key={user.id} value={Number(user.id)}>
-                      {user.usrLogin}
-                      {user.usrNombre ? ` - ${user.usrNombre}` : ""}
+                  {companyOptions.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
                     </option>
                   ))}
                 </select>
@@ -366,7 +367,7 @@ function SuperadminLayoutManagementPage() {
                     }
                   />
                   <UserAvailableTemplatesPanel
-                    selectedUser={selectedUser}
+                    selectedCompany={selectedCompany}
                     availableTemplateIds={selectedUserAvailableTemplateIds}
                     templates={templates}
                     onSave={(ids) =>

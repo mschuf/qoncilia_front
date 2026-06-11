@@ -21,6 +21,13 @@ import type {
 } from "../types/pages/layout-management.types";
 import { defaultBankForm } from "../types/pages/layout-management.types";
 
+type CompanyOption = {
+  id: number;
+  name: string;
+  representativeUserId: number;
+  users: AuthUser[];
+};
+
 function createMappingRow(
   fieldKey = "",
   label = "",
@@ -128,6 +135,7 @@ export default function useLayoutManagement() {
   const toast = useToast();
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number>(0);
+  const [actionUserId, setActionUserId] = useState<number>(0);
   const [templates, setTemplates] = useState<TemplateLayout[]>([]);
   const [banks, setBanks] = useState<UserBankWithLayouts[]>([]);
   const [selectedBankId, setSelectedBankId] = useState<number>(0);
@@ -203,6 +211,7 @@ export default function useLayoutManagement() {
 
   const prepareCreateBank = useCallback((userId: number) => {
     setSelectedUserId(userId);
+    setActionUserId(userId);
     setEditingBank(null);
     setBankForm(defaultBankForm);
     setBankModalOpen(true);
@@ -210,6 +219,7 @@ export default function useLayoutManagement() {
 
   const prepareEditBank = useCallback((userId: number, bank: UserBankWithLayouts) => {
     setSelectedUserId(userId);
+    setActionUserId(bank.userId || userId);
     setEditingBank(bank);
     setBankForm({
       name: bank.bankName,
@@ -222,6 +232,7 @@ export default function useLayoutManagement() {
 
   const prepareCreateLayout = useCallback((userId: number, bank: UserBankWithLayouts) => {
     setSelectedUserId(userId);
+    setActionUserId(bank.userId || userId);
     setSelectedBankId(bank.id);
     setEditingLayout(null);
     setLayoutForm(createDefaultLayoutForm(bank.bankName));
@@ -230,6 +241,7 @@ export default function useLayoutManagement() {
 
   const prepareEditLayout = useCallback((userId: number, bank: UserBankWithLayouts, layout: Layout) => {
     setSelectedUserId(userId);
+    setActionUserId(bank.userId || userId);
     setSelectedBankId(bank.id);
     setEditingLayout(layout);
     setLayoutForm({
@@ -284,9 +296,55 @@ export default function useLayoutManagement() {
     });
   }, [loadAllCatalogs, toast, users.length]);
 
+  const companyOptions = useMemo<CompanyOption[]>(() => {
+    const byCompany = new Map<number, CompanyOption>();
+
+    for (const user of users) {
+      const companyId = Number(user.companyId ?? 0);
+      if (!companyId) continue;
+
+      const current = byCompany.get(companyId);
+      if (current) {
+        current.users.push(user);
+        continue;
+      }
+
+      byCompany.set(companyId, {
+        id: companyId,
+        name: user.companyName ?? `Empresa ${companyId}`,
+        representativeUserId: Number(user.id),
+        users: [user]
+      });
+    }
+
+    return [...byCompany.values()].sort((left, right) => left.name.localeCompare(right.name));
+  }, [users]);
+
   const selectedUser = useMemo(
     () => users.find((item) => Number(item.id) === selectedUserId) ?? null,
     [selectedUserId, users]
+  );
+
+  const selectedCompany = useMemo(() => {
+    if (selectedUser?.companyId) {
+      const bySelectedUser = companyOptions.find(
+        (company) => company.id === Number(selectedUser.companyId)
+      );
+      if (bySelectedUser) return bySelectedUser;
+    }
+
+    return companyOptions[0] ?? null;
+  }, [companyOptions, selectedUser?.companyId]);
+
+  const selectedCompanyId = selectedCompany?.id ?? 0;
+
+  const setSelectedCompanyId = useCallback(
+    (companyId: number) => {
+      const company = companyOptions.find((item) => item.id === companyId);
+      setSelectedUserId(company?.representativeUserId ?? 0);
+      setActionUserId(company?.representativeUserId ?? 0);
+    },
+    [companyOptions]
   );
 
   const selectedBank = useMemo(
@@ -307,12 +365,14 @@ export default function useLayoutManagement() {
   const templateCount = templates.length;
 
   const openCreateBank = () => {
+    setActionUserId(selectedUserId);
     setEditingBank(null);
     setBankForm(defaultBankForm);
     setBankModalOpen(true);
   };
 
   const openEditBank = (bank: UserBankWithLayouts) => {
+    setActionUserId(bank.userId || selectedUserId);
     setEditingBank(bank);
     setBankForm({
       name: bank.bankName,
@@ -324,6 +384,7 @@ export default function useLayoutManagement() {
   };
 
   const openCreateLayout = (bank: UserBankWithLayouts) => {
+    setActionUserId(bank.userId || selectedUserId);
     setSelectedBankId(bank.id);
     setEditingLayout(null);
     setLayoutForm(createDefaultLayoutForm(bank.bankName));
@@ -337,6 +398,7 @@ export default function useLayoutManagement() {
   };
 
   const openEditLayout = (bank: UserBankWithLayouts, layout: Layout) => {
+    setActionUserId(bank.userId || selectedUserId);
     setSelectedBankId(bank.id);
     setEditingLayout(layout);
     setLayoutForm({
@@ -459,23 +521,24 @@ export default function useLayoutManagement() {
 
   const saveBank = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedUserId) {
-      toast.error("Debes seleccionar un usuario.");
+    const targetUserId = editingBank?.userId || actionUserId || selectedUserId;
+    if (!targetUserId) {
+      toast.error("Debes seleccionar una empresa.");
       return;
     }
     try {
       if (editingBank) {
         await apiClient.patch(
-          `/conciliation/users/${selectedUserId}/banks/${editingBank.id}`,
+          `/conciliation/users/${targetUserId}/banks/${editingBank.id}`,
           bankForm
         );
         toast.success("Banco actualizado.");
       } else {
-        await apiClient.post(`/conciliation/users/${selectedUserId}/banks`, bankForm);
+        await apiClient.post(`/conciliation/users/${targetUserId}/banks`, bankForm);
         toast.success("Banco asignado.");
       }
       setBankModalOpen(false);
-      await loadCatalog(selectedUserId);
+      await loadCatalog(selectedUserId || targetUserId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar el banco.");
     }
@@ -483,8 +546,9 @@ export default function useLayoutManagement() {
 
   const saveLayout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedUserId || !selectedBankId) {
-      toast.error("Debes seleccionar usuario y banco.");
+    const targetUserId = actionUserId || selectedBank?.userId || selectedUserId;
+    if (!targetUserId || !selectedBankId) {
+      toast.error("Debes seleccionar empresa y banco.");
       return;
     }
     if (layoutForm.mappings.length === 0) {
@@ -522,19 +586,19 @@ export default function useLayoutManagement() {
     try {
       if (editingLayout) {
         await apiClient.patch(
-          `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/plantillas/${editingLayout.id}`,
+          `/conciliation/users/${targetUserId}/banks/${selectedBankId}/plantillas/${editingLayout.id}`,
           payload
         );
         toast.success("Plantilla actualizada.");
       } else {
         await apiClient.post(
-          `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/plantillas`,
+          `/conciliation/users/${targetUserId}/banks/${selectedBankId}/plantillas`,
           payload
         );
         toast.success("Plantilla creada.");
       }
       setLayoutModalOpen(false);
-      await loadCatalog(selectedUserId);
+      await loadCatalog(selectedUserId || targetUserId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar la plantilla.");
     }
@@ -610,25 +674,26 @@ export default function useLayoutManagement() {
       toast.error(
         error instanceof Error
           ? error.message
-          : "No se pudieron guardar las plantillas habilitadas para el usuario."
+          : "No se pudieron guardar las plantillas habilitadas para la empresa."
       );
       throw error;
     }
   };
 
   const applyTemplateToSelectedBank = async (template: TemplateLayout) => {
-    if (!selectedUserId || !selectedBankId) {
-      toast.error("Debes seleccionar usuario y banco antes de copiar una plantilla base.");
+    const targetUserId = selectedBank?.userId || selectedUserId;
+    if (!targetUserId || !selectedBankId) {
+      toast.error("Debes seleccionar empresa y banco antes de copiar una plantilla base.");
       return;
     }
 
     try {
       await apiClient.post(
-        `/conciliation/users/${selectedUserId}/banks/${selectedBankId}/plantillas-base/${template.id}/aplicar`,
+        `/conciliation/users/${targetUserId}/banks/${selectedBankId}/plantillas-base/${template.id}/aplicar`,
         {}
       );
       toast.success("Plantilla base copiada al banco.");
-      await loadCatalog(selectedUserId);
+      await loadCatalog(selectedUserId || targetUserId);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "No se pudo copiar la plantilla base al banco."
@@ -637,22 +702,20 @@ export default function useLayoutManagement() {
   };
 
   const deleteLayout = async (layout: Layout, explicitUserId?: number, explicitBankId?: number) => {
-    const uid = explicitUserId ?? selectedUserId;
+    const currentBank = banks.find((item) => item.id === (explicitBankId ?? selectedBankId));
+    const uid = explicitUserId ?? currentBank?.userId ?? actionUserId ?? selectedUserId;
     const bid = explicitBankId ?? selectedBankId;
     if (!uid || !bid) {
-      toast.error("Debes seleccionar usuario y banco.");
+      toast.error("Debes seleccionar empresa y banco.");
       return;
     }
 
     try {
-      if (uid !== selectedUserId) {
-        setSelectedUserId(uid);
-      }
       await apiClient.delete(
         `/conciliation/users/${uid}/banks/${bid}/plantillas/${layout.id}`
       );
       toast.success("Plantilla eliminada.");
-      await loadCatalog(uid);
+      await loadCatalog(selectedUserId || uid);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo eliminar la plantilla.");
     }
@@ -684,15 +747,12 @@ export default function useLayoutManagement() {
     userId: number,
     bank: UserBankWithLayouts
   ): Promise<DeleteBankResponse> => {
+    const ownerUserId = bank.userId || userId;
     const response = await apiClient.delete<DeleteBankResponse>(
-      `/conciliation/users/${userId}/banks/${bank.id}`
+      `/conciliation/users/${ownerUserId}/banks/${bank.id}`
     );
 
-    if (userId !== selectedUserId) {
-      setSelectedUserId(userId);
-    }
-
-    await loadCatalog(userId);
+    await loadCatalog(selectedUserId || ownerUserId);
 
     toast.success(
       `Banco eliminado. Se borraron ${response.deletedLayouts} plantilla(s), ${response.deletedAccounts} cuenta(s) y ${response.deletedBankStatements} extracto(s).`
@@ -703,6 +763,10 @@ export default function useLayoutManagement() {
 
   return {
     users,
+    companyOptions,
+    selectedCompany,
+    selectedCompanyId,
+    setSelectedCompanyId,
     selectedUserId,
     setSelectedUserId,
     selectedUser,

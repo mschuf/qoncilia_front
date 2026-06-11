@@ -140,7 +140,7 @@ export default function AdminTemplatesPage() {
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
               El super admin habilita un catalogo global de plantillas base para tu
-              usuario. Desde aca podes aplicar cualquiera de esas plantillas al banco
+              empresa. Desde aca podes aplicar cualquiera de esas plantillas al banco
               que necesites operar.
             </p>
           </div>
@@ -322,8 +322,8 @@ export default function AdminTemplatesPage() {
 
                     {selectedBank.availableTemplates.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                        Tu usuario aun no tiene plantillas habilitadas. Pedile al super
-                        admin que asigne al menos una plantilla base a tu usuario.
+                        Tu empresa aun no tiene plantillas habilitadas. Pedile al super
+                        admin que asigne al menos una plantilla base a tu empresa.
                       </div>
                     ) : (
                       <div className="grid gap-3 md:grid-cols-2">
