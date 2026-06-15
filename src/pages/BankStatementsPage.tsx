@@ -771,6 +771,7 @@ export default function BankStatementsPage() {
         open={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         title={visibleTitle}
+        closeOnBackdrop={false}
         widthClass="w-[70vw] max-w-[70vw]"
         contentClassName="h-[80vh] overflow-y-auto px-6 py-5"
       >

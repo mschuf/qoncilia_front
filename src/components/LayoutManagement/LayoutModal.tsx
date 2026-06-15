@@ -160,7 +160,10 @@ export default function LayoutModal({
                     Mappings de campos
                   </h4>
                   <p className="text-sm text-slate-500">
-                    Configura hojas, columnas y rangos de ambos Excel.
+                    Configura hojas, columnas y rangos de ambos Excel. Tip: un campo con columna de
+                    Banco pero <span className="font-semibold">sin</span> columna de Sistema es{" "}
+                    <span className="font-semibold text-slate-700">solo informativo</span>: se ve en
+                    el preview ("Visualizar") pero no se usa para el matching ni al procesar (ej: Saldo).
                   </p>
                 </div>
                 <div className="flex gap-2">
