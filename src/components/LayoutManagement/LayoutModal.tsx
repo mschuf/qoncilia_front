@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { FiX } from "react-icons/fi";
 import useEscapeKey from "../../hooks/useEscapeKey";
-import type { Layout, TemplateLayout } from "../../types/conciliation";
+import { AMOUNT_MODE_OPTIONS, type Layout, type TemplateLayout } from "../../types/conciliation";
 import type {
   LayoutFormState,
   TemplateLayoutFormState
@@ -119,6 +119,13 @@ export default function LayoutModal({
                   value={layoutForm.bankLabel}
                   onChange={onFieldChange}
                   required
+                />
+                <SelectField
+                  label="Modo de importe (BankPages)"
+                  name="amountMode"
+                  value={layoutForm.amountMode}
+                  onChange={onFieldChange}
+                  options={AMOUNT_MODE_OPTIONS}
                 />
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">

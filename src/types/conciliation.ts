@@ -8,6 +8,22 @@ export type CompareOperator =
 
 export type LayoutDataType = "text" | "number" | "amount" | "date";
 
+// Modo de interpretacion del importe del extracto para generar BankPages.
+// null = autodeteccion.
+export type AmountMode =
+  | "debit_credit"
+  | "signed"
+  | "single_credit"
+  | "single_debit";
+
+export const AMOUNT_MODE_OPTIONS: Array<{ value: AmountMode | ""; label: string }> = [
+  { value: "", label: "Auto (detectar)" },
+  { value: "debit_credit", label: "Debito / Credito separados" },
+  { value: "signed", label: "Importe con signo (+ credito / - debito)" },
+  { value: "single_credit", label: "Solo credito" },
+  { value: "single_debit", label: "Solo debito" },
+];
+
 export interface CompanyBankAccountSummary {
   id: number;
   bankId: number;
@@ -59,6 +75,7 @@ export interface Layout {
   bankLabel: string;
   autoMatchThreshold: number;
   active: boolean;
+  amountMode: AmountMode | null;
   mappings: LayoutMapping[];
 }
 
@@ -72,6 +89,7 @@ export interface TemplateLayout {
   bankLabel: string;
   autoMatchThreshold: number;
   active: boolean;
+  amountMode: AmountMode | null;
   mappings: LayoutMapping[];
 }
 

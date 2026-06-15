@@ -107,18 +107,34 @@ export function resolveSapB1ComparisonColumns(preview: SapB1QueryPreviewResult):
   const bankColumnsByKey = new Map(
     preview.bank.columns.map((column) => [normalizeColumnKey(column), column])
   );
-  const preferredKeys = ["referencia", "fecha", "monto"];
-  const preferredColumns = preferredKeys
-    .map((key) => bankColumnsByKey.get(key) ?? systemColumnsByKey.get(key) ?? null)
-    .filter((column): column is string => Boolean(column));
+  const lookup = (...keys: string[]): string | null => {
+    for (const key of keys) {
+      const found = bankColumnsByKey.get(key) ?? systemColumnsByKey.get(key);
+      if (found) return found;
+    }
+    return null;
+  };
 
-  if (preferredColumns.length === 3) return preferredColumns;
+  const reference = lookup("referencia", "reference", "ref");
+  const fecha = lookup("fecha", "date");
+  const debito = lookup("debito", "debitos", "debe", "debit", "importedebito");
+  const credito = lookup("credito", "creditos", "haber", "credit", "importecredito");
+  const monto = lookup("monto", "importe", "amount");
+
+  const preferred: Array<string | null> = [reference, fecha];
+  if (debito || credito) {
+    preferred.push(debito, credito);
+  } else if (monto) {
+    preferred.push(monto);
+  }
+  const cleaned = preferred.filter((column): column is string => Boolean(column));
+  if (cleaned.length >= 3) return cleaned;
 
   const commonColumns = preview.bank.columns.filter((column) =>
     systemColumnsByKey.has(normalizeColumnKey(column))
   );
 
-  return (commonColumns.length > 0 ? commonColumns : preview.bank.columns).slice(0, 3);
+  return (commonColumns.length > 0 ? commonColumns : preview.bank.columns).slice(0, 4);
 }
 
 export type ErpStatus = {

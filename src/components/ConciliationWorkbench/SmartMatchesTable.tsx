@@ -12,7 +12,7 @@ export default function SmartMatchesTable({
   onRemove?: (match: SmartMatch) => void;
   onClear?: () => void;
 }) {
-  const visibleColumns = columns.slice(0, 3);
+  const visibleColumns = columns.slice(0, 4);
   const hasActions = Boolean(onRemove);
 
   return (

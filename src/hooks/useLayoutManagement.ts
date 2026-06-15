@@ -74,6 +74,7 @@ function createDefaultLayoutForm(bankName = "Banco"): LayoutFormState {
     systemLabel: "Sistema / ERP",
     bankLabel: bankName,
     autoMatchThreshold: "1",
+    amountMode: "",
     active: true,
     mappings: createDefaultMappings()
   };
@@ -89,6 +90,7 @@ function createDefaultTemplateLayoutForm(
     systemLabel: "Sistema / ERP",
     bankLabel: referenceBankName || "Banco",
     autoMatchThreshold: "1",
+    amountMode: "",
     active: true,
     mappings: createDefaultMappings()
   };
@@ -126,6 +128,7 @@ function templateToForm(template: TemplateLayout): TemplateLayoutFormState {
     systemLabel: template.systemLabel,
     bankLabel: template.bankLabel,
     autoMatchThreshold: String(template.autoMatchThreshold),
+    amountMode: template.amountMode ?? "",
     active: template.active,
     mappings: template.mappings.map(mappingToForm)
   };
@@ -250,6 +253,7 @@ export default function useLayoutManagement() {
       systemLabel: layout.systemLabel,
       bankLabel: layout.bankLabel,
       autoMatchThreshold: String(layout.autoMatchThreshold),
+      amountMode: layout.amountMode ?? "",
       active: layout.active,
       mappings: layout.mappings.map(mappingToForm)
     });
@@ -407,6 +411,7 @@ export default function useLayoutManagement() {
       systemLabel: layout.systemLabel,
       bankLabel: layout.bankLabel,
       autoMatchThreshold: String(layout.autoMatchThreshold),
+      amountMode: layout.amountMode ?? "",
       active: layout.active,
       mappings: layout.mappings.map(mappingToForm)
     });
@@ -561,6 +566,7 @@ export default function useLayoutManagement() {
       systemLabel: layoutForm.systemLabel,
       bankLabel: layoutForm.bankLabel,
       autoMatchThreshold: Number(layoutForm.autoMatchThreshold),
+      amountMode: layoutForm.amountMode === "" ? null : layoutForm.amountMode,
       active: layoutForm.active,
       mappings: layoutForm.mappings.map((item, index) => ({
         fieldKey: item.fieldKey,
@@ -618,6 +624,7 @@ export default function useLayoutManagement() {
       systemLabel: templateForm.systemLabel,
       bankLabel: templateForm.bankLabel,
       autoMatchThreshold: Number(templateForm.autoMatchThreshold),
+      amountMode: templateForm.amountMode === "" ? null : templateForm.amountMode,
       active: templateForm.active,
       mappings: templateForm.mappings.map((item, index) => ({
         fieldKey: item.fieldKey,

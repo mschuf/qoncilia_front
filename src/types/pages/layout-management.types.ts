@@ -1,6 +1,6 @@
-import type { CompareOperator, LayoutDataType } from "../conciliation";
+import type { AmountMode, CompareOperator, LayoutDataType } from "../conciliation";
 // Re-export for convenience
-export type { CompareOperator, LayoutDataType } from "../conciliation";
+export type { AmountMode, CompareOperator, LayoutDataType } from "../conciliation";
 
 export type MappingFormRow = {
   id: string;
@@ -37,6 +37,7 @@ export type LayoutFormState = {
   systemLabel: string;
   bankLabel: string;
   autoMatchThreshold: string;
+  amountMode: AmountMode | "";
   active: boolean;
   mappings: MappingFormRow[];
 };
