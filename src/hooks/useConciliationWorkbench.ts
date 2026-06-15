@@ -26,7 +26,7 @@ import type {
   PaginatedResponse
 } from "../types/conciliation"
 import type { CompanyErpConfig } from "../types/erp"
-import { isAdminRole, isSuperAdminRole } from "../utils/role"
+import { isAdminRole, isSuperAdminRole, ROLE_VALUES } from "../utils/role"
 import { getDefaultEsteMesDates } from "../components/ConciliationWorkbench/DateRangePicker"
 
 function hasComparableMapping(mapping: LayoutMapping) {
@@ -223,6 +223,8 @@ export function summarizeRow(row: PreviewRow | undefined, mappings: LayoutMappin
 
 export default function useConciliationWorkbench() {
   const { role, user } = useAuth()
+  // Conciliar en SAP: admin/superadmin o gestor de cobranzas (igual que el backend).
+  const canReconcileErp = isAdminRole(role) || role === ROLE_VALUES.gestorCobranza
   const toast = useToast()
   const [users, setUsers] = useState<AuthUser[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number>(Number(user?.id ?? 0))
@@ -645,7 +647,7 @@ export default function useConciliationWorkbench() {
       const conciliateBlockers = [
         matchesCount === 0 ? "La comparacion no encontro coincidencias automaticas." : null,
         !erpSession?.authenticated ? "La sesion ERP no esta autenticada." : null,
-        !isAdminRole(role) ? `El rol ${role ?? "sin rol"} no puede conciliar en ERP.` : null
+        !canReconcileErp ? `El rol ${role ?? "sin rol"} no puede conciliar en ERP.` : null
       ].filter(Boolean) as string[]
       const pendingInfo = [
         pendingSystemRows > 0 ? `Quedan ${pendingSystemRows} filas pendientes del sistema.` : null,
@@ -818,8 +820,8 @@ export default function useConciliationWorkbench() {
   }
 
   const sendExternalReconciliationToErp = async () => {
-    if (!isAdminRole(role)) {
-      toast.error("Solo usuarios admin o superadmin pueden conciliar en SAP.")
+    if (!canReconcileErp) {
+      toast.error("Tu rol no tiene permiso para conciliar en SAP.")
       return
     }
 
@@ -990,8 +992,8 @@ export default function useConciliationWorkbench() {
   const sendSapB1QueryMatchesToErp = async (
     matches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }>
   ) => {
-    if (!isAdminRole(role)) {
-      toast.error("Solo usuarios admin o superadmin pueden conciliar en SAP.")
+    if (!canReconcileErp) {
+      toast.error("Tu rol no tiene permiso para conciliar en SAP.")
       return
     }
 
