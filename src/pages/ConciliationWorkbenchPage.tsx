@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiRefreshCw,
   FiSend,
@@ -100,6 +100,13 @@ export default function ConciliationWorkbenchPage() {
   const [showComparison, setShowComparison] = useState(false);
   const [sapB1SmartMatches, setSapB1SmartMatches] = useState<SmartMatch[]>([]);
   const [showSapB1Comparison, setShowSapB1Comparison] = useState(false);
+  // Scroll automatico a "Resultados del matching" al comparar.
+  const matchesRef = useRef<HTMLDivElement | null>(null);
+  const [scrollToMatchesSignal, setScrollToMatchesSignal] = useState(0);
+  useEffect(() => {
+    if (scrollToMatchesSignal === 0) return;
+    matchesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollToMatchesSignal]);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
   const [selectedSapB1BankRowIndex, setSelectedSapB1BankRowIndex] = useState<
     number | null
@@ -472,6 +479,7 @@ export default function ConciliationWorkbenchPage() {
                         ...result.matches,
                       ]);
                       setShowSapB1Comparison(true);
+                      setScrollToMatchesSignal((n) => n + 1);
                     }}
                     disabled={
                       !sapB1QueryPreview ||
@@ -490,18 +498,20 @@ export default function ConciliationWorkbenchPage() {
 
           {showSapB1Comparison && sapB1QueryPreview ? (
             <>
-              <SmartMatchesTable
-                matches={sapB1SmartMatches}
-                columns={sapB1ComparisonColumns.map((col) => ({
-                  fieldKey: col,
-                  label: col,
-                }))}
-                onRemove={handleRemoveSapB1SmartMatch}
-                onClear={() => {
-                  setSapB1SmartMatches([]);
-                  setShowSapB1Comparison(false);
-                }}
-              />
+              <div ref={matchesRef} className="scroll-mt-20">
+                <SmartMatchesTable
+                  matches={sapB1SmartMatches}
+                  columns={sapB1ComparisonColumns.map((col) => ({
+                    fieldKey: col,
+                    label: col,
+                  }))}
+                  onRemove={handleRemoveSapB1SmartMatch}
+                  onClear={() => {
+                    setSapB1SmartMatches([]);
+                    setShowSapB1Comparison(false);
+                  }}
+                />
+              </div>
               <section className="rounded-3xl border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
@@ -662,7 +672,11 @@ export default function ConciliationWorkbenchPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void runComparison()}
+                  onClick={() => {
+                    void runComparison().finally(() =>
+                      setScrollToMatchesSignal((n) => n + 1),
+                    );
+                  }}
                   disabled={
                     !selectedBankStatementId || !systemFile || isComparing
                   }
@@ -713,6 +727,7 @@ export default function ConciliationWorkbenchPage() {
                   mappings={selectedLayout.mappings}
                 />
               </div>
+              <div ref={matchesRef} className="scroll-mt-20">
               <SmartMatchesTable
                 matches={smartMatches}
                 columns={selectedLayout.mappings
@@ -735,6 +750,7 @@ export default function ConciliationWorkbenchPage() {
                   setShowComparison(false);
                 }}
               />
+              </div>
             </>
           ) : null}
         </>

@@ -1,4 +1,5 @@
 import { FiX } from "react-icons/fi";
+import { FaBroom } from "react-icons/fa";
 import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
 
 export default function SmartMatchesTable({
@@ -43,7 +44,7 @@ export default function SmartMatchesTable({
             onClick={onClear}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
           >
-            <FiX className="h-3.5 w-3.5" /> Limpiar tabla
+            <FaBroom className="h-3.5 w-3.5" /> Limpiar
           </button>
         ) : null}
       </div>
