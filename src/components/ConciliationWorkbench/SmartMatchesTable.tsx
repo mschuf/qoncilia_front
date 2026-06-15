@@ -14,16 +14,27 @@ export default function SmartMatchesTable({
 }) {
   const visibleColumns = columns.slice(0, 4);
   const hasActions = Boolean(onRemove);
+  // Divisor vertical entre el bloque Sistema y el bloque Banco.
+  const divider = "border-l-2 border-slate-300";
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-lg font-extrabold text-slate-900">
             Resultados del matching
           </h3>
           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
             {matches.length} coincidencias
+          </span>
+          {/* Leyenda de colores: Sistema vs Banco */}
+          <span className="ml-1 hidden items-center gap-3 text-xs font-semibold sm:flex">
+            <span className="inline-flex items-center gap-1.5 text-sky-700">
+              <span className="h-2.5 w-2.5 rounded-sm bg-sky-300" /> Sistema (SAP)
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-amber-700">
+              <span className="h-2.5 w-2.5 rounded-sm bg-amber-300" /> Banco
+            </span>
           </span>
         </div>
         {onClear && matches.length > 0 ? (
@@ -39,32 +50,45 @@ export default function SmartMatchesTable({
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
         <div className="max-h-[520px] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+            <thead className="sticky top-0 z-10 text-left text-xs uppercase tracking-[0.12em]">
+              {/* Fila 1: cabeceras de grupo, con color para distinguir cada origen */}
               <tr>
-                <th className="px-3 py-2 text-center text-slate-400" colSpan={visibleColumns.length}>
-                  Sistema
+                <th
+                  colSpan={visibleColumns.length}
+                  className="bg-sky-100 px-3 py-2 text-center font-extrabold text-sky-700"
+                >
+                  Sistema (SAP)
                 </th>
-                <th className="px-3 py-2 text-center text-slate-400" colSpan={visibleColumns.length}>
+                <th
+                  colSpan={visibleColumns.length}
+                  className={`bg-amber-100 px-3 py-2 text-center font-extrabold text-amber-700 ${divider}`}
+                >
                   Banco
                 </th>
-                <th className="px-3 py-2">Regla</th>
-                <th className="px-3 py-2 text-right">Score</th>
-                {hasActions ? <th className="px-3 py-2" /> : null}
+                {hasActions ? (
+                  <th rowSpan={2} className="bg-slate-50 px-3 py-2 text-center text-slate-500">
+                    Acción
+                  </th>
+                ) : null}
               </tr>
+              {/* Fila 2: etiquetas de columna, tintadas segun el grupo */}
               <tr>
                 {visibleColumns.map((c) => (
-                  <th key={`sys-${c.fieldKey}`} className="px-3 py-2">
+                  <th
+                    key={`sys-${c.fieldKey}`}
+                    className="bg-sky-50 px-3 py-2 font-semibold text-sky-800"
+                  >
                     {c.label}
                   </th>
                 ))}
-                {visibleColumns.map((c) => (
-                  <th key={`bank-${c.fieldKey}`} className="px-3 py-2">
+                {visibleColumns.map((c, i) => (
+                  <th
+                    key={`bank-${c.fieldKey}`}
+                    className={`bg-amber-50 px-3 py-2 font-semibold text-amber-800 ${i === 0 ? divider : ""}`}
+                  >
                     {c.label}
                   </th>
                 ))}
-                <th className="px-3 py-2">Match</th>
-                <th className="px-3 py-2 text-right">%</th>
-                {hasActions ? <th className="px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -76,33 +100,21 @@ export default function SmartMatchesTable({
                   {visibleColumns.map((c) => (
                     <td
                       key={`sys-${c.fieldKey}`}
-                      className="px-3 py-2 whitespace-nowrap"
+                      className="bg-sky-50/40 px-3 py-2 whitespace-nowrap"
                     >
                       {match.systemRow.values[c.fieldKey] ?? "-"}
                     </td>
                   ))}
-                  {visibleColumns.map((c) => (
+                  {visibleColumns.map((c, i) => (
                     <td
                       key={`bank-${c.fieldKey}`}
-                      className="px-3 py-2 whitespace-nowrap"
+                      className={`bg-amber-50/40 px-3 py-2 whitespace-nowrap ${i === 0 ? divider : ""}`}
                     >
                       {match.bankRow.values[c.fieldKey] ?? "-"}
                     </td>
                   ))}
-                  <td className="px-3 py-2 whitespace-nowrap text-xs font-bold text-slate-600">
-                    {match.matchReason === "reference"
-                      ? "Referencia"
-                      : match.matchReason === "manual"
-                        ? "Manual"
-                        : match.dateDifferenceDays === null
-                          ? "Fecha + monto"
-                          : `Fecha +/- ${match.dateDifferenceDays}d + monto`}
-                  </td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-900">
-                    {Math.round(match.score * 100)}%
-                  </td>
                   {hasActions ? (
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2 text-center">
                       <button
                         type="button"
                         onClick={() => onRemove?.(match)}
@@ -119,7 +131,7 @@ export default function SmartMatchesTable({
               {matches.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={visibleColumns.length * 2 + 2 + (hasActions ? 1 : 0)}
+                    colSpan={visibleColumns.length * 2 + (hasActions ? 1 : 0)}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     No se encontraron coincidencias con las reglas actuales.
