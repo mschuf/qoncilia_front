@@ -66,7 +66,7 @@ export default function SmartMatchesTable({
                   Banco
                 </th>
                 {hasActions ? (
-                  <th rowSpan={2} className="bg-slate-50 px-3 py-2 text-center text-slate-500">
+                  <th rowSpan={2} className="bg-rose-100 px-3 py-2 text-center font-bold text-rose-700">
                     Acción
                   </th>
                 ) : null}
@@ -114,7 +114,7 @@ export default function SmartMatchesTable({
                     </td>
                   ))}
                   {hasActions ? (
-                    <td className="px-3 py-2 text-center">
+                    <td className="bg-rose-50/50 px-3 py-2 text-center">
                       <button
                         type="button"
                         onClick={() => onRemove?.(match)}
