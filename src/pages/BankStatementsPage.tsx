@@ -1104,7 +1104,6 @@ const RowsTable = memo(function RowsTable({
                     {column.label}
                   </th>
                 ))}
-                {editable ? <th className="w-12 px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -1130,24 +1129,12 @@ const RowsTable = memo(function RowsTable({
                       {formatCell(row, column)}
                     </td>
                   ))}
-                  {editable ? (
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => deleteRows([row.rowId])}
-                        title={`Eliminar fila ${row.rowNumber}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
-                      >
-                        <FiTrash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  ) : null}
                 </tr>
               ))}
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(columns.length + (editable ? 3 : 1), 1)}
+                    colSpan={Math.max(columns.length + (editable ? 2 : 1), 1)}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     Sube un Excel y pulsa Visualizar.
@@ -1157,7 +1144,7 @@ const RowsTable = memo(function RowsTable({
               {rows.length > 0 && filteredRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(columns.length + (editable ? 3 : 1), 1)}
+                    colSpan={Math.max(columns.length + (editable ? 2 : 1), 1)}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     Sin resultados para "{debouncedSearch}".
