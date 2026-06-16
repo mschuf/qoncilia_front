@@ -31,6 +31,7 @@ import type {
   UserBankWithLayouts,
 } from "../types/conciliation";
 import { isAdminRole, isSuperAdminRole } from "../utils/role";
+import { formatAmountPyg, formatIsoToDdMmYyyy } from "../utils/format";
 
 type SapB1ConfigStatus = {
   enabled: boolean;
@@ -1205,6 +1206,25 @@ const RowsTable = memo(function RowsTable({
   );
 });
 
+// Formatea la celda del preview segun el tipo de dato configurado en el mapeo
+// (banco): amount/number -> miles con 3 decimales; date -> dd/mm/YYYY; resto crudo.
 function formatCell(row: PreviewRow, column: LayoutMapping) {
-  return row.values[column.fieldKey] ?? "-";
+  const raw = row.values[column.fieldKey];
+  const normalized = row.normalized[column.fieldKey];
+
+  switch (column.bankDataType) {
+    case "amount":
+    case "number":
+      if (typeof normalized === "number" && Number.isFinite(normalized)) {
+        return formatAmountPyg(normalized);
+      }
+      return raw ?? "-";
+    case "date":
+      if (typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}/.test(normalized)) {
+        return formatIsoToDdMmYyyy(normalized);
+      }
+      return raw ?? "-";
+    default:
+      return raw ?? "-";
+  }
 }

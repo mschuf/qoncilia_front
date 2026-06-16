@@ -1,5 +1,6 @@
 import { FiX } from "react-icons/fi";
 import { FaBroom } from "react-icons/fa";
+import { formatMatchCell } from "./workbenchHelpers";
 import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
 
 export default function SmartMatchesTable({
@@ -103,7 +104,7 @@ export default function SmartMatchesTable({
                       key={`sys-${c.fieldKey}`}
                       className="bg-sky-50/40 px-3 py-2 whitespace-nowrap"
                     >
-                      {match.systemRow.values[c.fieldKey] ?? "-"}
+                      {formatMatchCell(match.systemRow, c)}
                     </td>
                   ))}
                   {visibleColumns.map((c, i) => (
@@ -111,7 +112,7 @@ export default function SmartMatchesTable({
                       key={`bank-${c.fieldKey}`}
                       className={`bg-amber-50/40 px-3 py-2 whitespace-nowrap ${i === 0 ? divider : ""}`}
                     >
-                      {match.bankRow.values[c.fieldKey] ?? "-"}
+                      {formatMatchCell(match.bankRow, c)}
                     </td>
                   ))}
                   {hasActions ? (

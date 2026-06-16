@@ -10,10 +10,58 @@ import type {
   SapB1SmartMatch,
   SapErpSession,
 } from "../../erp/sap";
+import {
+  formatAmountPyg,
+  formatIsoToDdMmYyyy,
+  parseLooseNumber,
+  toIsoLoose,
+} from "../../utils/format";
 
 export type SmartMatch = SapB1SmartMatch;
 
-export type MatchColumn = { fieldKey: string; label: string };
+export type MatchColumn = { fieldKey: string; label: string; dataType?: string };
+
+type MatchRow = SmartMatch["systemRow"];
+
+// Decide el tipo de una columna del matching: usa dataType si viene; si no,
+// heuristica por nombre de fieldKey/label (sirve para el modo SAP_B1 por query).
+function resolveMatchColumnType(column: MatchColumn): "amount" | "date" | "text" {
+  const dt = column.dataType;
+  if (dt === "amount" || dt === "number") return "amount";
+  if (dt === "date") return "date";
+  const key = `${column.fieldKey} ${column.label}`
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+  if (/fecha|date|vencim/.test(key)) return "date";
+  if (/debito|credito|debe|haber|monto|importe|saldo|amount|deb|cred/.test(key)) {
+    return "amount";
+  }
+  return "text";
+}
+
+// Formatea una celda de la tabla de Resultados del matching segun el tipo:
+// amount -> 5.500.200,233 ; date -> dd/mm/YYYY ; resto -> crudo.
+export function formatMatchCell(row: MatchRow, column: MatchColumn): string {
+  const raw = row.values[column.fieldKey];
+  const normalized = row.normalized[column.fieldKey];
+  if (raw == null || raw === "") return "-";
+
+  const type = resolveMatchColumnType(column);
+  if (type === "amount") {
+    const num =
+      typeof normalized === "number" ? normalized : parseLooseNumber(raw);
+    return num !== null ? formatAmountPyg(num) : raw;
+  }
+  if (type === "date") {
+    const iso =
+      typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}/.test(normalized)
+        ? normalized
+        : toIsoLoose(raw);
+    return iso ? formatIsoToDdMmYyyy(iso) : raw;
+  }
+  return raw;
+}
 
 export function formatDateTime(value: string) {
   return new Date(value).toLocaleString();

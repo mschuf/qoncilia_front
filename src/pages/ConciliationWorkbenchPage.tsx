@@ -733,7 +733,11 @@ export default function ConciliationWorkbenchPage() {
                 columns={selectedLayout.mappings
                   .filter((m) => m.active)
                   .slice(0, 3)
-                  .map((m) => ({ fieldKey: m.fieldKey, label: m.label }))}
+                  .map((m) => ({
+                    fieldKey: m.fieldKey,
+                    label: m.label,
+                    dataType: m.bankDataType,
+                  }))}
                 onRemove={handleRemoveSmartMatch}
                 onClear={() => {
                   smartMatches.forEach((match) => {
