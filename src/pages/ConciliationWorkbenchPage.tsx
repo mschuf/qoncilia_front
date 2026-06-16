@@ -501,7 +501,11 @@ export default function ConciliationWorkbenchPage() {
               <div ref={matchesRef} className="scroll-mt-20">
                 <SmartMatchesTable
                   matches={sapB1SmartMatches}
-                  columns={sapB1ComparisonColumns.map((col) => ({
+                  systemColumns={sapB1QueryPreview.system.columns.map((col) => ({
+                    fieldKey: col,
+                    label: col,
+                  }))}
+                  bankColumns={sapB1QueryPreview.bank.columns.map((col) => ({
                     fieldKey: col,
                     label: col,
                   }))}
@@ -730,7 +734,15 @@ export default function ConciliationWorkbenchPage() {
               <div ref={matchesRef} className="scroll-mt-20">
               <SmartMatchesTable
                 matches={smartMatches}
-                columns={selectedLayout.mappings
+                systemColumns={selectedLayout.mappings
+                  .filter((m) => m.active)
+                  .slice(0, 3)
+                  .map((m) => ({
+                    fieldKey: m.fieldKey,
+                    label: m.label,
+                    dataType: m.systemDataType,
+                  }))}
+                bankColumns={selectedLayout.mappings
                   .filter((m) => m.active)
                   .slice(0, 3)
                   .map((m) => ({

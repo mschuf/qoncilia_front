@@ -5,19 +5,24 @@ import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
 
 export default function SmartMatchesTable({
   matches,
-  columns,
+  systemColumns,
+  bankColumns,
   onRemove,
   onClear,
 }: {
   matches: SmartMatch[];
-  columns: MatchColumn[];
+  // Columnas a mostrar de cada lado. Sistema y Banco pueden traer columnas
+  // distintas (ej. Banco: Sequence; Sistema: TransactionNumber/LineNumber).
+  systemColumns: MatchColumn[];
+  bankColumns: MatchColumn[];
   onRemove?: (match: SmartMatch) => void;
   onClear?: () => void;
 }) {
-  const visibleColumns = columns.slice(0, 4);
   const hasActions = Boolean(onRemove);
   // Divisor vertical entre el bloque Sistema y el bloque Banco.
   const divider = "border-l-2 border-slate-300";
+  const totalCols =
+    systemColumns.length + bankColumns.length + (hasActions ? 1 : 0);
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5">
@@ -52,41 +57,44 @@ export default function SmartMatchesTable({
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
         <div className="max-h-[520px] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 text-left text-xs uppercase tracking-[0.12em]">
+            <thead className="sticky top-0 z-20 text-left text-xs uppercase tracking-[0.12em]">
               {/* Fila 1: cabeceras de grupo, con color para distinguir cada origen */}
               <tr>
-                <th
-                  colSpan={visibleColumns.length}
-                  className="bg-sky-100 px-3 py-2 text-center font-extrabold text-sky-700"
-                >
-                  Sistema (SAP)
-                </th>
-                <th
-                  colSpan={visibleColumns.length}
-                  className={`bg-amber-100 px-3 py-2 text-center font-extrabold text-amber-700 ${divider}`}
-                >
-                  Banco
-                </th>
                 {hasActions ? (
-                  <th rowSpan={2} className="bg-rose-100 px-3 py-2 text-center font-bold text-rose-700">
+                  <th
+                    rowSpan={2}
+                    className="sticky left-0 z-30 border-r border-rose-200 bg-rose-100 px-3 py-2 text-center font-bold text-rose-700"
+                  >
                     Acción
                   </th>
                 ) : null}
+                <th
+                  colSpan={Math.max(1, bankColumns.length)}
+                  className="bg-amber-100 px-3 py-2 text-center font-extrabold text-amber-700"
+                >
+                  Banco
+                </th>
+                <th
+                  colSpan={Math.max(1, systemColumns.length)}
+                  className={`bg-sky-100 px-3 py-2 text-center font-extrabold text-sky-700 ${divider}`}
+                >
+                  Sistema (SAP)
+                </th>
               </tr>
               {/* Fila 2: etiquetas de columna, tintadas segun el grupo */}
               <tr>
-                {visibleColumns.map((c) => (
+                {bankColumns.map((c) => (
                   <th
-                    key={`sys-${c.fieldKey}`}
-                    className="bg-sky-50 px-3 py-2 font-semibold text-sky-800"
+                    key={`bank-${c.fieldKey}`}
+                    className="bg-amber-50 px-3 py-2 font-semibold text-amber-800"
                   >
                     {c.label}
                   </th>
                 ))}
-                {visibleColumns.map((c, i) => (
+                {systemColumns.map((c, i) => (
                   <th
-                    key={`bank-${c.fieldKey}`}
-                    className={`bg-amber-50 px-3 py-2 font-semibold text-amber-800 ${i === 0 ? divider : ""}`}
+                    key={`sys-${c.fieldKey}`}
+                    className={`bg-sky-50 px-3 py-2 font-semibold text-sky-800 ${i === 0 ? divider : ""}`}
                   >
                     {c.label}
                   </th>
@@ -99,41 +107,41 @@ export default function SmartMatchesTable({
                   key={idx}
                   className="border-t border-slate-100 text-slate-700"
                 >
-                  {visibleColumns.map((c) => (
-                    <td
-                      key={`sys-${c.fieldKey}`}
-                      className="bg-sky-50/40 px-3 py-2 whitespace-nowrap"
-                    >
-                      {formatMatchCell(match.systemRow, c)}
-                    </td>
-                  ))}
-                  {visibleColumns.map((c, i) => (
-                    <td
-                      key={`bank-${c.fieldKey}`}
-                      className={`bg-amber-50/40 px-3 py-2 whitespace-nowrap ${i === 0 ? divider : ""}`}
-                    >
-                      {formatMatchCell(match.bankRow, c)}
-                    </td>
-                  ))}
                   {hasActions ? (
-                    <td className="bg-rose-50/50 px-3 py-2 text-center">
+                    <td className="sticky left-0 z-10 border-r border-rose-100 bg-rose-50 px-3 py-2 text-center">
                       <button
                         type="button"
                         onClick={() => onRemove?.(match)}
                         aria-label="Quitar coincidencia"
                         title="Quitar coincidencia"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                       >
                         <FiX className="h-4 w-4" />
                       </button>
                     </td>
                   ) : null}
+                  {bankColumns.map((c) => (
+                    <td
+                      key={`bank-${c.fieldKey}`}
+                      className="bg-amber-50/40 px-3 py-2 whitespace-nowrap"
+                    >
+                      {formatMatchCell(match.bankRow, c)}
+                    </td>
+                  ))}
+                  {systemColumns.map((c, i) => (
+                    <td
+                      key={`sys-${c.fieldKey}`}
+                      className={`bg-sky-50/40 px-3 py-2 whitespace-nowrap ${i === 0 ? divider : ""}`}
+                    >
+                      {formatMatchCell(match.systemRow, c)}
+                    </td>
+                  ))}
                 </tr>
               ))}
               {matches.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={visibleColumns.length * 2 + (hasActions ? 1 : 0)}
+                    colSpan={Math.max(1, totalCols)}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     No se encontraron coincidencias con las reglas actuales.
