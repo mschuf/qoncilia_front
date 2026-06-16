@@ -1,6 +1,10 @@
 import type { SapB1QueryTable } from "../../erp/sap";
 import { formatQueryValue } from "./workbenchHelpers";
 
+// Ancho fijo por columna; si el contenido se pasa, la celda hace scroll (no crece).
+const COL_W = 90;
+const SEL_W = 30;
+
 export default function SapB1QueryTableView({
   title,
   table,
@@ -16,24 +20,25 @@ export default function SapB1QueryTableView({
 }) {
   const columns = table.columns.slice(0, 12);
   const hasSelection = onSelectRow !== undefined;
+  const tableWidth = (hasSelection ? SEL_W : 0) + columns.length * COL_W;
 
   return (
     <div className="min-w-0">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <h4 className="text-sm font-extrabold text-slate-900">{title}</h4>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
           {table.rows.length} filas
         </span>
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-200">
-        <div className="max-h-[520px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+        <div className="max-h-[300px] overflow-auto">
+          <table className="table-fixed text-xs" style={{ width: tableWidth }}>
+            <thead className="sticky top-0 z-10 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
               <tr>
-                {hasSelection ? <th className="px-3 py-2 w-10"></th> : null}
+                {hasSelection ? <th className="px-2 py-1" style={{ width: SEL_W }} /> : null}
                 {columns.map((column) => (
-                  <th key={column} className="whitespace-nowrap px-3 py-2">
-                    {column}
+                  <th key={column} className="px-2 py-1" style={{ width: COL_W }}>
+                    <div className="no-scrollbar overflow-x-auto whitespace-nowrap">{column}</div>
                   </th>
                 ))}
               </tr>
@@ -58,7 +63,7 @@ export default function SapB1QueryTableView({
                     }}
                   >
                     {hasSelection ? (
-                      <td className="px-3 py-2 w-10 text-center">
+                      <td className="px-2 py-1 text-center" style={{ width: SEL_W }}>
                         <input
                           type="radio"
                           checked={isSelected}
@@ -69,8 +74,10 @@ export default function SapB1QueryTableView({
                       </td>
                     ) : null}
                     {columns.map((column) => (
-                      <td key={column} className="whitespace-nowrap px-3 py-2">
-                        {formatQueryValue(row[column])}
+                      <td key={column} className="px-2 py-1" style={{ width: COL_W }}>
+                        <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
+                          {formatQueryValue(row[column])}
+                        </div>
                       </td>
                     ))}
                   </tr>

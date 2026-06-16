@@ -73,4 +73,13 @@ select:focus {
   height: 100%;
 }
 
+/* Scroll funcional pero SIN barra visible (se desplaza con drag/seleccion o gesto). */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE / Edge antiguo */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome / Safari / Edge */
+}
+
 
