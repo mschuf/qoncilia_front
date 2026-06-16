@@ -1083,9 +1083,9 @@ const RowsTable = memo(function RowsTable({
       ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200">
-        <div className="overflow-x-auto">
+        <div className="max-h-[60vh] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500">
               <tr>
                 {editable ? (
                   <th className="w-10 px-3 py-2">
