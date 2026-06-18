@@ -409,7 +409,7 @@ export default function ConciliationWorkbenchPage() {
                   disabled={!showSapB1Comparison}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <FiRefreshCw className="h-4 w-4" /> Limpiar
+                  <FiRefreshCw className="h-4 w-4" />
                 </button>
                 <div className="flex items-center gap-3">
                   <button
@@ -501,10 +501,12 @@ export default function ConciliationWorkbenchPage() {
               <div ref={matchesRef} className="scroll-mt-20">
                 <SmartMatchesTable
                   matches={sapB1SmartMatches}
-                  systemColumns={sapB1QueryPreview.system.columns.map((col) => ({
-                    fieldKey: col,
-                    label: col,
-                  }))}
+                  systemColumns={sapB1QueryPreview.system.columns.map(
+                    (col) => ({
+                      fieldKey: col,
+                      label: col,
+                    }),
+                  )}
                   bankColumns={sapB1QueryPreview.bank.columns.map((col) => ({
                     fieldKey: col,
                     label: col,
@@ -672,7 +674,7 @@ export default function ConciliationWorkbenchPage() {
                   disabled={!showComparison}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <FiRefreshCw className="h-4 w-4" /> Limpiar
+                  <FiRefreshCw className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
@@ -732,40 +734,40 @@ export default function ConciliationWorkbenchPage() {
                 />
               </div>
               <div ref={matchesRef} className="scroll-mt-20">
-              <SmartMatchesTable
-                matches={smartMatches}
-                systemColumns={selectedLayout.mappings
-                  .filter((m) => m.active)
-                  .slice(0, 3)
-                  .map((m) => ({
-                    fieldKey: m.fieldKey,
-                    label: m.label,
-                    dataType: m.systemDataType,
-                  }))}
-                bankColumns={selectedLayout.mappings
-                  .filter((m) => m.active)
-                  .slice(0, 3)
-                  .map((m) => ({
-                    fieldKey: m.fieldKey,
-                    label: m.label,
-                    dataType: m.bankDataType,
-                  }))}
-                onRemove={handleRemoveSmartMatch}
-                onClear={() => {
-                  smartMatches.forEach((match) => {
-                    const autoMatch = preview?.autoMatches.find(
-                      (item) =>
-                        item.systemRowId === match.systemRow.rowId &&
-                        item.bankRowId === match.bankRow.rowId,
-                    );
-                    if (autoMatch) {
-                      removeAutoMatch(autoMatch);
-                    }
-                  });
-                  setSmartMatches([]);
-                  setShowComparison(false);
-                }}
-              />
+                <SmartMatchesTable
+                  matches={smartMatches}
+                  systemColumns={selectedLayout.mappings
+                    .filter((m) => m.active)
+                    .slice(0, 3)
+                    .map((m) => ({
+                      fieldKey: m.fieldKey,
+                      label: m.label,
+                      dataType: m.systemDataType,
+                    }))}
+                  bankColumns={selectedLayout.mappings
+                    .filter((m) => m.active)
+                    .slice(0, 3)
+                    .map((m) => ({
+                      fieldKey: m.fieldKey,
+                      label: m.label,
+                      dataType: m.bankDataType,
+                    }))}
+                  onRemove={handleRemoveSmartMatch}
+                  onClear={() => {
+                    smartMatches.forEach((match) => {
+                      const autoMatch = preview?.autoMatches.find(
+                        (item) =>
+                          item.systemRowId === match.systemRow.rowId &&
+                          item.bankRowId === match.bankRow.rowId,
+                      );
+                      if (autoMatch) {
+                        removeAutoMatch(autoMatch);
+                      }
+                    });
+                    setSmartMatches([]);
+                    setShowComparison(false);
+                  }}
+                />
               </div>
             </>
           ) : null}

@@ -63,6 +63,26 @@ export function formatMatchCell(row: MatchRow, column: MatchColumn): string {
   return raw;
 }
 
+// Arma la matriz (cabecera + filas) para exportar la tabla de Resultados del
+// matching a Excel. Usa el mismo formateo que se muestra en pantalla, y prefija
+// cada columna con su grupo (Banco / Sistema) para no perder el contexto al
+// aplanar las dos cabeceras de la tabla en una sola fila.
+export function buildMatchesExportRows(
+  matches: SmartMatch[],
+  bankColumns: MatchColumn[],
+  systemColumns: MatchColumn[]
+): string[][] {
+  const header = [
+    ...bankColumns.map((c) => `Banco - ${c.label}`),
+    ...systemColumns.map((c) => `Sistema (SAP) - ${c.label}`),
+  ];
+  const body = matches.map((match) => [
+    ...bankColumns.map((c) => formatMatchCell(match.bankRow, c)),
+    ...systemColumns.map((c) => formatMatchCell(match.systemRow, c)),
+  ]);
+  return [header, ...body];
+}
+
 export function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
 }

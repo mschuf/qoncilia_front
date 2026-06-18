@@ -1,7 +1,8 @@
-import { FiX } from "react-icons/fi";
+import { FiDownload, FiX } from "react-icons/fi";
 import { FaBroom } from "react-icons/fa";
-import { formatMatchCell } from "./workbenchHelpers";
+import { buildMatchesExportRows, formatMatchCell } from "./workbenchHelpers";
 import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
+import { downloadXlsx } from "../../utils/xlsx";
 
 // Ancho fijo por columna; si el contenido se pasa, la celda hace scroll (no crece).
 const COL_W = 90;
@@ -28,7 +29,15 @@ export default function SmartMatchesTable({
   const totalCols =
     systemColumns.length + bankColumns.length + (hasActions ? 1 : 0);
   const tableWidth =
-    (hasActions ? ACTION_W : 0) + (bankColumns.length + systemColumns.length) * COL_W;
+    (hasActions ? ACTION_W : 0) +
+    (bankColumns.length + systemColumns.length) * COL_W;
+
+  // Descarga la tabla actual (mismas columnas y formato que se ven) a un .xlsx.
+  const handleDownload = () => {
+    const rows = buildMatchesExportRows(matches, bankColumns, systemColumns);
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadXlsx(`resultados-matching-${stamp}`, rows, "Resultados");
+  };
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-4">
@@ -46,19 +55,33 @@ export default function SmartMatchesTable({
               <span className="h-2.5 w-2.5 rounded-sm bg-amber-300" /> Banco
             </span>
             <span className="inline-flex items-center gap-1.5 text-sky-700">
-              <span className="h-2.5 w-2.5 rounded-sm bg-sky-300" /> Sistema (SAP)
+              <span className="h-2.5 w-2.5 rounded-sm bg-sky-300" /> Sistema
+              (SAP)
             </span>
           </span>
         </div>
-        {onClear && matches.length > 0 ? (
-          <button
-            type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
-          >
-            <FaBroom className="h-3.5 w-3.5" /> Limpiar
-          </button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {matches.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleDownload}
+              aria-label="Descargar resultados en Excel"
+              title="Descargar Excel"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+            >
+              <FiDownload className="h-4 w-4" />
+            </button>
+          ) : null}
+          {onClear && matches.length > 0 ? (
+            <button
+              type="button"
+              onClick={onClear}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+            >
+              <FaBroom className="h-3.5 w-3.5" /> Limpiar
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
         <div className="max-h-[340px] overflow-auto">
@@ -103,7 +126,9 @@ export default function SmartMatchesTable({
                     key={`bank-${c.fieldKey}`}
                     className="bg-amber-50 px-2 py-1 font-semibold text-amber-800"
                   >
-                    <div className="no-scrollbar overflow-x-auto whitespace-nowrap">{c.label}</div>
+                    <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
+                      {c.label}
+                    </div>
                   </th>
                 ))}
                 {systemColumns.map((c, i) => (
@@ -111,7 +136,9 @@ export default function SmartMatchesTable({
                     key={`sys-${c.fieldKey}`}
                     className={`bg-sky-50 px-2 py-1 font-semibold text-sky-800 ${i === 0 ? divider : ""}`}
                   >
-                    <div className="no-scrollbar overflow-x-auto whitespace-nowrap">{c.label}</div>
+                    <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
+                      {c.label}
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -136,7 +163,10 @@ export default function SmartMatchesTable({
                     </td>
                   ) : null}
                   {bankColumns.map((c) => (
-                    <td key={`bank-${c.fieldKey}`} className="bg-amber-50/40 px-2 py-1">
+                    <td
+                      key={`bank-${c.fieldKey}`}
+                      className="bg-amber-50/40 px-2 py-1"
+                    >
                       <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
                         {formatMatchCell(match.bankRow, c)}
                       </div>
