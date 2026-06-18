@@ -82,6 +82,21 @@ function isExpiredToken(payload: ApiPayload | null): boolean {
   return payload?.code === "TOKEN_EXPIRED" || (message.includes("token") && message.includes("expir"));
 }
 
+function isNetworkFetchError(error: unknown): error is TypeError {
+  if (!(error instanceof TypeError)) return false;
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("fetch") ||
+    message.includes("network") ||
+    message.includes("load failed")
+  );
+}
+
+function buildNetworkFetchMessage(): string {
+  return `No se pudo conectar con la API (${API_URL}). Verifica que VITE_API_URL apunte al backend publicado y que IIS/CORS permita la solicitud.`;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const {
     method = "GET",
@@ -154,6 +169,16 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         throw new ApiError("La solicitud fue cancelada.", { code: "REQUEST_ABORTED" });
       }
       throw new ApiError("La solicitud esta tardando demasiado. Intenta nuevamente.");
+    }
+
+    if (isNetworkFetchError(error)) {
+      throw new ApiError(buildNetworkFetchMessage(), {
+        code: "NETWORK_ERROR",
+        details: {
+          apiUrl: API_URL,
+          originalMessage: error.message
+        }
+      });
     }
 
     throw error;
