@@ -40,6 +40,17 @@ function resolveMatchColumnType(column: MatchColumn): "amount" | "date" | "text"
   return "text";
 }
 
+// Convierte una celda tipo importe a numero: usa el valor normalizado si ya es
+// numerico; si no, parsea el texto crudo. Devuelve null si no hay numero.
+function matchAmountToNumber(
+  raw: string | null,
+  normalized: string | number | null
+): number | null {
+  if (typeof normalized === "number") return normalized;
+  if (raw == null || raw === "") return null;
+  return parseLooseNumber(raw);
+}
+
 // Formatea una celda de la tabla de Resultados del matching segun el tipo:
 // amount -> 5.500.200,233 ; date -> dd/mm/YYYY ; resto -> crudo.
 export function formatMatchCell(row: MatchRow, column: MatchColumn): string {
@@ -49,8 +60,7 @@ export function formatMatchCell(row: MatchRow, column: MatchColumn): string {
 
   const type = resolveMatchColumnType(column);
   if (type === "amount") {
-    const num =
-      typeof normalized === "number" ? normalized : parseLooseNumber(raw);
+    const num = matchAmountToNumber(raw, normalized);
     return num !== null ? formatAmountPyg(num) : raw;
   }
   if (type === "date") {
@@ -80,7 +90,91 @@ export function buildMatchesExportRows(
     ...bankColumns.map((c) => formatMatchCell(match.bankRow, c)),
     ...systemColumns.map((c) => formatMatchCell(match.systemRow, c)),
   ]);
-  return [header, ...body];
+  const rows: string[][] = [header, ...body];
+
+  // Totales de importes al pie (solo informativo, igual que en la tabla):
+  // "Total banco" alineado bajo el bloque Banco y "Total sistema" bajo Sistema.
+  const totals = computeMatchAmountTotals(matches, bankColumns, systemColumns);
+  if (matches.length > 0 && totals.hasAmountColumns) {
+    const width = Math.max(1, bankColumns.length + systemColumns.length);
+    const systemStart = bankColumns.length;
+    const summaryRow = (bankText: string, systemText: string) => {
+      const row = new Array<string>(width).fill("");
+      row[0] = bankText;
+      if (systemText && systemStart < width) row[systemStart] = systemText;
+      return row;
+    };
+    rows.push([]); // fila en blanco separadora
+    rows.push(
+      summaryRow(
+        `Total banco: ${formatAmountPyg(totals.bank)}`,
+        `Total sistema: ${formatAmountPyg(totals.system)}`
+      )
+    );
+    if (!totals.balanced) {
+      rows.push(
+        summaryRow(
+          `Diferencia: ${formatAmountPyg(Math.abs(totals.bank - totals.system))}`,
+          ""
+        )
+      );
+    }
+  }
+  return rows;
+}
+
+// Suma todas las columnas tipo importe (credito, debito, monto, etc.) de un lado
+// (banco o sistema) sobre todas las filas. Combina todas las columnas de monto en
+// un solo total, no uno por columna.
+function sumSideAmounts(
+  matches: SmartMatch[],
+  columns: MatchColumn[],
+  side: "bank" | "system"
+): number {
+  const amountColumns = columns.filter(
+    (column) => resolveMatchColumnType(column) === "amount"
+  );
+  let total = 0;
+  for (const match of matches) {
+    const row = side === "bank" ? match.bankRow : match.systemRow;
+    for (const column of amountColumns) {
+      const num = matchAmountToNumber(
+        row.values[column.fieldKey],
+        row.normalized[column.fieldKey]
+      );
+      if (num !== null) total += num;
+    }
+  }
+  return total;
+}
+
+export type MatchAmountTotals = {
+  bank: number;
+  system: number;
+  // Si alguna de las columnas comparadas es tipo importe (si no, no hay que sumar).
+  hasAmountColumns: boolean;
+  // Si los totales de banco y sistema cuadran (solo visual, para comparar).
+  balanced: boolean;
+};
+
+// Totales visuales de importes para comparar banco vs sistema en la tabla de
+// matches. No se procesa ni se envia: es solo informativo.
+export function computeMatchAmountTotals(
+  matches: SmartMatch[],
+  bankColumns: MatchColumn[],
+  systemColumns: MatchColumn[]
+): MatchAmountTotals {
+  const hasAmountColumns =
+    bankColumns.some((column) => resolveMatchColumnType(column) === "amount") ||
+    systemColumns.some((column) => resolveMatchColumnType(column) === "amount");
+  const bank = sumSideAmounts(matches, bankColumns, "bank");
+  const system = sumSideAmounts(matches, systemColumns, "system");
+  return {
+    bank,
+    system,
+    hasAmountColumns,
+    balanced: Math.abs(bank - system) < 0.01,
+  };
 }
 
 export function formatDateTime(value: string) {

@@ -1,8 +1,14 @@
+import { useMemo } from "react";
 import { FiDownload, FiX } from "react-icons/fi";
 import { FaBroom } from "react-icons/fa";
-import { buildMatchesExportRows, formatMatchCell } from "./workbenchHelpers";
+import {
+  buildMatchesExportRows,
+  computeMatchAmountTotals,
+  formatMatchCell,
+} from "./workbenchHelpers";
 import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
 import { downloadXlsx } from "../../utils/xlsx";
+import { formatAmountPyg } from "../../utils/format";
 
 // Ancho fijo por columna; si el contenido se pasa, la celda hace scroll (no crece).
 const COL_W = 90;
@@ -31,6 +37,15 @@ export default function SmartMatchesTable({
   const tableWidth =
     (hasActions ? ACTION_W : 0) +
     (bankColumns.length + systemColumns.length) * COL_W;
+
+  // Totales visuales de importes (banco vs sistema) para comparar a simple vista.
+  // Suma todas las columnas de monto combinadas. Es solo informativo: no se
+  // procesa ni se envia.
+  const amountTotals = useMemo(
+    () => computeMatchAmountTotals(matches, bankColumns, systemColumns),
+    [matches, bankColumns, systemColumns]
+  );
+  const showTotals = matches.length > 0 && amountTotals.hasAmountColumns;
 
   // Descarga la tabla actual (mismas columnas y formato que se ven) a un .xlsx.
   const handleDownload = () => {
@@ -195,6 +210,60 @@ export default function SmartMatchesTable({
                 </tr>
               ) : null}
             </tbody>
+            {showTotals ? (
+              <tfoot className="sticky bottom-0 z-20">
+                <tr className="border-t-2 border-slate-300 text-[11px] font-bold">
+                  {hasActions ? (
+                    <td className="sticky left-0 z-30 border-r border-slate-200 bg-slate-100 px-2 py-1.5 text-center text-slate-500">
+                      Total
+                    </td>
+                  ) : null}
+                  <td
+                    colSpan={Math.max(1, bankColumns.length)}
+                    className="bg-amber-100 px-2 py-1.5 text-amber-800"
+                  >
+                    <div className="no-scrollbar flex items-center justify-end gap-1.5 overflow-x-auto whitespace-nowrap">
+                      <span className="font-semibold uppercase tracking-wide text-amber-700">
+                        Total banco
+                      </span>
+                      <span
+                        className={
+                          amountTotals.balanced ? "text-emerald-700" : "text-rose-700"
+                        }
+                      >
+                        {formatAmountPyg(amountTotals.bank)}
+                      </span>
+                    </div>
+                  </td>
+                  <td
+                    colSpan={Math.max(1, systemColumns.length)}
+                    className={`bg-sky-100 px-2 py-1.5 text-sky-800 ${divider}`}
+                  >
+                    <div className="no-scrollbar flex items-center justify-end gap-1.5 overflow-x-auto whitespace-nowrap">
+                      <span className="font-semibold uppercase tracking-wide text-sky-700">
+                        Total sistema
+                      </span>
+                      <span
+                        className={
+                          amountTotals.balanced ? "text-emerald-700" : "text-rose-700"
+                        }
+                      >
+                        {formatAmountPyg(amountTotals.system)}
+                      </span>
+                      {!amountTotals.balanced ? (
+                        <span className="text-rose-700">
+                          (Δ{" "}
+                          {formatAmountPyg(
+                            Math.abs(amountTotals.bank - amountTotals.system)
+                          )}
+                          )
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
       </div>
