@@ -25,13 +25,12 @@ import type {
   BankStatementSummary,
   DeleteBankStatementResponse,
   Layout,
-  LayoutMapping,
   PaginatedResponse,
   PreviewRow,
   UserBankWithLayouts,
 } from "../types/conciliation";
 import { isAdminRole, isSuperAdminRole } from "../utils/role";
-import { formatAmountPyg, formatIsoToDdMmYyyy } from "../utils/format";
+import { buildPreviewColumns, formatPreviewCell } from "../utils/amountColumns";
 
 type SapB1ConfigStatus = {
   enabled: boolean;
@@ -983,6 +982,14 @@ const RowsTable = memo(function RowsTable({
     [layout],
   );
 
+  // Columnas a mostrar: en modo 'signed' la columna de importe con signo se
+  // divide en Debito/Credito (ver buildPreviewColumns). Para buscar/filtrar se
+  // sigue usando `columns` (mapeos reales).
+  const displayColumns = useMemo(
+    () => buildPreviewColumns(columns, layout?.amountMode ?? null),
+    [columns, layout],
+  );
+
   const filteredRows = useMemo(() => {
     const term = debouncedSearch.trim().toLowerCase();
     if (!term) return rows;
@@ -1099,8 +1106,8 @@ const RowsTable = memo(function RowsTable({
                   </th>
                 ) : null}
                 <th className="px-3 py-2">Fila</th>
-                {columns.map((column) => (
-                  <th key={column.fieldKey} className="px-3 py-2">
+                {displayColumns.map((column) => (
+                  <th key={column.key} className="px-3 py-2">
                     {column.label}
                   </th>
                 ))}
@@ -1124,9 +1131,9 @@ const RowsTable = memo(function RowsTable({
                     </td>
                   ) : null}
                   <td className="px-3 py-2 font-semibold">{row.rowNumber}</td>
-                  {columns.map((column) => (
-                    <td key={column.fieldKey} className="px-3 py-2">
-                      {formatCell(row, column)}
+                  {displayColumns.map((column) => (
+                    <td key={column.key} className="px-3 py-2">
+                      {formatPreviewCell(row, column)}
                     </td>
                   ))}
                 </tr>
@@ -1134,7 +1141,7 @@ const RowsTable = memo(function RowsTable({
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(columns.length + (editable ? 2 : 1), 1)}
+                    colSpan={Math.max(displayColumns.length + (editable ? 2 : 1), 1)}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     Sube un Excel y pulsa Visualizar.
@@ -1144,7 +1151,7 @@ const RowsTable = memo(function RowsTable({
               {rows.length > 0 && filteredRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(columns.length + (editable ? 2 : 1), 1)}
+                    colSpan={Math.max(displayColumns.length + (editable ? 2 : 1), 1)}
                     className="px-4 py-6 text-center text-sm text-slate-500"
                   >
                     Sin resultados para "{debouncedSearch}".
@@ -1193,25 +1200,3 @@ const RowsTable = memo(function RowsTable({
   );
 });
 
-// Formatea la celda del preview segun el tipo de dato configurado en el mapeo
-// (banco): amount/number -> miles con 3 decimales; date -> dd/mm/YYYY; resto crudo.
-function formatCell(row: PreviewRow, column: LayoutMapping) {
-  const raw = row.values[column.fieldKey];
-  const normalized = row.normalized[column.fieldKey];
-
-  switch (column.bankDataType) {
-    case "amount":
-    case "number":
-      if (typeof normalized === "number" && Number.isFinite(normalized)) {
-        return formatAmountPyg(normalized);
-      }
-      return raw ?? "-";
-    case "date":
-      if (typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}/.test(normalized)) {
-        return formatIsoToDdMmYyyy(normalized);
-      }
-      return raw ?? "-";
-    default:
-      return raw ?? "-";
-  }
-}
