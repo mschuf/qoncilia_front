@@ -1,5 +1,5 @@
 import type { SapB1QueryTable } from "../../erp/sap";
-import { formatQueryValue } from "./workbenchHelpers";
+import { formatQueryCell } from "./workbenchHelpers";
 
 // Ancho fijo por columna; si el contenido se pasa, la celda hace scroll (no crece).
 const COL_W = 90;
@@ -76,7 +76,7 @@ export default function SapB1QueryTableView({
                     {columns.map((column) => (
                       <td key={column} className="px-2 py-1" style={{ width: COL_W }}>
                         <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
-                          {formatQueryValue(row[column])}
+                          {formatQueryCell(column, row[column])}
                         </div>
                       </td>
                     ))}

@@ -190,6 +190,21 @@ export function formatQueryValue(value: unknown) {
   return String(value);
 }
 
+// Formatea una celda de las tablas de query (banco / sistema) usando el MISMO
+// criterio que la tabla de Resultados del matching: las columnas tipo importe se
+// muestran como 5.500.200,233 (formatAmountPyg). El tipo de columna se decide por
+// su nombre, igual que en el matching. El resto cae al formato generico.
+export function formatQueryCell(column: string, value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+
+  if (resolveMatchColumnType({ fieldKey: column, label: column }) === "amount") {
+    const num = typeof value === "number" ? value : parseLooseNumber(String(value));
+    if (num !== null) return formatAmountPyg(num);
+  }
+
+  return formatQueryValue(value);
+}
+
 export function isSameSmartMatch(left: SmartMatch, right: SmartMatch) {
   return (
     left.systemRow.rowId === right.systemRow.rowId &&
