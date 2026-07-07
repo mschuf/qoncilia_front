@@ -13,6 +13,8 @@ import {
   type SapExternalReconciliationRequest,
   type SapExternalReconciliationResult,
   type SapErpSession,
+  type SapTarjetasCsvParseResult,
+  type SapTarjetasSystemQueryResult,
 } from "../erp/sap"
 import type { AuthUser } from "../types/auth"
 import type {
@@ -253,6 +255,12 @@ export default function useConciliationWorkbench() {
   const [isErpLoggingIn, setIsErpLoggingIn] = useState(false)
   const [sapB1QueryPreview, setSapB1QueryPreview] = useState<SapB1QueryPreviewResult | null>(null)
   const [isRunningSapB1Queries, setIsRunningSapB1Queries] = useState(false)
+  // Modo SAP_TARJETAS: lado sistema (OCRH) por query y lado banco por CSV (no se guarda).
+  const [cardFile, setCardFile] = useState<File | null>(null)
+  const [cardCsvResult, setCardCsvResult] = useState<SapTarjetasCsvParseResult | null>(null)
+  const [cardSystemQuery, setCardSystemQuery] = useState<SapTarjetasSystemQueryResult | null>(null)
+  const [isRunningCardSystemQuery, setIsRunningCardSystemQuery] = useState(false)
+  const [isParsingCardCsv, setIsParsingCardCsv] = useState(false)
   const [isComparing, setIsComparing] = useState(false)
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
   const [isSendingExternalReconciliation, setIsSendingExternalReconciliation] = useState(false)
@@ -546,6 +554,7 @@ export default function useConciliationWorkbench() {
     [erpConfigs, selectedErpConfigId]
   )
   const isSapB1QueryMode = selectedErpConfig?.code?.toUpperCase() === "SAP_B1"
+  const isSapTarjetasMode = selectedErpConfig?.code?.toUpperCase() === "SAP_TARJETAS"
 
   const clearPreview = useCallback(() => {
     setPreview(null)
@@ -558,6 +567,11 @@ export default function useConciliationWorkbench() {
     setSapB1QueryPreview(null)
   }, [])
 
+  // Solo el lado sistema (OCRH) depende de fechas/cuenta/ERP; el CSV es independiente.
+  const clearCardSystemQuery = useCallback(() => {
+    setCardSystemQuery(null)
+  }, [])
+
   useEffect(() => {
     clearSapB1QueryPreview()
   }, [
@@ -568,6 +582,25 @@ export default function useConciliationWorkbench() {
     selectedCompanyBankAccountId,
     selectedErpConfigId
   ])
+
+  useEffect(() => {
+    clearCardSystemQuery()
+  }, [
+    clearCardSystemQuery,
+    dateFrom,
+    dateTo,
+    selectedBankId,
+    selectedCompanyBankAccountId,
+    selectedErpConfigId
+  ])
+
+  // El CSV es independiente de fechas/cuenta, pero NO debe arrastrarse entre
+  // configuraciones ERP distintas (podria confundir al usuario): se limpia al
+  // cambiar de configuracion seleccionada.
+  useEffect(() => {
+    setCardFile(null)
+    setCardCsvResult(null)
+  }, [selectedErpConfigId])
 
   const onFileChange =
     (setter: Dispatch<SetStateAction<File | null>>) =>
@@ -760,6 +793,141 @@ export default function useConciliationWorkbench() {
       return response
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo comparar en SAP_B1.")
+      return null
+    } finally {
+      setIsComparing(false)
+    }
+  }
+
+  // === SAP_TARJETAS ========================================================
+  const runCardSystemQuery = async () => {
+    if (!selectedErpConfigId || !isSapTarjetasMode) {
+      toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
+      return
+    }
+
+    if (!dateFrom || !dateTo) {
+      toast.error("Selecciona Fecha Desde y Fecha Hasta.")
+      return
+    }
+
+    try {
+      setIsRunningCardSystemQuery(true)
+      const response = await apiClient.post<SapTarjetasSystemQueryResult>(
+        "/erp/sap/credit-cards/system-query",
+        {
+          companyErpConfigId: selectedErpConfigId,
+          companyBankAccountId: selectedCompanyBankAccountId || undefined,
+          dateFrom,
+          dateTo
+        },
+        { timeoutMs: 45000 }
+      )
+      setCardSystemQuery(response)
+      clearPreview()
+      toast.success("Consulta del sistema ejecutada.")
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo ejecutar la consulta del sistema."
+      )
+    } finally {
+      setIsRunningCardSystemQuery(false)
+    }
+  }
+
+  const parseCardCsv = async (file: File) => {
+    if (!selectedErpConfigId || !isSapTarjetasMode) {
+      toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
+      return
+    }
+
+    try {
+      setIsParsingCardCsv(true)
+      const formData = new FormData()
+      formData.append("companyErpConfigId", String(selectedErpConfigId))
+      formData.append("file", file)
+      const response = await apiClient.post<SapTarjetasCsvParseResult>(
+        "/erp/sap/credit-cards/parse-csv",
+        formData,
+        { showBackdrop: false, timeoutMs: 45000 }
+      )
+      setCardCsvResult(response)
+      toast.success(`CSV cargado: ${response.includedRows} registros.`)
+    } catch (error) {
+      setCardCsvResult(null)
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo procesar el CSV de tarjetas."
+      )
+    } finally {
+      setIsParsingCardCsv(false)
+    }
+  }
+
+  const onCardFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null
+    setCardFile(file)
+    if (file) {
+      void parseCardCsv(file)
+    } else {
+      setCardCsvResult(null)
+    }
+  }
+
+  const clearCardFile = () => {
+    setCardFile(null)
+    setCardCsvResult(null)
+  }
+
+  const runCardComparison = async ({
+    columns,
+    excludedBankRowIds = [],
+    excludedSystemRowIds = []
+  }: {
+    columns: string[]
+    excludedBankRowIds?: string[]
+    excludedSystemRowIds?: string[]
+  }): Promise<SapB1QueryComparisonResult | null> => {
+    if (!selectedErpConfigId || !isSapTarjetasMode) {
+      toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
+      return null
+    }
+
+    if (!cardSystemQuery) {
+      toast.error("Primero ejecuta la consulta del sistema.")
+      return null
+    }
+
+    if (!cardCsvResult) {
+      toast.error("Primero carga el CSV de la procesadora.")
+      return null
+    }
+
+    if (columns.length === 0) {
+      toast.error("No hay columnas disponibles para comparar.")
+      return null
+    }
+
+    try {
+      setIsComparing(true)
+      const response = await apiClient.post<SapB1QueryComparisonResult>(
+        "/erp/sap/query-preview/compare",
+        {
+          companyErpConfigId: selectedErpConfigId,
+          bank: cardCsvResult.bank,
+          system: cardSystemQuery.system,
+          columns,
+          excludedBankRowIds,
+          excludedSystemRowIds,
+          // SAP_TARJETAS: match de referencia por "like" (contencion) para tolerar
+          // el padding de ceros del Cod. autorizacion vs VoucherNum del sistema.
+          referenceMatchMode: "like"
+        },
+        { showBackdrop: false, timeoutMs: 45000 }
+      )
+      toast.success("Comparacion lista.")
+      return response
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo comparar las tarjetas.")
       return null
     } finally {
       setIsComparing(false)
@@ -1180,6 +1348,16 @@ export default function useConciliationWorkbench() {
     isComparing,
     runSapB1QueryPreview,
     runSapB1QueryComparison,
+    isSapTarjetasMode,
+    cardFile,
+    cardCsvResult,
+    cardSystemQuery,
+    isRunningCardSystemQuery,
+    isParsingCardCsv,
+    runCardSystemQuery,
+    onCardFileChange,
+    clearCardFile,
+    runCardComparison,
     isSendingExternalReconciliation,
     preview,
     manualMatches,

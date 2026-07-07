@@ -40,6 +40,27 @@ export interface SapB1QueryPreviewResult {
   system: SapB1QueryTable
 }
 
+// Modo SAP_TARJETAS: resultado del query del sistema (OCRH). Espeja el lado
+// "system" de SapB1QueryPreviewResult; el lado "bank" lo aporta el CSV parseado.
+export interface SapTarjetasSystemQueryResult {
+  companyErpConfigId: number
+  companyErpConfigName: string
+  companyDb: string
+  accountCode: string | null
+  dateFrom: string
+  dateTo: string
+  system: SapB1QueryTable
+}
+
+// Resultado de parsear el CSV de la procesadora (no se guarda en el backend).
+// Se incluyen TODAS las filas (debito/credito/otros); includedRows == totalRows.
+export interface SapTarjetasCsvParseResult {
+  fileName: string
+  totalRows: number
+  includedRows: number
+  bank: SapB1QueryTable
+}
+
 export interface SapB1SmartMatch {
   systemRow: PreviewRow
   bankRow: PreviewRow

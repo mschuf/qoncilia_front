@@ -380,7 +380,10 @@ export default function ErpManagementPage() {
                   />
                 </div>
 
-                {selectedConfig || !isSuperAdmin ? (
+                {selectedConfig ||
+                selectedTemplate ||
+                isCreatingConfig ||
+                !isSuperAdmin ? (
                   <div className="grid gap-3 md:grid-cols-2">
                     <TextAreaField
                       label="Query banco"

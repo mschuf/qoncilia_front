@@ -50,6 +50,8 @@ export interface ErpConfigTemplate {
   userSystem: string | null
   dbName: string | null
   serverNode: string | null
+  queryBanco: string | null
+  querySistema: string | null
   dbUser: string | null
   serviceLayerUrl: string | null
   tlsVersion: string | null

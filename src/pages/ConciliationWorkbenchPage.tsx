@@ -14,6 +14,7 @@ import {
 } from "../components/ConciliationWorkbench/WorkbenchControls";
 import FiltersSection from "../components/ConciliationWorkbench/FiltersSection";
 import SapB1QueryTableView from "../components/ConciliationWorkbench/SapB1QueryTableView";
+import SapTarjetasSection from "../components/ConciliationWorkbench/SapTarjetasSection";
 import DataTable from "../components/ConciliationWorkbench/DataTable";
 import SmartMatchesTable from "../components/ConciliationWorkbench/SmartMatchesTable";
 import StatementRow from "../components/ConciliationWorkbench/StatementRow";
@@ -63,6 +64,16 @@ export default function ConciliationWorkbenchPage() {
     isComparing,
     runSapB1QueryPreview,
     runSapB1QueryComparison,
+    isSapTarjetasMode,
+    cardFile,
+    cardCsvResult,
+    cardSystemQuery,
+    isRunningCardSystemQuery,
+    isParsingCardCsv,
+    runCardSystemQuery,
+    onCardFileChange,
+    clearCardFile,
+    runCardComparison,
     isSendingExternalReconciliation,
     preview,
     manualMatches,
@@ -153,6 +164,10 @@ export default function ConciliationWorkbenchPage() {
     }
     if (isSapB1QueryMode) {
       await runSapB1QueryPreview();
+      return;
+    }
+    if (isSapTarjetasMode) {
+      await runCardSystemQuery();
       return;
     }
     searchBankStatements();
@@ -311,7 +326,11 @@ export default function ConciliationWorkbenchPage() {
       <ComparisonBackdrop
         isVisible={isComparing}
         label={
-          isSapB1QueryMode ? "Comparando consultas" : "Comparando extractos"
+          isSapTarjetasMode
+            ? "Comparando tarjetas"
+            : isSapB1QueryMode
+              ? "Comparando consultas"
+              : "Comparando extractos"
         }
         detail="Calculando coincidencias con IA."
       />
@@ -343,9 +362,12 @@ export default function ConciliationWorkbenchPage() {
         isExpanded={isFiltersExpanded}
         setIsExpanded={setIsFiltersExpanded}
         onSearch={handleSearch}
-        isSapB1QueryMode={isSapB1QueryMode}
+        isSapB1QueryMode={isSapB1QueryMode || isSapTarjetasMode}
         isSearchDisabled={
-          isLoadingCatalog || isRunningSapB1Queries || isComparing
+          isLoadingCatalog ||
+          isRunningSapB1Queries ||
+          isRunningCardSystemQuery ||
+          isComparing
         }
       />
 
@@ -574,6 +596,20 @@ export default function ConciliationWorkbenchPage() {
             </>
           ) : null}
         </>
+      ) : isSapTarjetasMode ? (
+        <SapTarjetasSection
+          systemTable={cardSystemQuery?.system ?? null}
+          bankTable={cardCsvResult?.bank ?? null}
+          csvSummary={cardCsvResult}
+          cardFile={cardFile}
+          onCardFileChange={onCardFileChange}
+          onClearCardFile={clearCardFile}
+          accountCode={cardSystemQuery?.accountCode ?? null}
+          isRunningSystemQuery={isRunningCardSystemQuery}
+          isParsingCsv={isParsingCardCsv}
+          isComparing={isComparing}
+          runComparison={runCardComparison}
+        />
       ) : (
         <>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
@@ -774,7 +810,7 @@ export default function ConciliationWorkbenchPage() {
         </>
       )}
 
-      {!isSapB1QueryMode && preview && metrics ? (
+      {!isSapB1QueryMode && !isSapTarjetasMode && preview && metrics ? (
         <>
           <section className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-end justify-between gap-3">

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { FiDownload, FiX } from "react-icons/fi";
 import { FaBroom } from "react-icons/fa";
 import {
@@ -14,7 +14,7 @@ import { formatAmountPyg } from "../../utils/format";
 const COL_W = 90;
 const ACTION_W = 52;
 
-export default function SmartMatchesTable({
+function SmartMatchesTable({
   matches,
   systemColumns,
   bankColumns,
@@ -46,6 +46,18 @@ export default function SmartMatchesTable({
     [matches, bankColumns, systemColumns]
   );
   const showTotals = matches.length > 0 && amountTotals.hasAmountColumns;
+
+  // Formateo precomputado de las celdas (banco/sistema) por fila. formatMatchCell
+  // hace regex + parseo; con esto corre solo cuando cambian matches/columnas, no en
+  // cada render (p.ej. al seleccionar filas en las tablas de arriba).
+  const formattedRows = useMemo(
+    () =>
+      matches.map((match) => ({
+        bank: bankColumns.map((c) => formatMatchCell(match.bankRow, c)),
+        system: systemColumns.map((c) => formatMatchCell(match.systemRow, c)),
+      })),
+    [matches, bankColumns, systemColumns]
+  );
 
   // Descarga la tabla actual (mismas columnas y formato que se ven) a un .xlsx.
   const handleDownload = () => {
@@ -177,13 +189,13 @@ export default function SmartMatchesTable({
                       </button>
                     </td>
                   ) : null}
-                  {bankColumns.map((c) => (
+                  {bankColumns.map((c, i) => (
                     <td
                       key={`bank-${c.fieldKey}`}
                       className="bg-amber-50/40 px-2 py-1"
                     >
                       <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
-                        {formatMatchCell(match.bankRow, c)}
+                        {formattedRows[idx].bank[i]}
                       </div>
                     </td>
                   ))}
@@ -193,7 +205,7 @@ export default function SmartMatchesTable({
                       className={`bg-sky-50/40 px-2 py-1 ${i === 0 ? divider : ""}`}
                     >
                       <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
-                        {formatMatchCell(match.systemRow, c)}
+                        {formattedRows[idx].system[i]}
                       </div>
                     </td>
                   ))}
@@ -270,3 +282,8 @@ export default function SmartMatchesTable({
     </section>
   );
 }
+
+// memo: la tabla de resultados no depende de la seleccion de filas de arriba, asi
+// que no debe re-renderizarse al hacer match manual / seleccionar. Requiere props
+// estables (matches/columnas memoizadas y callbacks con useCallback en el padre).
+export default memo(SmartMatchesTable);

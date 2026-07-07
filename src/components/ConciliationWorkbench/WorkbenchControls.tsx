@@ -65,12 +65,18 @@ export function UploadCard({
   onChange,
   onClear,
   onSave,
+  accept = ".xlsx,.xls",
+  compact = false,
 }: {
   title: string;
   file: File | null;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
   onSave?: () => void;
+  accept?: string;
+  // compact: variante horizontal y de baja altura para colocar el dropzone
+  // fuera del area de las tablas sin robarles espacio.
+  compact?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -106,6 +112,71 @@ export function UploadCard({
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  if (compact) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-3 transition ${
+          dragging
+            ? "border-brand-400 bg-brand-50/60"
+            : file
+              ? "border-emerald-300 bg-emerald-50/40"
+              : "border-slate-300 bg-slate-50/70 hover:border-brand-300 hover:bg-brand-50/30"
+        }`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          onChange={onChange}
+          className="hidden"
+        />
+
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+            file
+              ? "bg-emerald-100 text-emerald-600"
+              : "bg-slate-100 text-slate-400"
+          }`}
+        >
+          {file ? (
+            <FiFile className="h-4 w-4" />
+          ) : (
+            <FiUploadCloud className="h-4 w-4" />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+            {title}
+          </p>
+          <p className="truncate text-sm font-semibold text-slate-700">
+            {file ? file.name : "Arrastra o haz clic para subir"}
+          </p>
+        </div>
+
+        {file ? (
+          <button
+            type="button"
+            onClick={handleClear}
+            title="Quitar"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+          >
+            <FiTrash2 className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
       role="button"
@@ -128,7 +199,7 @@ export function UploadCard({
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx,.xls"
+        accept={accept}
         onChange={onChange}
         className="hidden"
       />

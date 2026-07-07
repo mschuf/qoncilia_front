@@ -12,5 +12,7 @@ export type {
   SapB1QueryTable,
   SapErpSession,
   SapLoginFormState,
-  SapSessionStatus
+  SapSessionStatus,
+  SapTarjetasCsvParseResult,
+  SapTarjetasSystemQueryResult
 } from "./types"

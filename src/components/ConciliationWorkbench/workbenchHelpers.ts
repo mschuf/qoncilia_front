@@ -277,7 +277,9 @@ function normalizeColumnKey(value: string) {
     .toLowerCase();
 }
 
-export function resolveSapB1ComparisonColumns(preview: SapB1QueryPreviewResult): string[] {
+export function resolveSapB1ComparisonColumns(
+  preview: Pick<SapB1QueryPreviewResult, "bank" | "system">
+): string[] {
   const systemColumnsByKey = new Map(
     preview.system.columns.map((column) => [normalizeColumnKey(column), column])
   );
