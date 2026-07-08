@@ -1,6 +1,6 @@
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiArrowDown, FiRefreshCw, FiUploadCloud } from "react-icons/fi";
+import { FiArrowDown, FiRefreshCw, FiSend, FiUploadCloud } from "react-icons/fi";
 import type {
   SapB1QueryComparisonResult,
   SapB1QueryTable,
@@ -16,9 +16,44 @@ import {
   type SmartMatch,
 } from "./workbenchHelpers";
 
-// Modo SAP_TARJETAS: compara el CSV de la procesadora (lado banco, no se guarda)
-// contra el query del sistema OCRH (lado sistema). Reusa el mismo motor visual
-// que SAP_B1 (tablas + tabla de resultados) pero sin envio al ERP: solo matchea.
+function normalizeLookupKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+function findRowText(
+  row: SmartMatch["bankRow"] | SmartMatch["systemRow"] | undefined,
+  keys: string[],
+) {
+  if (!row) return "";
+  const sources = [row.values, row.normalized];
+
+  for (const key of keys) {
+    const normalizedKey = normalizeLookupKey(key);
+    for (const source of sources) {
+      const direct = source[key];
+      if (direct !== undefined && direct !== null && String(direct).trim()) {
+        return String(direct).trim();
+      }
+
+      const found = Object.entries(source).find(
+        ([entryKey]) => normalizeLookupKey(entryKey) === normalizedKey,
+      );
+      const value = found?.[1];
+      if (value !== undefined && value !== null && String(value).trim()) {
+        return String(value).trim();
+      }
+    }
+  }
+
+  return "";
+}
+
+// Modo SAP_TARJETAS: compara el archivo de la procesadora (lado banco, no se
+// guarda) contra el query OCRH (lado sistema) y envia los matches a Deposits.
 export default function SapTarjetasSection({
   systemTable,
   bankTable,
@@ -31,6 +66,8 @@ export default function SapTarjetasSection({
   isParsingCsv,
   isComparing,
   runComparison,
+  isSendingDeposit,
+  sendDeposit,
 }: {
   systemTable: SapB1QueryTable | null;
   bankTable: SapB1QueryTable | null;
@@ -50,6 +87,11 @@ export default function SapTarjetasSection({
     excludedBankRowIds?: string[];
     excludedSystemRowIds?: string[];
   }) => Promise<SapB1QueryComparisonResult | null>;
+  isSendingDeposit: boolean;
+  sendDeposit: (
+    matches: SmartMatch[],
+    options: { depositAccount: string; voucherAccount: string },
+  ) => Promise<boolean>;
 }) {
   const [selectedBankRowIndex, setSelectedBankRowIndex] = useState<
     number | null
@@ -59,6 +101,8 @@ export default function SapTarjetasSection({
   >(null);
   const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
   const [showComparison, setShowComparison] = useState(false);
+  const [depositAccount, setDepositAccount] = useState("");
+  const [voucherAccount, setVoucherAccount] = useState("");
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
 
@@ -75,6 +119,25 @@ export default function SapTarjetasSection({
     if (scrollSignal === 0) return;
     matchesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [scrollSignal]);
+
+  useEffect(() => {
+    setDepositAccount((current) => current || accountCode || "");
+  }, [accountCode]);
+
+  const defaultVoucherAccount = useMemo(
+    () =>
+      findRowText(smartMatches[0]?.bankRow, [
+        "Nro. transaccion",
+        "Nro transaccion",
+        "Numero transaccion",
+        "transactionNumber",
+      ]),
+    [smartMatches],
+  );
+
+  useEffect(() => {
+    setVoucherAccount((current) => current || defaultVoucherAccount);
+  }, [defaultVoucherAccount]);
 
   const comparisonColumns = useMemo(() => {
     if (!systemTable || !bankTable) return [];
@@ -163,12 +226,32 @@ export default function SapTarjetasSection({
   const handleClearSmartMatches = useCallback(() => {
     setSmartMatches([]);
     setShowComparison(false);
+    setVoucherAccount("");
   }, []);
+
+  const handleSendDeposit = async () => {
+    const success = await sendDeposit(smartMatches, {
+      depositAccount,
+      voucherAccount,
+    });
+    if (!success) return;
+
+    setSmartMatches([]);
+    setShowComparison(false);
+    setSelectedBankRowIndex(null);
+    setSelectedSystemRowIndex(null);
+    setVoucherAccount("");
+  };
 
   const canCompare =
     Boolean(bankTable?.rows.length) &&
     Boolean(systemTable?.rows.length) &&
     !isComparing;
+  const canSendDeposit =
+    smartMatches.length > 0 &&
+    Boolean(depositAccount.trim()) &&
+    Boolean(voucherAccount.trim()) &&
+    !isSendingDeposit;
 
   return (
     <>
@@ -186,6 +269,16 @@ export default function SapTarjetasSection({
                   {accountCode}
                 </span>
               ) : null}
+              {csvSummary ? (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {csvSummary.includedRows}/{csvSummary.totalRows} debitos
+                </span>
+              ) : null}
+              {isParsingCsv ? (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                  Procesando
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="w-full shrink-0 sm:w-72">
@@ -194,7 +287,7 @@ export default function SapTarjetasSection({
               file={cardFile}
               onChange={onCardFileChange}
               onClear={onClearCardFile}
-              accept=".csv,.txt"
+              accept=".csv,.txt,.xls,.xlsx"
               compact
             />
           </div>
@@ -204,7 +297,7 @@ export default function SapTarjetasSection({
           <div>
             {bankTable ? (
               <SapB1QueryTableView
-                title="Tarjetas de credito"
+                title="Tarjetas de debito"
                 table={bankTable}
                 selectedRowIndex={selectedBankRowIndex}
                 onSelectRow={setSelectedBankRowIndex}
@@ -247,6 +340,7 @@ export default function SapTarjetasSection({
                 setSmartMatches([]);
                 setSelectedBankRowIndex(null);
                 setSelectedSystemRowIndex(null);
+                setVoucherAccount("");
               }}
               disabled={!showComparison && smartMatches.length === 0}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -280,15 +374,70 @@ export default function SapTarjetasSection({
       </section>
 
       {showComparison && bankTable && systemTable ? (
-        <div ref={matchesRef} className="scroll-mt-20">
-          <SmartMatchesTable
-            matches={smartMatches}
-            systemColumns={smartMatchSystemColumns}
-            bankColumns={smartMatchBankColumns}
-            onRemove={handleRemoveSmartMatch}
-            onClear={handleClearSmartMatches}
-          />
-        </div>
+        <>
+          <div ref={matchesRef} className="scroll-mt-20">
+            <SmartMatchesTable
+              matches={smartMatches}
+              systemColumns={smartMatchSystemColumns}
+              bankColumns={smartMatchBankColumns}
+              onRemove={handleRemoveSmartMatch}
+              onClear={handleClearSmartMatches}
+            />
+          </div>
+
+          {smartMatches.length > 0 ? (
+            <section className="rounded-3xl border border-slate-200 bg-white p-5">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                    Deposito SAP
+                  </p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <label className="space-y-1">
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        DepositAccount
+                      </span>
+                      <input
+                        value={depositAccount}
+                        onChange={(event) => setDepositAccount(event.target.value)}
+                        placeholder="10000"
+                        className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        VoucherAccount
+                      </span>
+                      <input
+                        value={voucherAccount}
+                        onChange={(event) => setVoucherAccount(event.target.value)}
+                        placeholder={defaultVoucherAccount || "10100"}
+                        className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                      />
+                    </label>
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        DepositType
+                      </span>
+                      <div className="flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-600">
+                        dtCredit
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendDeposit}
+                  disabled={!canSendDeposit}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FiSend className="h-4 w-4" />
+                  {isSendingDeposit ? "Depositando..." : "Depositar"}
+                </button>
+              </div>
+            </section>
+          ) : null}
+        </>
       ) : null}
     </>
   );

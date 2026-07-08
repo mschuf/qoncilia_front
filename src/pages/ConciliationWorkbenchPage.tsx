@@ -87,6 +87,7 @@ export default function ConciliationWorkbenchPage() {
     removeManualMatch,
     sendExternalReconciliationToErp,
     sendSapB1QueryMatchesToErp,
+    sendSapTarjetasDepositToErp,
     searchBankStatements,
     loadCatalog,
     isLoadingCatalog,
@@ -609,6 +610,8 @@ export default function ConciliationWorkbenchPage() {
           isParsingCsv={isParsingCardCsv}
           isComparing={isComparing}
           runComparison={runCardComparison}
+          isSendingDeposit={isSendingExternalReconciliation}
+          sendDeposit={sendSapTarjetasDepositToErp}
         />
       ) : (
         <>

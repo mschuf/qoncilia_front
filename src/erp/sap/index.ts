@@ -14,5 +14,7 @@ export type {
   SapLoginFormState,
   SapSessionStatus,
   SapTarjetasCsvParseResult,
+  SapTarjetasDepositCreditLineInput,
+  SapTarjetasDepositRequest,
   SapTarjetasSystemQueryResult
 } from "./types"

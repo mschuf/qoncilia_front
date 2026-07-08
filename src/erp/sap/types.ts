@@ -52,8 +52,8 @@ export interface SapTarjetasSystemQueryResult {
   system: SapB1QueryTable
 }
 
-// Resultado de parsear el CSV de la procesadora (no se guarda en el backend).
-// Se incluyen TODAS las filas (debito/credito/otros); includedRows == totalRows.
+// Resultado de parsear el archivo de la procesadora (no se guarda en el backend).
+// includedRows = filas Debito incluidas para el match.
 export interface SapTarjetasCsvParseResult {
   fileName: string
   totalRows: number
@@ -85,6 +85,17 @@ export interface SapB1QueryComparisonResult {
     unmatchedBank: number
     matchPercentage: number
   }
+}
+
+export interface SapTarjetasDepositCreditLineInput {
+  absId: number
+}
+
+export interface SapTarjetasDepositRequest {
+  companyErpConfigId: number
+  depositAccount: string
+  voucherAccount: string
+  creditLines: SapTarjetasDepositCreditLineInput[]
 }
 
 export type SapExternalReconciliationAccountType =

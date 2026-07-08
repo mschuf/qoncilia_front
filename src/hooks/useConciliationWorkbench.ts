@@ -14,6 +14,7 @@ import {
   type SapExternalReconciliationResult,
   type SapErpSession,
   type SapTarjetasCsvParseResult,
+  type SapTarjetasDepositRequest,
   type SapTarjetasSystemQueryResult,
 } from "../erp/sap"
 import type { AuthUser } from "../types/auth"
@@ -934,6 +935,88 @@ export default function useConciliationWorkbench() {
     }
   }
 
+  const sendSapTarjetasDepositToErp = async (
+    matches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }>,
+    options: { depositAccount: string; voucherAccount: string }
+  ) => {
+    if (!canReconcileErp) {
+      toast.error("Tu rol no tiene permiso para depositar en SAP.")
+      return false
+    }
+
+    if (!selectedErpConfigId || !isSapTarjetasMode) {
+      toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
+      return false
+    }
+
+    if (!erpSession?.authenticated) {
+      toast.error("Inicia sesion en el ERP antes de depositar.")
+      return false
+    }
+
+    if (!cardSystemQuery) {
+      toast.error("Primero ejecuta la consulta del sistema.")
+      return false
+    }
+
+    if (matches.length === 0) {
+      toast.error("No hay coincidencias para depositar en SAP.")
+      return false
+    }
+
+    const depositAccount = options.depositAccount.trim()
+    const voucherAccount = options.voucherAccount.trim()
+    if (!depositAccount) {
+      toast.error("Completa DepositAccount.")
+      return false
+    }
+    if (!voucherAccount) {
+      toast.error("Completa VoucherAccount.")
+      return false
+    }
+
+    const seenAbsIds = new Set<number>()
+    const creditLines: SapTarjetasDepositRequest["creditLines"] = []
+    for (const match of matches) {
+      const absId = parseRowNumber(match.systemRow, ["AbsId", "AbsID", "absId", "abs_id"])
+      if (!absId) {
+        toast.error(`Falta AbsId en la fila ${match.systemRow.rowNumber} del sistema.`)
+        return false
+      }
+      if (!seenAbsIds.has(absId)) {
+        seenAbsIds.add(absId)
+        creditLines.push({ absId })
+      }
+    }
+
+    const request: SapTarjetasDepositRequest = {
+      companyErpConfigId: selectedErpConfigId,
+      depositAccount,
+      voucherAccount,
+      creditLines
+    }
+
+    try {
+      setIsSendingExternalReconciliation(true)
+      const response = await apiClient.post<SapExternalReconciliationResult>(
+        "/erp/sap/credit-cards/deposits",
+        request,
+        { timeoutMs: 45000 }
+      )
+      toast.success(
+        response.externalReference
+          ? `Deposito enviado a SAP. Ref ${response.externalReference}.`
+          : "Deposito enviado a SAP."
+      )
+      return true
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo enviar el deposito a SAP.")
+      return false
+    } finally {
+      setIsSendingExternalReconciliation(false)
+    }
+  }
+
   const onDragEnd = (event: DragEndEvent) => {
     if (!preview || !selectedLayout) return
     const activeRow = parseDragRowId(event.active.id)
@@ -1371,6 +1454,7 @@ export default function useConciliationWorkbench() {
     removeManualMatch,
     sendExternalReconciliationToErp,
     sendSapB1QueryMatchesToErp,
+    sendSapTarjetasDepositToErp,
     clearAll,
     reloadBankStatements: loadBankStatements,
     refreshCatalog,
