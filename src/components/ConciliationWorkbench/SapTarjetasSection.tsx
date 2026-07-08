@@ -417,7 +417,7 @@ export default function SapTarjetasSection({
                     </label>
                     <div className="space-y-1">
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        DepositType
+                        DepositType SAP
                       </span>
                       <div className="flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-600">
                         dtCredit

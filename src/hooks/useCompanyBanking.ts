@@ -693,6 +693,7 @@ export default function useCompanyBanking({
       name: accountForm.name || buildAccountName(accountForm),
       currency: accountForm.currency,
       accountNumber: accountForm.accountNumber,
+      bankErpId: accountForm.bankErpId,
       majorAccountNumber: accountForm.majorAccountNumber,
       paymentAccountNumber: accountForm.paymentAccountNumber,
       active: accountForm.active
