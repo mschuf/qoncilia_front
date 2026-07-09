@@ -62,7 +62,7 @@ La funcionalidad se apoya en **4 tablas** principales en PostgreSQL:
 | Columna           | Tipo         | Descripcion                              |
 | ----------------- | ------------ | ---------------------------------------- |
 | `mod_id`          | SERIAL PK    | ID autoincremental                       |
-| `mod_codigo`      | VARCHAR(80)  | Codigo unico (`home`, `profile`, `conciliation`, `users`, `layout_management`, `access_matrix`) |
+| `mod_codigo`      | VARCHAR(80)  | Codigo unico (`home`, `profile`, `conciliation`, `bank_conciliation`, `card_payment`, `users`, `layout_management`, `access_matrix`, `erp_management`) |
 | `mod_nombre`      | VARCHAR(120) | Nombre visible ("Inicio", "Conciliacion", etc.) |
 | `mod_ruta`        | VARCHAR(160) | Ruta del frontend (`/`, `/conciliation`, etc.) |
 | `mod_descripcion` | VARCHAR(255) | Descripcion opcional                     |
@@ -75,9 +75,18 @@ La funcionalidad se apoya en **4 tablas** principales en PostgreSQL:
 | `home`              | Inicio                   | `/`                 |
 | `profile`           | Mis Datos                | `/mis-datos`        |
 | `conciliation`      | Conciliacion             | `/conciliation`     |
+| `bank_conciliation` | Conciliacion de Banco    | `/conciliacion-banco` |
+| `card_payment`      | Pago de Tarjeta          | `/pago-tarjeta`     |
 | `users`             | Gestion de Usuarios      | `/users`            |
 | `layout_management` | Gestion de Plantillas    | `/layout-management`|
 | `access_matrix`     | Modulos por Empresa y Rol| `/access-control`   |
+| `erp_management`    | Integraciones ERP        | `/erp-management`   |
+
+Notas:
+
+- `conciliation` gatea "Cargar Extractos" (`/bank-statements`) y el workbench clasico (`/conciliation`).
+- `bank_conciliation` gatea la pagina "Conciliacion de banco" (workbench fijado a la config ERP `SAP_B1`); seed `sql/38`.
+- `card_payment` gatea la pagina "Pago de tarjeta" (workbench fijado a la config ERP `SAP_TARJETAS`); seed `sql/38`.
 
 ### 3.4) Tabla `empresas_roles_modulos` (tabla pivot / matriz)
 
@@ -99,10 +108,12 @@ Cada usuario tiene `emp_id` y `rol_id` (ambos NOT NULL). Cuando un usuario inici
 
 | Rol               | Modulos habilitados                                                      |
 | ------------------ | ----------------------------------------------------------------------- |
-| Super Admin        | home, profile, conciliation, users, layout_management, access_matrix    |
-| Admin              | home, profile, conciliation, users                                      |
-| Gestor Cobranza    | home, profile, conciliation                                             |
-| Gestor Pagos       | home, profile, conciliation                                             |
+| Super Admin        | home, profile, conciliation, bank_conciliation, card_payment, users, layout_management, access_matrix, erp_management |
+| Admin              | home, profile, conciliation, bank_conciliation, card_payment, users, layout_management, erp_management |
+| Gestor Cobranza    | home, profile, conciliation, bank_conciliation, card_payment, erp_management |
+| Gestor Pagos       | home, profile, conciliation, bank_conciliation, card_payment, erp_management |
+
+(`erp_management` viene de los seeds 14/17 y `bank_conciliation`/`card_payment` del seed 38, habilitados para todos los roles al correr los seeds. Las empresas nuevas creadas por la UI usan los defaults hardcodeados en `access-control.service.ts`/`users.service.ts`, que difieren en que los gestores NO reciben `erp_management`.)
 
 ---
 

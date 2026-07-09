@@ -137,10 +137,10 @@ export default function Navbar() {
       show: hasModule(APP_MODULE_VALUES.conciliation),
     },
     {
-      to: "/conciliation",
+      to: "/conciliacion-banco",
       icon: <FiActivity className="h-4 w-4" />,
-      label: "Conciliar",
-      show: hasModule(APP_MODULE_VALUES.conciliation),
+      label: "Conciliacion de banco",
+      show: hasModule(APP_MODULE_VALUES.bankConciliation),
     },
   ];
 
@@ -155,6 +155,12 @@ export default function Navbar() {
       label: "Conciliacion",
       show: visibleConciliationLinks.length > 0,
       children: visibleConciliationLinks,
+    },
+    {
+      to: "/pago-tarjeta",
+      icon: <FiCreditCard className="h-4 w-4" />,
+      label: "Pago de tarjeta",
+      show: hasModule(APP_MODULE_VALUES.cardPayment),
     },
     {
       key: "bancos",
@@ -254,6 +260,7 @@ export default function Navbar() {
                   <NavLink
                     key={link.to}
                     to={link.to}
+                    onClick={() => setOpenDropdown(null)}
                     className={({ isActive }) =>
                       `whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${isActive
                         ? "bg-slate-900 text-white shadow-md"

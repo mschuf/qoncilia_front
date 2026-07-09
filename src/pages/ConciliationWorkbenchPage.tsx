@@ -31,7 +31,17 @@ import {
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
 import { isAdminRole, isSuperAdminRole, ROLE_VALUES } from "../utils/role";
 
-export default function ConciliationWorkbenchPage() {
+export type ConciliationWorkbenchMode = "banco" | "tarjetas";
+
+type ConciliationWorkbenchPageProps = {
+  // Fija el workbench a un solo modo ERP: "banco" (SAP_B1) o "tarjetas"
+  // (SAP_TARJETAS). Sin prop, mantiene el comportamiento clasico multi-modo.
+  mode?: ConciliationWorkbenchMode;
+};
+
+export default function ConciliationWorkbenchPage({
+  mode,
+}: ConciliationWorkbenchPageProps) {
   const {
     role,
     users,
@@ -51,6 +61,7 @@ export default function ConciliationWorkbenchPage() {
     systemFile,
     setSystemFile,
     erpConfigs,
+    isLoadingErpConfigs,
     selectedErpConfig,
     selectedErpConfigId,
     setSelectedErpConfigId,
@@ -99,7 +110,10 @@ export default function ConciliationWorkbenchPage() {
     setDateFrom,
     dateTo,
     setDateTo,
-  } = useConciliationWorkbench();
+  } = useConciliationWorkbench({
+    erpCodeFilter:
+      mode === "banco" ? "SAP_B1" : mode === "tarjetas" ? "SAP_TARJETAS" : undefined,
+  });
 
   const bankLabel =
     preview?.layout.bankLabel ?? selectedLayout?.bankLabel ?? "Banco";
@@ -171,6 +185,9 @@ export default function ConciliationWorkbenchPage() {
       await runCardSystemQuery();
       return;
     }
+    // En las paginas de modo fijo no existe el flujo de extractos guardados:
+    // sin config ERP del code esperado no hay nada que buscar.
+    if (mode) return;
     searchBankStatements();
   };
   const matchedCount = preview
@@ -338,10 +355,14 @@ export default function ConciliationWorkbenchPage() {
 
       <div>
         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-          Conciliacion bancaria
+          {mode === "tarjetas" ? "Conciliacion de tarjetas" : "Conciliacion bancaria"}
         </p>
         <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
-          Conciliar extracto con IA
+          {mode === "banco"
+            ? "Conciliacion de banco"
+            : mode === "tarjetas"
+              ? "Pago de tarjeta"
+              : "Conciliar extracto con IA"}
         </h1>
       </div>
 
@@ -368,7 +389,8 @@ export default function ConciliationWorkbenchPage() {
           isLoadingCatalog ||
           isRunningSapB1Queries ||
           isRunningCardSystemQuery ||
-          isComparing
+          isComparing ||
+          (Boolean(mode) && !selectedErpConfigId)
         }
       />
 
@@ -613,6 +635,25 @@ export default function ConciliationWorkbenchPage() {
           isSendingDeposit={isSendingExternalReconciliation}
           sendDeposit={sendSapTarjetasDepositToErp}
         />
+      ) : mode ? (
+        <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+          {isLoadingErpConfigs ? (
+            <p className="text-sm font-semibold text-slate-500">
+              Cargando configuraciones ERP...
+            </p>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-slate-700">
+                {mode === "banco"
+                  ? "No hay una configuracion ERP SAP_B1 activa para tu empresa."
+                  : "No hay una configuracion ERP SAP_TARJETAS activa para tu empresa."}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Pedi al administrador que la asigne desde Integraciones ERP.
+              </p>
+            </>
+          )}
+        </section>
       ) : (
         <>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
@@ -813,7 +854,7 @@ export default function ConciliationWorkbenchPage() {
         </>
       )}
 
-      {!isSapB1QueryMode && !isSapTarjetasMode && preview && metrics ? (
+      {!mode && !isSapB1QueryMode && !isSapTarjetasMode && preview && metrics ? (
         <>
           <section className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-end justify-between gap-3">

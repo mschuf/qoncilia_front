@@ -5,6 +5,8 @@ export const APP_MODULE_VALUES = {
   home: "home",
   profile: "profile",
   conciliation: "conciliation",
+  bankConciliation: "bank_conciliation",
+  cardPayment: "card_payment",
   users: "users",
   layoutManagement: "layout_management",
   accessMatrix: "access_matrix",
@@ -19,6 +21,8 @@ export function fallbackModulesForRole(role: Role | null | undefined): AppModule
       APP_MODULE_VALUES.home,
       APP_MODULE_VALUES.profile,
       APP_MODULE_VALUES.conciliation,
+      APP_MODULE_VALUES.bankConciliation,
+      APP_MODULE_VALUES.cardPayment,
       APP_MODULE_VALUES.users,
       APP_MODULE_VALUES.layoutManagement,
       APP_MODULE_VALUES.accessMatrix,
@@ -31,6 +35,8 @@ export function fallbackModulesForRole(role: Role | null | undefined): AppModule
       APP_MODULE_VALUES.home,
       APP_MODULE_VALUES.profile,
       APP_MODULE_VALUES.conciliation,
+      APP_MODULE_VALUES.bankConciliation,
+      APP_MODULE_VALUES.cardPayment,
       APP_MODULE_VALUES.users,
       APP_MODULE_VALUES.layoutManagement,
       APP_MODULE_VALUES.erpManagement
@@ -41,6 +47,8 @@ export function fallbackModulesForRole(role: Role | null | undefined): AppModule
     APP_MODULE_VALUES.home,
     APP_MODULE_VALUES.profile,
     APP_MODULE_VALUES.conciliation,
+    APP_MODULE_VALUES.bankConciliation,
+    APP_MODULE_VALUES.cardPayment,
     APP_MODULE_VALUES.erpManagement
   ];
 }

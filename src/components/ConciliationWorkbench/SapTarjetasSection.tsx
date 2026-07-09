@@ -124,16 +124,7 @@ export default function SapTarjetasSection({
     setDepositAccount((current) => current || accountCode || "");
   }, [accountCode]);
 
-  const defaultVoucherAccount = useMemo(
-    () =>
-      findRowText(smartMatches[0]?.bankRow, [
-        "Nro. transaccion",
-        "Nro transaccion",
-        "Numero transaccion",
-        "transactionNumber",
-      ]),
-    [smartMatches],
-  );
+  const defaultVoucherAccount = useMemo(() => accountCode || "", [accountCode]);
 
   useEffect(() => {
     setVoucherAccount((current) => current || defaultVoucherAccount);

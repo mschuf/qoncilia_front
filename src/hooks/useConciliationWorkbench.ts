@@ -224,7 +224,16 @@ export function summarizeRow(row: PreviewRow | undefined, mappings: LayoutMappin
   )
 }
 
-export default function useConciliationWorkbench() {
+export type WorkbenchErpCodeFilter = "SAP_B1" | "SAP_TARJETAS"
+
+export type UseConciliationWorkbenchOptions = {
+  // Limita las configs ERP disponibles a un code (paginas dedicadas
+  // "Conciliacion de banco" / "Pago de tarjeta"). Sin filtro = workbench clasico.
+  erpCodeFilter?: WorkbenchErpCodeFilter
+}
+
+export default function useConciliationWorkbench(options?: UseConciliationWorkbenchOptions) {
+  const erpCodeFilter = options?.erpCodeFilter
   const { role, user } = useAuth()
   // Conciliar en SAP: admin/superadmin o gestor de cobranzas (igual que el backend).
   const canReconcileErp = isAdminRole(role) || role === ROLE_VALUES.gestorCobranza
@@ -251,6 +260,7 @@ export default function useConciliationWorkbench() {
   const [selectedBankStatementId, setSelectedBankStatementId] = useState<number>(0)
   const [systemFile, setSystemFile] = useState<File | null>(null)
   const [erpConfigs, setErpConfigs] = useState<CompanyErpConfig[]>([])
+  const [isLoadingErpConfigs, setIsLoadingErpConfigs] = useState(true)
   const [selectedErpConfigId, setSelectedErpConfigId] = useState<number>(0)
   const [erpSession, setErpSession] = useState<SapErpSession | null>(null)
   const [isErpLoggingIn, setIsErpLoggingIn] = useState(false)
@@ -331,16 +341,25 @@ export default function useConciliationWorkbench() {
   }, [loadUsers, toast])
 
   const loadErpConfigs = useCallback(async () => {
-    const response = await apiClient.get<CompanyErpConfig[]>("/erp/configs?activeOnly=true")
-    const nextConfigs = response ?? []
-    setErpConfigs(nextConfigs)
-    setSelectedErpConfigId((current) => {
-      const stored = getStoredSapConfigId()
-      if (current && nextConfigs.some((config) => config.id === current)) return current
-      if (stored && nextConfigs.some((config) => config.id === stored)) return stored
-      return nextConfigs.find((config) => config.isDefault)?.id ?? nextConfigs[0]?.id ?? 0
-    })
-  }, [])
+    setIsLoadingErpConfigs(true)
+    try {
+      const response = await apiClient.get<CompanyErpConfig[]>("/erp/configs?activeOnly=true")
+      // El filtro se aplica ANTES del auto-select: asi un id guardado en
+      // localStorage por la otra pagina (code distinto) cae al fallback default/primera.
+      const nextConfigs = (response ?? []).filter(
+        (config) => !erpCodeFilter || config.code?.toUpperCase() === erpCodeFilter
+      )
+      setErpConfigs(nextConfigs)
+      setSelectedErpConfigId((current) => {
+        const stored = getStoredSapConfigId(erpCodeFilter)
+        if (current && nextConfigs.some((config) => config.id === current)) return current
+        if (stored && nextConfigs.some((config) => config.id === stored)) return stored
+        return nextConfigs.find((config) => config.isDefault)?.id ?? nextConfigs[0]?.id ?? 0
+      })
+    } finally {
+      setIsLoadingErpConfigs(false)
+    }
+  }, [erpCodeFilter])
 
   const checkErpSession = useCallback(async (showFeedback = false) => {
     if (!selectedErpConfigId) {
@@ -358,7 +377,7 @@ export default function useConciliationWorkbench() {
       )
       setErpSession(response)
       if (response.authenticated) {
-        storeSapConfigId(selectedErpConfigId)
+        storeSapConfigId(selectedErpConfigId, erpCodeFilter)
       }
       if (showFeedback) {
         const message = sapSessionMessage(response)
@@ -377,7 +396,7 @@ export default function useConciliationWorkbench() {
       }
       throw error
     }
-  }, [selectedErpConfigId, toast])
+  }, [erpCodeFilter, selectedErpConfigId, toast])
 
   const loginErpSession = useCallback(
     async (username?: string, password?: string): Promise<boolean> => {
@@ -399,7 +418,7 @@ export default function useConciliationWorkbench() {
         )
         setErpSession(response)
         if (response.authenticated) {
-          storeSapConfigId(selectedErpConfigId)
+          storeSapConfigId(selectedErpConfigId, erpCodeFilter)
           toast.success("Sesion ERP iniciada correctamente.")
           return true
         }
@@ -412,7 +431,7 @@ export default function useConciliationWorkbench() {
         setIsErpLoggingIn(false)
       }
     },
-    [selectedErpConfigId, toast]
+    [erpCodeFilter, selectedErpConfigId, toast]
   )
 
   useEffect(() => {
@@ -427,9 +446,9 @@ export default function useConciliationWorkbench() {
       return
     }
 
-    storeSapConfigId(selectedErpConfigId)
+    storeSapConfigId(selectedErpConfigId, erpCodeFilter)
     void checkErpSession().catch(() => setErpSession(null))
-  }, [checkErpSession, selectedErpConfigId])
+  }, [checkErpSession, erpCodeFilter, selectedErpConfigId])
 
   // Carga automatica del catalogo para todos excepto superadmin.
   useEffect(() => {
@@ -1418,6 +1437,7 @@ export default function useConciliationWorkbench() {
     systemFile,
     setSystemFile,
     erpConfigs,
+    isLoadingErpConfigs,
     selectedErpConfig,
     selectedErpConfigId,
     setSelectedErpConfigId,

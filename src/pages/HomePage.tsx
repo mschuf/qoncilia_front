@@ -22,10 +22,11 @@ import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import type { ConciliationKpis } from "../types/conciliation";
+import { APP_MODULE_VALUES } from "../utils/modules";
 import { roleLabel } from "../utils/role";
 
 export default function HomePage() {
-  const { user, role } = useAuth();
+  const { user, role, hasModule } = useAuth();
   const toast = useToast();
   const [kpis, setKpis] = useState<ConciliationKpis | null>(null);
 
@@ -74,21 +75,23 @@ export default function HomePage() {
               <p className="mt-1 text-xs text-slate-500">Extractos bancarios</p>
             </Link>
 
-            <Link
-              to="/conciliation"
-              className="group rounded-3xl border border-slate-200 bg-white p-5 transition hover:border-emerald-500 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3 text-emerald-600">
-                <FiPercent className="h-5 w-5" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Mesa
-                </span>
-              </div>
-              <p className="mt-3 text-3xl font-extrabold text-slate-900 transition group-hover:text-emerald-600">
-                Lista
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Comparacion en mesa</p>
-            </Link>
+            {hasModule(APP_MODULE_VALUES.bankConciliation) ? (
+              <Link
+                to="/conciliacion-banco"
+                className="group rounded-3xl border border-slate-200 bg-white p-5 transition hover:border-emerald-500 hover:shadow-md"
+              >
+                <div className="flex items-center gap-3 text-emerald-600">
+                  <FiPercent className="h-5 w-5" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">
+                    Mesa
+                  </span>
+                </div>
+                <p className="mt-3 text-3xl font-extrabold text-slate-900 transition group-hover:text-emerald-600">
+                  Lista
+                </p>
+                <p className="mt-1 text-xs text-slate-500">Comparacion en mesa</p>
+              </Link>
+            ) : null}
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-3 text-emerald-500">

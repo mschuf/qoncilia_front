@@ -11,6 +11,8 @@ const AppLayout = lazy(() => import("./layouts/AppLayout"));
 const AdminBankingPage = lazy(() => import("./pages/AdminBankingPage"));
 const BankStatementsPage = lazy(() => import("./pages/BankStatementsPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
+const ConciliacionBancoPage = lazy(() => import("./pages/ConciliacionBancoPage"));
+const PagoTarjetaPage = lazy(() => import("./pages/PagoTarjetaPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LayoutManagementPage = lazy(() => import("./pages/LayoutManagementPage"));
 const AdminTemplatesPage = lazy(() => import("./pages/AdminTemplatesPage"));
@@ -110,6 +112,22 @@ export default function App() {
               }
             />
             <Route path="conciliation/history" element={<Navigate to="/bank-statements" replace />} />
+            <Route
+              path="conciliacion-banco"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.bankConciliation}>
+                  <ConciliacionBancoPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="pago-tarjeta"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPayment}>
+                  <PagoTarjetaPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="users"
               element={

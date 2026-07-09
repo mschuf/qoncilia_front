@@ -84,6 +84,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
   }, [token, startLoading, stopLoading, handleSessionExpired]);
 
+  // Con sesion persistida, refresca el user desde el backend al montar: los
+  // modulos por pantalla (enabledModules) pueden haber cambiado desde el login
+  // y el user cacheado en localStorage no se entera hasta un re-login.
+  useEffect(() => {
+    if (!token || !user) return;
+    let cancelled = false;
+    void apiClient
+      .get<AuthUser>("/auth/me", { showBackdrop: false })
+      .then((freshUser) => {
+        if (!cancelled && freshUser) {
+          updateUser(freshUser);
+        }
+      })
+      .catch(() => {
+        // Un 401 ya dispara onUnauthorizedFn; otros errores no deben tumbar la sesion local.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Solo al montar: el login trae el user fresco por si mismo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
     if (!link) {
