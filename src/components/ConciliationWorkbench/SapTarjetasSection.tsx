@@ -52,6 +52,10 @@ function findRowText(
   return "";
 }
 
+// Comentario por defecto del asiento del deposito (JournalRemarks); el usuario
+// puede ampliarlo o reemplazarlo antes de depositar.
+const DEFAULT_JOURNAL_REMARKS = "COMPRA P.O.S BANCARD";
+
 // Modo SAP_TARJETAS: compara el archivo de la procesadora (lado banco, no se
 // guarda) contra el query OCRH (lado sistema) y envia los matches a Deposits.
 export default function SapTarjetasSection({
@@ -90,7 +94,7 @@ export default function SapTarjetasSection({
   isSendingDeposit: boolean;
   sendDeposit: (
     matches: SmartMatch[],
-    options: { depositAccount: string; voucherAccount: string },
+    options: { depositAccount: string; journalRemarks: string },
   ) => Promise<boolean>;
 }) {
   const [selectedBankRowIndex, setSelectedBankRowIndex] = useState<
@@ -102,7 +106,7 @@ export default function SapTarjetasSection({
   const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
   const [showComparison, setShowComparison] = useState(false);
   const [depositAccount, setDepositAccount] = useState("");
-  const [voucherAccount, setVoucherAccount] = useState("");
+  const [journalRemarks, setJournalRemarks] = useState(DEFAULT_JOURNAL_REMARKS);
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
 
@@ -120,15 +124,11 @@ export default function SapTarjetasSection({
     matchesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [scrollSignal]);
 
+  // Cuenta Deposito: ya no es editable, refleja siempre la Cuenta Mayor de la
+  // cuenta bancaria seleccionada en la busqueda.
   useEffect(() => {
-    setDepositAccount((current) => current || accountCode || "");
+    setDepositAccount(accountCode || "");
   }, [accountCode]);
-
-  const defaultVoucherAccount = useMemo(() => accountCode || "", [accountCode]);
-
-  useEffect(() => {
-    setVoucherAccount((current) => current || defaultVoucherAccount);
-  }, [defaultVoucherAccount]);
 
   const comparisonColumns = useMemo(() => {
     if (!systemTable || !bankTable) return [];
@@ -217,13 +217,13 @@ export default function SapTarjetasSection({
   const handleClearSmartMatches = useCallback(() => {
     setSmartMatches([]);
     setShowComparison(false);
-    setVoucherAccount("");
+    setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
   }, []);
 
   const handleSendDeposit = async () => {
     const success = await sendDeposit(smartMatches, {
       depositAccount,
-      voucherAccount,
+      journalRemarks,
     });
     if (!success) return;
 
@@ -231,7 +231,7 @@ export default function SapTarjetasSection({
     setShowComparison(false);
     setSelectedBankRowIndex(null);
     setSelectedSystemRowIndex(null);
-    setVoucherAccount("");
+    setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
   };
 
   const canCompare =
@@ -241,7 +241,6 @@ export default function SapTarjetasSection({
   const canSendDeposit =
     smartMatches.length > 0 &&
     Boolean(depositAccount.trim()) &&
-    Boolean(voucherAccount.trim()) &&
     !isSendingDeposit;
 
   return (
@@ -331,7 +330,7 @@ export default function SapTarjetasSection({
                 setSmartMatches([]);
                 setSelectedBankRowIndex(null);
                 setSelectedSystemRowIndex(null);
-                setVoucherAccount("");
+                setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
               }}
               disabled={!showComparison && smartMatches.length === 0}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -384,36 +383,29 @@ export default function SapTarjetasSection({
                     Deposito SAP
                   </p>
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
-                    <label className="space-y-1">
-                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        DepositAccount
-                      </span>
-                      <input
-                        value={depositAccount}
-                        onChange={(event) => setDepositAccount(event.target.value)}
-                        placeholder="10000"
-                        className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        VoucherAccount
-                      </span>
-                      <input
-                        value={voucherAccount}
-                        onChange={(event) => setVoucherAccount(event.target.value)}
-                        placeholder={defaultVoucherAccount || "10100"}
-                        className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
-                      />
-                    </label>
                     <div className="space-y-1">
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        DepositType SAP
+                        Cuenta Deposito
                       </span>
-                      <div className="flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-600">
-                        dtCredit
+                      <div
+                        title="Cuenta Mayor de la cuenta bancaria seleccionada"
+                        className="flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-600"
+                      >
+                        {depositAccount || "Selecciona una cuenta bancaria"}
                       </div>
                     </div>
+                    <label className="space-y-1 md:col-span-2">
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Comentario (JournalRemarks)
+                      </span>
+                      <input
+                        value={journalRemarks}
+                        onChange={(event) => setJournalRemarks(event.target.value)}
+                        placeholder={DEFAULT_JOURNAL_REMARKS}
+                        maxLength={200}
+                        className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                      />
+                    </label>
                   </div>
                 </div>
                 <button

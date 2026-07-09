@@ -956,7 +956,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
 
   const sendSapTarjetasDepositToErp = async (
     matches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }>,
-    options: { depositAccount: string; voucherAccount: string }
+    options: { depositAccount: string; journalRemarks: string }
   ) => {
     if (!canReconcileErp) {
       toast.error("Tu rol no tiene permiso para depositar en SAP.")
@@ -984,13 +984,11 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     }
 
     const depositAccount = options.depositAccount.trim()
-    const voucherAccount = options.voucherAccount.trim()
+    const journalRemarks = options.journalRemarks.trim()
     if (!depositAccount) {
-      toast.error("Completa DepositAccount.")
-      return false
-    }
-    if (!voucherAccount) {
-      toast.error("Completa VoucherAccount.")
+      toast.error(
+        "Falta la Cuenta Deposito: selecciona una cuenta bancaria con Cuenta Mayor configurada."
+      )
       return false
     }
 
@@ -1011,7 +1009,10 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     const request: SapTarjetasDepositRequest = {
       companyErpConfigId: selectedErpConfigId,
       depositAccount,
-      voucherAccount,
+      // Si el usuario lo dejo vacio, el backend aplica "COMPRA P.O.S BANCARD".
+      journalRemarks: journalRemarks || undefined,
+      // "Cuenta Pago ERP" de la cuenta bancaria seleccionada en la busqueda.
+      bankAccountNum: cardSystemQuery.paymentAccountCode ?? undefined,
       creditLines
     }
 

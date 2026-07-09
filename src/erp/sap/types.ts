@@ -47,6 +47,8 @@ export interface SapTarjetasSystemQueryResult {
   companyErpConfigName: string
   companyDb: string
   accountCode: string | null
+  // "Cuenta Pago ERP" de la cuenta bancaria: viaja como bankAccountNum en el deposito.
+  paymentAccountCode: string | null
   dateFrom: string
   dateTo: string
   system: SapB1QueryTable
@@ -94,7 +96,11 @@ export interface SapTarjetasDepositCreditLineInput {
 export interface SapTarjetasDepositRequest {
   companyErpConfigId: number
   depositAccount: string
-  voucherAccount: string
+  // Comentario del asiento (JournalRemarks); el backend aplica el default
+  // "COMPRA P.O.S BANCARD" si va vacio.
+  journalRemarks?: string
+  // "Cuenta Pago ERP" de la cuenta bancaria (cabecera BankAccountNum).
+  bankAccountNum?: string
   creditLines: SapTarjetasDepositCreditLineInput[]
 }
 
