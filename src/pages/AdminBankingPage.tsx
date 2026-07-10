@@ -73,7 +73,10 @@ export default function AdminBankingPage({
     resetAccountForm,
     reload,
     stats,
-  } = useCompanyBanking({ loadAccounts: showAccounts, manualLoad: mode === "accounts" });
+  } = useCompanyBanking({
+    loadAccounts: showAccounts,
+    manualLoad: mode === "accounts",
+  });
 
   const handleDeleteBank = async () => {
     if (!deleteBankTarget) return;
@@ -195,7 +198,9 @@ export default function AdminBankingPage({
               <button
                 type="button"
                 onClick={() => void reload(selectedCompanyId)}
-                disabled={isLoadingReference || isLoadingBanks || isLoadingAccounts}
+                disabled={
+                  isLoadingReference || isLoadingBanks || isLoadingAccounts
+                }
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FiSearch className="h-4 w-4" /> Buscar
@@ -310,7 +315,13 @@ export default function AdminBankingPage({
                               </td>
                               <td className="px-4 py-3">
                                 {bank.activeLayoutName ? (
-                                  <span className={isSelected ? "text-white" : "text-slate-700"}>
+                                  <span
+                                    className={
+                                      isSelected
+                                        ? "text-white"
+                                        : "text-slate-700"
+                                    }
+                                  >
                                     {bank.activeLayoutName}
                                   </span>
                                 ) : (
@@ -636,6 +647,7 @@ export default function AdminBankingPage({
                             <th className="px-3 py-2">Descripcion</th>
                             <th className="px-3 py-2">Cuenta Mayor</th>
                             <th className="px-3 py-2">Cuenta Pago</th>
+                            <th className="px-3 py-2">Sucursal</th>
                             <th className="px-3 py-2">Estado</th>
                             <th className="px-3 py-2 text-right">Acciones</th>
                           </tr>
@@ -656,6 +668,9 @@ export default function AdminBankingPage({
                               </td>
                               <td className="px-3 py-3">
                                 {account.paymentAccountNumber ?? "-"}
+                              </td>
+                              <td className="px-3 py-3">
+                                {account.branchName ?? "-"}
                               </td>
                               <td className="px-3 py-3">
                                 <span
@@ -689,7 +704,7 @@ export default function AdminBankingPage({
                           {visibleAccounts.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={7}
+                                colSpan={8}
                                 className="px-4 py-6 text-center text-sm text-slate-500"
                               >
                                 {selectedBank
@@ -795,6 +810,14 @@ export default function AdminBankingPage({
                       value={accountForm.paymentAccountNumber}
                       onChange={onAccountFieldChange}
                       placeholder="Opcional"
+                    />
+
+                    <Field
+                      label="Sucursal"
+                      name="branchName"
+                      value={accountForm.branchName}
+                      onChange={onAccountFieldChange}
+                      placeholder=""
                     />
 
                     <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">

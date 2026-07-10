@@ -49,6 +49,10 @@ export interface SapTarjetasSystemQueryResult {
   accountCode: string | null
   // "Cuenta Pago ERP" de la cuenta bancaria: viaja como bankAccountNum en el deposito.
   paymentAccountCode: string | null
+  // Descripcion del banco: viaja como Bank (cabecera) en el deposito.
+  bankName: string | null
+  // Sucursal de la CUENTA bancaria (no la del banco): viaja como BankBranch.
+  bankBranch: string | null
   dateFrom: string
   dateTo: string
   system: SapB1QueryTable
@@ -96,12 +100,38 @@ export interface SapTarjetasDepositCreditLineInput {
 export interface SapTarjetasDepositRequest {
   companyErpConfigId: number
   depositAccount: string
+  // Fecha del deposito (YYYY-MM-DD, obligatoria): cabecera DepositDate.
+  depositDate: string
   // Comentario del asiento (JournalRemarks); el backend aplica el default
   // "COMPRA P.O.S BANCARD" si va vacio.
   journalRemarks?: string
   // "Cuenta Pago ERP" de la cuenta bancaria (cabecera BankAccountNum).
   bankAccountNum?: string
+  // Descripcion del banco (cabecera Bank).
+  bank?: string
+  // Sucursal de la cuenta bancaria (cabecera BankBranch).
+  bankBranch?: string
   creditLines: SapTarjetasDepositCreditLineInput[]
+}
+
+// Deposito masivo: el backend crea UN deposito por AbsId y devuelve el detalle
+// registro por registro (los fallidos se conservan en la tabla para reintentar).
+export interface SapTarjetasDepositItemResult {
+  absId: number
+  status: "success" | "error"
+  httpStatus: number | null
+  externalReference: string | null
+  errorMessage: string | null
+}
+
+export interface SapTarjetasBulkDepositResult {
+  companyErpConfigId: number
+  companyErpConfigName: string
+  endpoint: string
+  total: number
+  succeeded: number
+  failed: number
+  results: SapTarjetasDepositItemResult[]
 }
 
 export type SapExternalReconciliationAccountType =

@@ -13,6 +13,7 @@ import {
   type SapExternalReconciliationRequest,
   type SapExternalReconciliationResult,
   type SapErpSession,
+  type SapTarjetasBulkDepositResult,
   type SapTarjetasCsvParseResult,
   type SapTarjetasDepositRequest,
   type SapTarjetasSystemQueryResult,
@@ -954,42 +955,50 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     }
   }
 
+  // Deposito masivo: el backend crea UN deposito por AbsId (misma cabecera y
+  // JournalRemarks). Devuelve que AbsIds se depositaron y cuales fallaron para
+  // que la seccion conserve solo los fallidos; null = no se llego a enviar.
   const sendSapTarjetasDepositToErp = async (
     matches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }>,
-    options: { depositAccount: string; journalRemarks: string }
-  ) => {
+    options: { depositAccount: string; depositDate: string; journalRemarks: string }
+  ): Promise<{ succeededAbsIds: number[]; failedAbsIds: number[] } | null> => {
     if (!canReconcileErp) {
       toast.error("Tu rol no tiene permiso para depositar en SAP.")
-      return false
+      return null
     }
 
     if (!selectedErpConfigId || !isSapTarjetasMode) {
       toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
-      return false
+      return null
     }
 
     if (!erpSession?.authenticated) {
       toast.error("Inicia sesion en el ERP antes de depositar.")
-      return false
+      return null
     }
 
     if (!cardSystemQuery) {
       toast.error("Primero ejecuta la consulta del sistema.")
-      return false
+      return null
     }
 
     if (matches.length === 0) {
       toast.error("No hay coincidencias para depositar en SAP.")
-      return false
+      return null
     }
 
     const depositAccount = options.depositAccount.trim()
+    const depositDate = options.depositDate.trim()
     const journalRemarks = options.journalRemarks.trim()
     if (!depositAccount) {
       toast.error(
         "Falta la Cuenta Deposito: selecciona una cuenta bancaria con Cuenta Mayor configurada."
       )
-      return false
+      return null
+    }
+    if (!depositDate) {
+      toast.error("Selecciona la Fecha de Deposito.")
+      return null
     }
 
     const seenAbsIds = new Set<number>()
@@ -998,7 +1007,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       const absId = parseRowNumber(match.systemRow, ["AbsId", "AbsID", "absId", "abs_id"])
       if (!absId) {
         toast.error(`Falta AbsId en la fila ${match.systemRow.rowNumber} del sistema.`)
-        return false
+        return null
       }
       if (!seenAbsIds.has(absId)) {
         seenAbsIds.add(absId)
@@ -1009,29 +1018,55 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     const request: SapTarjetasDepositRequest = {
       companyErpConfigId: selectedErpConfigId,
       depositAccount,
+      // Fecha del deposito (YYYY-MM-DD): el backend la manda como DepositDate.
+      depositDate,
       // Si el usuario lo dejo vacio, el backend aplica "COMPRA P.O.S BANCARD".
       journalRemarks: journalRemarks || undefined,
-      // "Cuenta Pago ERP" de la cuenta bancaria seleccionada en la busqueda.
+      // Datos de la cuenta bancaria seleccionada en la busqueda: Cuenta Pago
+      // ERP, descripcion del banco y sucursal de la cuenta.
       bankAccountNum: cardSystemQuery.paymentAccountCode ?? undefined,
+      bank: cardSystemQuery.bankName ?? undefined,
+      bankBranch: cardSystemQuery.bankBranch ?? undefined,
       creditLines
     }
 
     try {
       setIsSendingExternalReconciliation(true)
-      const response = await apiClient.post<SapExternalReconciliationResult>(
+      // Un POST a SAP por cada deposito: el timeout escala con el lote.
+      const response = await apiClient.post<SapTarjetasBulkDepositResult>(
         "/erp/sap/credit-cards/deposits",
         request,
-        { timeoutMs: 45000 }
+        { timeoutMs: Math.min(300000, 30000 + creditLines.length * 15000) }
       )
-      toast.success(
-        response.externalReference
-          ? `Deposito enviado a SAP. Ref ${response.externalReference}.`
-          : "Deposito enviado a SAP."
-      )
-      return true
+
+      const failedItems = response.results.filter((item) => item.status === "error")
+      const succeededAbsIds = response.results
+        .filter((item) => item.status === "success")
+        .map((item) => item.absId)
+      const failedAbsIds = failedItems.map((item) => item.absId)
+      const firstError = failedItems.find((item) => item.errorMessage)?.errorMessage
+
+      if (response.failed === 0) {
+        toast.success(
+          response.total === 1
+            ? "Deposito creado en SAP."
+            : `${response.succeeded} depositos creados en SAP.`
+        )
+      } else if (response.succeeded === 0) {
+        toast.error(
+          `No se creo ningun deposito en SAP.${firstError ? ` ${firstError}` : ""}`
+        )
+      } else {
+        toast.error(
+          `Se crearon ${response.succeeded} de ${response.total} depositos. ` +
+            `Fallaron AbsId ${failedAbsIds.join(", ")}.${firstError ? ` ${firstError}` : ""}`
+        )
+      }
+
+      return { succeededAbsIds, failedAbsIds }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo enviar el deposito a SAP.")
-      return false
+      return null
     } finally {
       setIsSendingExternalReconciliation(false)
     }

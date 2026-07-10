@@ -1,6 +1,11 @@
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiArrowDown, FiRefreshCw, FiSend, FiUploadCloud } from "react-icons/fi";
+import {
+  FiArrowDown,
+  FiRefreshCw,
+  FiSend,
+  FiUploadCloud,
+} from "react-icons/fi";
 import type {
   SapB1QueryComparisonResult,
   SapB1QueryTable,
@@ -56,6 +61,15 @@ function findRowText(
 // puede ampliarlo o reemplazarlo antes de depositar.
 const DEFAULT_JOURNAL_REMARKS = "COMPRA P.O.S BANCARD";
 
+// Fecha de deposito por defecto: dia actual menos 1 (formato YYYY-MM-DD del
+// input date). El usuario puede cambiarla pero es obligatoria.
+function defaultDepositDate(): string {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 // Modo SAP_TARJETAS: compara el archivo de la procesadora (lado banco, no se
 // guarda) contra el query OCRH (lado sistema) y envia los matches a Deposits.
 export default function SapTarjetasSection({
@@ -92,10 +106,16 @@ export default function SapTarjetasSection({
     excludedSystemRowIds?: string[];
   }) => Promise<SapB1QueryComparisonResult | null>;
   isSendingDeposit: boolean;
+  // Deposito masivo: un deposito por AbsId. Devuelve que AbsIds entraron y
+  // cuales fallaron (null = no se llego a enviar).
   sendDeposit: (
     matches: SmartMatch[],
-    options: { depositAccount: string; journalRemarks: string },
-  ) => Promise<boolean>;
+    options: {
+      depositAccount: string;
+      depositDate: string;
+      journalRemarks: string;
+    },
+  ) => Promise<{ succeededAbsIds: number[]; failedAbsIds: number[] } | null>;
 }) {
   const [selectedBankRowIndex, setSelectedBankRowIndex] = useState<
     number | null
@@ -106,6 +126,7 @@ export default function SapTarjetasSection({
   const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
   const [showComparison, setShowComparison] = useState(false);
   const [depositAccount, setDepositAccount] = useState("");
+  const [depositDate, setDepositDate] = useState(defaultDepositDate);
   const [journalRemarks, setJournalRemarks] = useState(DEFAULT_JOURNAL_REMARKS);
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
@@ -151,11 +172,15 @@ export default function SapTarjetasSection({
   // rompen el memo de SmartMatchesTable y su formateo precomputado.
   const smartMatchSystemColumns = useMemo(
     () =>
-      (systemTable?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
+      (systemTable?.columns ?? []).map((col) => ({
+        fieldKey: col,
+        label: col,
+      })),
     [systemTable],
   );
   const smartMatchBankColumns = useMemo(
-    () => (bankTable?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
+    () =>
+      (bankTable?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
     [bankTable],
   );
 
@@ -218,20 +243,38 @@ export default function SapTarjetasSection({
     setSmartMatches([]);
     setShowComparison(false);
     setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
+    setDepositDate(defaultDepositDate());
   }, []);
 
   const handleSendDeposit = async () => {
-    const success = await sendDeposit(smartMatches, {
+    const result = await sendDeposit(smartMatches, {
       depositAccount,
+      depositDate,
       journalRemarks,
     });
-    if (!success) return;
+    if (!result) return;
 
-    setSmartMatches([]);
-    setShowComparison(false);
+    if (result.failedAbsIds.length === 0) {
+      setSmartMatches([]);
+      setShowComparison(false);
+      setSelectedBankRowIndex(null);
+      setSelectedSystemRowIndex(null);
+      setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
+      setDepositDate(defaultDepositDate());
+      return;
+    }
+
+    // Falla parcial: quedan en la tabla solo los matches cuyo deposito fallo,
+    // para poder reintentar sin re-enviar los que ya entraron en SAP.
+    const failed = new Set(result.failedAbsIds);
+    setSmartMatches((current) =>
+      current.filter((match) => {
+        const absId = Number(findRowText(match.systemRow, ["AbsId"]));
+        return !absId || failed.has(absId);
+      }),
+    );
     setSelectedBankRowIndex(null);
     setSelectedSystemRowIndex(null);
-    setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
   };
 
   const canCompare =
@@ -241,6 +284,7 @@ export default function SapTarjetasSection({
   const canSendDeposit =
     smartMatches.length > 0 &&
     Boolean(depositAccount.trim()) &&
+    Boolean(depositDate) &&
     !isSendingDeposit;
 
   return (
@@ -382,7 +426,7 @@ export default function SapTarjetasSection({
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
                     Deposito SAP
                   </p>
-                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <div className="mt-3 grid gap-3 md:grid-cols-4">
                     <div className="space-y-1">
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
                         Cuenta Deposito
@@ -394,13 +438,27 @@ export default function SapTarjetasSection({
                         {depositAccount || "Selecciona una cuenta bancaria"}
                       </div>
                     </div>
+                    <label className="space-y-1">
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Fecha Deposito
+                      </span>
+                      <input
+                        type="date"
+                        value={depositDate}
+                        onChange={(event) => setDepositDate(event.target.value)}
+                        required
+                        className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                      />
+                    </label>
                     <label className="space-y-1 md:col-span-2">
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Comentario (JournalRemarks)
+                        Comentario
                       </span>
                       <input
                         value={journalRemarks}
-                        onChange={(event) => setJournalRemarks(event.target.value)}
+                        onChange={(event) =>
+                          setJournalRemarks(event.target.value)
+                        }
                         placeholder={DEFAULT_JOURNAL_REMARKS}
                         maxLength={200}
                         className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"

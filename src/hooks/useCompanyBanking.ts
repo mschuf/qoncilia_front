@@ -35,6 +35,7 @@ const initialAccountForm: CompanyBankAccountFormState = {
   bankErpId: "",
   majorAccountNumber: "",
   paymentAccountNumber: "",
+  branchName: "",
   active: true
 }
 
@@ -673,6 +674,7 @@ export default function useCompanyBanking({
       bankErpId: account.bankErpId,
       majorAccountNumber: account.majorAccountNumber,
       paymentAccountNumber: account.paymentAccountNumber ?? "",
+      branchName: account.branchName ?? "",
       active: account.active
     })
   }, [])
@@ -696,6 +698,7 @@ export default function useCompanyBanking({
       bankErpId: accountForm.bankErpId,
       majorAccountNumber: accountForm.majorAccountNumber,
       paymentAccountNumber: accountForm.paymentAccountNumber,
+      branchName: accountForm.branchName,
       active: accountForm.active
     }
 

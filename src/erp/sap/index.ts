@@ -13,8 +13,10 @@ export type {
   SapErpSession,
   SapLoginFormState,
   SapSessionStatus,
+  SapTarjetasBulkDepositResult,
   SapTarjetasCsvParseResult,
   SapTarjetasDepositCreditLineInput,
+  SapTarjetasDepositItemResult,
   SapTarjetasDepositRequest,
   SapTarjetasSystemQueryResult
 } from "./types"
