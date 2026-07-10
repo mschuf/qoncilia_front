@@ -86,6 +86,7 @@ export default function SapTarjetasSection({
   runComparison,
   isSendingDeposit,
   sendDeposit,
+  refreshSystemQuery,
 }: {
   systemTable: SapB1QueryTable | null;
   bankTable: SapB1QueryTable | null;
@@ -116,6 +117,9 @@ export default function SapTarjetasSection({
       journalRemarks: string;
     },
   ) => Promise<{ succeededAbsIds: number[]; failedAbsIds: number[] } | null>;
+  // Re-ejecuta la consulta del sistema (mismo efecto que el boton Buscar) para
+  // refrescar los datos de SAP tras depositar y no volver a depositar repetido.
+  refreshSystemQuery: () => Promise<void>;
 }) {
   const [selectedBankRowIndex, setSelectedBankRowIndex] = useState<
     number | null
@@ -261,6 +265,9 @@ export default function SapTarjetasSection({
       setSelectedSystemRowIndex(null);
       setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
       setDepositDate(defaultDepositDate());
+      // Deposito completo OK: se re-ejecuta la busqueda del sistema para traer
+      // el estado fresco de SAP y no re-matchear/depositar vouchers ya enviados.
+      await refreshSystemQuery();
       return;
     }
 

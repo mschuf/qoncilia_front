@@ -634,6 +634,7 @@ export default function ConciliationWorkbenchPage({
           runComparison={runCardComparison}
           isSendingDeposit={isSendingExternalReconciliation}
           sendDeposit={sendSapTarjetasDepositToErp}
+          refreshSystemQuery={runCardSystemQuery}
         />
       ) : mode ? (
         <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
