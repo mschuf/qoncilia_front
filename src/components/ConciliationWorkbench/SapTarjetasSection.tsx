@@ -1,6 +1,7 @@
 import type { ChangeEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  FiAlertCircle,
   FiArrowDown,
   FiRefreshCw,
   FiSend,
@@ -116,7 +117,13 @@ export default function SapTarjetasSection({
       depositDate: string;
       journalRemarks: string;
     },
-  ) => Promise<{ succeededAbsIds: number[]; failedAbsIds: number[] } | null>;
+  ) => Promise<
+    {
+      succeededAbsIds: number[];
+      failedAbsIds: number[];
+      errors: string[];
+    } | null
+  >;
   // Re-ejecuta la consulta del sistema (mismo efecto que el boton Buscar) para
   // refrescar los datos de SAP tras depositar y no volver a depositar repetido.
   refreshSystemQuery: () => Promise<void>;
@@ -132,6 +139,7 @@ export default function SapTarjetasSection({
   const [depositAccount, setDepositAccount] = useState("");
   const [depositDate, setDepositDate] = useState(defaultDepositDate);
   const [journalRemarks, setJournalRemarks] = useState(DEFAULT_JOURNAL_REMARKS);
+  const [depositErrors, setDepositErrors] = useState<string[]>([]);
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
 
@@ -141,6 +149,7 @@ export default function SapTarjetasSection({
     setShowComparison(false);
     setSelectedBankRowIndex(null);
     setSelectedSystemRowIndex(null);
+    setDepositErrors([]);
   }, [systemTable, bankTable]);
 
   // Scroll a la tabla de resultados al comparar.
@@ -248,15 +257,18 @@ export default function SapTarjetasSection({
     setShowComparison(false);
     setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
     setDepositDate(defaultDepositDate());
+    setDepositErrors([]);
   }, []);
 
   const handleSendDeposit = async () => {
+    setDepositErrors([]);
     const result = await sendDeposit(smartMatches, {
       depositAccount,
       depositDate,
       journalRemarks,
     });
     if (!result) return;
+    setDepositErrors(result.errors);
 
     if (result.failedAbsIds.length === 0) {
       setSmartMatches([]);
@@ -483,6 +495,24 @@ export default function SapTarjetasSection({
                   {isSendingDeposit ? "Depositando..." : "Depositar"}
                 </button>
               </div>
+              {depositErrors.length > 0 ? (
+                <div
+                  role="alert"
+                  className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800"
+                >
+                  <div className="flex items-start gap-3">
+                    <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-black">Errores informados por SAP</p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold">
+                        {depositErrors.map((error, index) => (
+                          <li key={`${index}-${error}`}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </section>
           ) : null}
         </>

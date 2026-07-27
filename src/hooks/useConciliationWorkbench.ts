@@ -961,7 +961,9 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
   const sendSapTarjetasDepositToErp = async (
     matches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }>,
     options: { depositAccount: string; depositDate: string; journalRemarks: string }
-  ): Promise<{ succeededAbsIds: number[]; failedAbsIds: number[] } | null> => {
+  ): Promise<
+    { succeededAbsIds: number[]; failedAbsIds: number[]; errors: string[] } | null
+  > => {
     if (!canReconcileErp) {
       toast.error("Tu rol no tiene permiso para depositar en SAP.")
       return null
@@ -1044,29 +1046,35 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
         .filter((item) => item.status === "success")
         .map((item) => item.absId)
       const failedAbsIds = failedItems.map((item) => item.absId)
-      const firstError = failedItems.find((item) => item.errorMessage)?.errorMessage
+      const depositErrors = failedItems.map(
+        (item) => `AbsId ${item.absId}: ${item.errorMessage ?? "SAP no informo el motivo del error."}`
+      )
+      const errorDetails = depositErrors.join(" ")
 
       if (response.failed === 0) {
         toast.success(
           response.total === 1
-            ? "Deposito creado en SAP."
-            : `${response.succeeded} depositos creados en SAP.`
+            ? "Deposito creado en SAP con reconciliacion automatica."
+            : `${response.succeeded} depositos creados en SAP con reconciliacion automatica.`
         )
       } else if (response.succeeded === 0) {
-        toast.error(
-          `No se creo ningun deposito en SAP.${firstError ? ` ${firstError}` : ""}`
-        )
+        toast.error(`No se creo ningun deposito en SAP. ${errorDetails}`)
       } else {
         toast.error(
           `Se crearon ${response.succeeded} de ${response.total} depositos. ` +
-            `Fallaron AbsId ${failedAbsIds.join(", ")}.${firstError ? ` ${firstError}` : ""}`
+            `Fallaron AbsId ${failedAbsIds.join(", ")}. ${errorDetails}`
         )
       }
 
-      return { succeededAbsIds, failedAbsIds }
+      return { succeededAbsIds, failedAbsIds, errors: depositErrors }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo enviar el deposito a SAP.")
-      return null
+      const message = error instanceof Error ? error.message : "No se pudo enviar el deposito a SAP."
+      toast.error(message)
+      return {
+        succeededAbsIds: [],
+        failedAbsIds: creditLines.map((line) => line.absId),
+        errors: [message]
+      }
     } finally {
       setIsSendingExternalReconciliation(false)
     }
