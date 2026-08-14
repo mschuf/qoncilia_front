@@ -791,7 +791,6 @@ export default function AdminBankingPage({
                       name="name"
                       value={accountForm.name}
                       onChange={onAccountFieldChange}
-                      readOnly
                       required
                     />
 
