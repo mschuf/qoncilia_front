@@ -324,7 +324,7 @@ export default function SapTarjetasSection({
               ) : null}
               {csvSummary ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                  {csvSummary.includedRows}/{csvSummary.totalRows} debitos
+                  {csvSummary.includedRows}/{csvSummary.totalRows} operaciones de débito
                 </span>
               ) : null}
               {isParsingCsv ? (

@@ -59,7 +59,7 @@ export interface SapTarjetasSystemQueryResult {
 }
 
 // Resultado de parsear el archivo de la procesadora (no se guarda en el backend).
-// includedRows = filas Debito incluidas para el match.
+// includedRows = operaciones de debito incluidas para el match.
 export interface SapTarjetasCsvParseResult {
   fileName: string
   totalRows: number
