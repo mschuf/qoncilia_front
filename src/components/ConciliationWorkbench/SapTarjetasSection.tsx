@@ -15,6 +15,7 @@ import type {
 import SapB1QueryTableView from "./SapB1QueryTableView";
 import SmartMatchesTable from "./SmartMatchesTable";
 import { UploadCard } from "./WorkbenchControls";
+import { toIsoLoose } from "../../utils/format";
 import {
   convertSapB1TableToPreviewRows,
   isSameSmartMatch,
@@ -33,9 +34,12 @@ function normalizeLookupKey(value: string) {
 function findRowText(
   row: SmartMatch["bankRow"] | SmartMatch["systemRow"] | undefined,
   keys: string[],
+  preferNormalized = false,
 ) {
   if (!row) return "";
-  const sources = [row.values, row.normalized];
+  const sources = preferNormalized
+    ? [row.normalized, row.values]
+    : [row.values, row.normalized];
 
   for (const key of keys) {
     const normalizedKey = normalizeLookupKey(key);
@@ -56,6 +60,39 @@ function findRowText(
   }
 
   return "";
+}
+
+type CardMatchKind = "credit" | "debit";
+
+// El CSV identifica las tarjetas de credito tanto por el tipo como por la
+// prestacion. La segunda regla cubre los registros que la procesadora clasifica
+// como "Otro"; por ejemplo, TC, TCQR y TCTK.
+function resolveCardMatchKind(match: SmartMatch): CardMatchKind {
+  const cardType = normalizeLookupKey(
+    findRowText(match.bankRow, ["Tipo de tarjeta"]),
+  );
+  const presentation = normalizeLookupKey(
+    findRowText(match.bankRow, ["Prestación", "Prestacion"]),
+  );
+
+  return cardType === "credito" || presentation.startsWith("tc")
+    ? "credit"
+    : "debit";
+}
+
+// La clave debe coincidir con la usada en el resumen por fecha de crédito para
+// poder conservar una sola liquidación sin tocar los matches de débito.
+function resolveCardCreditDateKey(match: SmartMatch): string {
+  const dateKeys = ["Fecha de credito del comercio", "Fecha de crédito del comercio"];
+  const normalized = findRowText(match.bankRow, dateKeys, true);
+  const raw = findRowText(match.bankRow, dateKeys);
+  const iso = /^\d{4}-\d{2}-\d{2}/.test(normalized)
+    ? normalized.slice(0, 10)
+    : raw
+      ? toIsoLoose(raw)
+      : null;
+
+  return (iso ?? raw) || "sin-fecha";
 }
 
 // Comentario por defecto del asiento del deposito (JournalRemarks); el usuario
@@ -108,8 +145,8 @@ export default function SapTarjetasSection({
     excludedSystemRowIds?: string[];
   }) => Promise<SapB1QueryComparisonResult | null>;
   isSendingDeposit: boolean;
-  // Deposito masivo: un deposito por AbsId. Devuelve que AbsIds entraron y
-  // cuales fallaron (null = no se llego a enviar).
+  // Deposito masivo: un deposito por lote (debito o credito). Devuelve los
+  // AbsId procesados y fallidos; null = no se llego a enviar el lote.
   sendDeposit: (
     matches: SmartMatch[],
     options: {
@@ -117,6 +154,7 @@ export default function SapTarjetasSection({
       depositDate: string;
       journalRemarks: string;
     },
+    kind: CardMatchKind,
   ) => Promise<
     {
       succeededAbsIds: number[];
@@ -178,6 +216,14 @@ export default function SapTarjetasSection({
   );
   const matchedSystemIndices = useMemo(
     () => new Set(smartMatches.map((m) => m.systemRow.rowNumber - 1)),
+    [smartMatches],
+  );
+  const creditSmartMatches = useMemo(
+    () => smartMatches.filter((match) => resolveCardMatchKind(match) === "credit"),
+    [smartMatches],
+  );
+  const debitSmartMatches = useMemo(
+    () => smartMatches.filter((match) => resolveCardMatchKind(match) === "debit"),
     [smartMatches],
   );
 
@@ -260,17 +306,55 @@ export default function SapTarjetasSection({
     setDepositErrors([]);
   }, []);
 
+  const handleClearSmartMatchesByKind = useCallback((kind: CardMatchKind) => {
+    setSmartMatches((current) =>
+      current.filter((match) => resolveCardMatchKind(match) !== kind),
+    );
+    setDepositErrors([]);
+  }, []);
+
+  const handleKeepOnlyCreditDate = useCallback((dateKey: string) => {
+    setSmartMatches((current) =>
+      current.filter(
+        (match) =>
+          resolveCardMatchKind(match) !== "credit" ||
+          resolveCardCreditDateKey(match) === dateKey,
+      ),
+    );
+    setDepositErrors([]);
+  }, []);
+
   const handleSendDeposit = async () => {
     setDepositErrors([]);
-    const result = await sendDeposit(smartMatches, {
-      depositAccount,
-      depositDate,
-      journalRemarks,
-    });
-    if (!result) return;
-    setDepositErrors(result.errors);
+    const batches: Array<{ kind: CardMatchKind; matches: SmartMatch[] }> = [
+      { kind: "debit", matches: debitSmartMatches },
+      { kind: "credit", matches: creditSmartMatches },
+    ].filter((batch) => batch.matches.length > 0);
+    const results: Array<{
+      succeededAbsIds: number[];
+      failedAbsIds: number[];
+      errors: string[];
+    }> = [];
 
-    if (result.failedAbsIds.length === 0) {
+    // Se envian en secuencia: un JSON para Debito y otro para Credito. Cada JSON
+    // contiene todos los AbsId de su tipo dentro de CreditLines.
+    for (const batch of batches) {
+      const result = await sendDeposit(
+        batch.matches,
+        { depositAccount, depositDate, journalRemarks },
+        batch.kind,
+      );
+      if (!result) return;
+      results.push(result);
+    }
+
+    const failedAbsIds = [
+      ...new Set(results.flatMap((result) => result.failedAbsIds)),
+    ];
+    const errors = [...new Set(results.flatMap((result) => result.errors))];
+    setDepositErrors(errors);
+
+    if (failedAbsIds.length === 0) {
       setSmartMatches([]);
       setShowComparison(false);
       setSelectedBankRowIndex(null);
@@ -285,7 +369,7 @@ export default function SapTarjetasSection({
 
     // Falla parcial: quedan en la tabla solo los matches cuyo deposito fallo,
     // para poder reintentar sin re-enviar los que ya entraron en SAP.
-    const failed = new Set(result.failedAbsIds);
+    const failed = new Set(failedAbsIds);
     setSmartMatches((current) =>
       current.filter((match) => {
         const absId = Number(findRowText(match.systemRow, ["AbsId"]));
@@ -324,7 +408,7 @@ export default function SapTarjetasSection({
               ) : null}
               {csvSummary ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                  {csvSummary.includedRows}/{csvSummary.totalRows} operaciones de débito
+                  {csvSummary.includedRows}/{csvSummary.totalRows} operaciones de tarjetas
                 </span>
               ) : null}
               {isParsingCsv ? (
@@ -350,7 +434,7 @@ export default function SapTarjetasSection({
           <div>
             {bankTable ? (
               <SapB1QueryTableView
-                title="Tarjetas de debito"
+                title="Tarjetas de débito y crédito"
                 table={bankTable}
                 selectedRowIndex={selectedBankRowIndex}
                 onSelectRow={setSelectedBankRowIndex}
@@ -430,12 +514,28 @@ export default function SapTarjetasSection({
         <>
           <div ref={matchesRef} className="scroll-mt-20">
             <SmartMatchesTable
-              matches={smartMatches}
+              title="Resultados del matching Débito"
+              exportFileName="resultados-matching-debito"
+              matches={debitSmartMatches}
               systemColumns={smartMatchSystemColumns}
               bankColumns={smartMatchBankColumns}
               onRemove={handleRemoveSmartMatch}
-              onClear={handleClearSmartMatches}
+              onClear={() => handleClearSmartMatchesByKind("debit")}
             />
+            <div className="mt-5">
+              <SmartMatchesTable
+                title="Resultados del matching Crédito"
+                exportFileName="resultados-matching-credito"
+                matches={creditSmartMatches}
+                systemColumns={smartMatchSystemColumns}
+                bankColumns={smartMatchBankColumns}
+                onRemove={handleRemoveSmartMatch}
+                onClear={() => handleClearSmartMatchesByKind("credit")}
+                dateSubtotalColumn="Fecha de credito del comercio"
+                dateSubtotalLabel="Totales por fecha de crédito"
+                onKeepOnlyDate={handleKeepOnlyCreditDate}
+              />
+            </div>
           </div>
 
           {smartMatches.length > 0 ? (

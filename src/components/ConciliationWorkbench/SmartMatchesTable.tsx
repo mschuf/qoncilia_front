@@ -1,6 +1,5 @@
 import { memo, useMemo } from "react";
-import { FiDownload, FiX } from "react-icons/fi";
-import { FaBroom } from "react-icons/fa";
+import { FiCheck, FiDownload, FiX } from "react-icons/fi";
 import {
   buildMatchesExportRows,
   computeMatchAmountTotals,
@@ -8,11 +7,19 @@ import {
 } from "./workbenchHelpers";
 import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
 import { downloadXlsx } from "../../utils/xlsx";
-import { formatAmountPyg } from "../../utils/format";
+import { formatAmountPyg, formatIsoToDdMmYyyy, toIsoLoose } from "../../utils/format";
 
 // Ancho fijo por columna; si el contenido se pasa, la celda hace scroll (no crece).
 const COL_W = 90;
 const ACTION_W = 52;
+
+type DateSubtotal = {
+  key: string;
+  label: string;
+  matches: number;
+  bank: number;
+  system: number;
+};
 
 function SmartMatchesTable({
   matches,
@@ -20,6 +27,11 @@ function SmartMatchesTable({
   bankColumns,
   onRemove,
   onClear,
+  title = "Resultados del matching",
+  exportFileName = "resultados-matching",
+  dateSubtotalColumn,
+  dateSubtotalLabel = "Totales por fecha",
+  onKeepOnlyDate,
 }: {
   matches: SmartMatch[];
   // Columnas a mostrar de cada lado. Sistema y Banco pueden traer columnas
@@ -28,8 +40,17 @@ function SmartMatchesTable({
   bankColumns: MatchColumn[];
   onRemove?: (match: SmartMatch) => void;
   onClear?: () => void;
+  title?: string;
+  exportFileName?: string;
+  // Al indicarlo, agrega un resumen de importes agrupado por esta fecha del
+  // lado Banco. Se usa para las liquidaciones de tarjetas de credito.
+  dateSubtotalColumn?: string;
+  dateSubtotalLabel?: string;
+  // Conserva solamente los matches de la fecha indicada. La tabla de tarjetas
+  // la usa para procesar una fecha de credito a la vez.
+  onKeepOnlyDate?: (dateKey: string) => void;
 }) {
-  const hasActions = Boolean(onRemove);
+  const hasActions = Boolean(onRemove || onClear);
   // Divisor vertical entre el bloque Banco y el bloque Sistema.
   const divider = "border-l-2 border-slate-300";
   const totalCols =
@@ -47,6 +68,48 @@ function SmartMatchesTable({
   );
   const showTotals = matches.length > 0 && amountTotals.hasAmountColumns;
 
+  const dateSubtotals = useMemo(() => {
+    if (!dateSubtotalColumn || !amountTotals.hasAmountColumns) return [];
+    const dateColumn = bankColumns.find(
+      (column) => column.fieldKey === dateSubtotalColumn,
+    );
+    if (!dateColumn) return [];
+
+    const grouped = new Map<string, DateSubtotal>();
+    for (const match of matches) {
+      const raw = match.bankRow.values[dateColumn.fieldKey];
+      const normalized = match.bankRow.normalized[dateColumn.fieldKey];
+      const iso =
+        typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}/.test(normalized)
+          ? normalized.slice(0, 10)
+          : raw
+            ? toIsoLoose(raw)
+            : null;
+      const key = iso ?? raw ?? "sin-fecha";
+      const label = iso
+        ? formatIsoToDdMmYyyy(iso)
+        : raw || "Sin fecha de crédito";
+      const current = grouped.get(key) ?? {
+        key,
+        label,
+        matches: 0,
+        bank: 0,
+        system: 0,
+      };
+      const rowTotals = computeMatchAmountTotals([match], bankColumns, systemColumns);
+      current.matches += 1;
+      current.bank += rowTotals.bank;
+      current.system += rowTotals.system;
+      grouped.set(key, current);
+    }
+
+    return [...grouped.values()].sort((left, right) => {
+      if (left.key === "sin-fecha") return 1;
+      if (right.key === "sin-fecha") return -1;
+      return left.key.localeCompare(right.key);
+    });
+  }, [amountTotals.hasAmountColumns, bankColumns, dateSubtotalColumn, matches, systemColumns]);
+
   // Formateo precomputado de las celdas (banco/sistema) por fila. formatMatchCell
   // hace regex + parseo; con esto corre solo cuando cambian matches/columnas, no en
   // cada render (p.ej. al seleccionar filas en las tablas de arriba).
@@ -63,7 +126,7 @@ function SmartMatchesTable({
   const handleDownload = () => {
     const rows = buildMatchesExportRows(matches, bankColumns, systemColumns);
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadXlsx(`resultados-matching-${stamp}`, rows, "Resultados");
+    downloadXlsx(`${exportFileName}-${stamp}`, rows, "Resultados");
   };
 
   return (
@@ -71,7 +134,7 @@ function SmartMatchesTable({
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-base font-extrabold text-slate-900">
-            Resultados del matching
+            {title}
           </h3>
           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
             {matches.length} coincidencias
@@ -99,15 +162,6 @@ function SmartMatchesTable({
               <FiDownload className="h-4 w-4" />
             </button>
           ) : null}
-          {onClear && matches.length > 0 ? (
-            <button
-              type="button"
-              onClick={onClear}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
-            >
-              <FaBroom className="h-3.5 w-3.5" /> Limpiar
-            </button>
-          ) : null}
         </div>
       </div>
       <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
@@ -130,7 +184,19 @@ function SmartMatchesTable({
                     rowSpan={2}
                     className="sticky left-0 z-30 border-r border-rose-200 bg-rose-100 px-2 py-1 text-center font-bold text-rose-700"
                   >
-                    Acción
+                    {onClear && matches.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={onClear}
+                        aria-label={`Quitar todas las coincidencias de ${title}`}
+                        title={`Quitar todo el matching de ${title.replace("Resultados del matching ", "")}`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300 bg-white text-rose-600 transition hover:bg-rose-600 hover:text-white"
+                      >
+                        <FiX className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      "Acción"
+                    )}
                   </th>
                 ) : null}
                 <th
@@ -178,15 +244,17 @@ function SmartMatchesTable({
                 >
                   {hasActions ? (
                     <td className="sticky left-0 z-10 border-r border-rose-100 bg-rose-50 px-2 py-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => onRemove?.(match)}
-                        aria-label="Quitar coincidencia"
-                        title="Quitar coincidencia"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                      >
-                        <FiX className="h-3.5 w-3.5" />
-                      </button>
+                      {onRemove ? (
+                        <button
+                          type="button"
+                          onClick={() => onRemove(match)}
+                          aria-label="Quitar coincidencia"
+                          title="Quitar coincidencia"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                        >
+                          <FiX className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
                     </td>
                   ) : null}
                   {bankColumns.map((c, i) => (
@@ -279,6 +347,78 @@ function SmartMatchesTable({
           </table>
         </div>
       </div>
+      {dateSubtotals.length > 0 ? (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-violet-200 bg-violet-50/40">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 bg-violet-50 px-4 py-3">
+            <div>
+              <h4 className="text-sm font-extrabold text-violet-950">
+                {dateSubtotalLabel}
+              </h4>
+              <p className="text-xs font-medium text-violet-700">
+                {onKeepOnlyDate && dateSubtotals.length > 1
+                  ? "Conserva una fecha para procesarla y quita las demás coincidencias de crédito."
+                  : "Resumen de las coincidencias por fecha de acreditación."}
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-violet-700 shadow-sm">
+              {dateSubtotals.length} {dateSubtotals.length === 1 ? "fecha" : "fechas"}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead className="bg-violet-100/70 text-left text-[11px] uppercase tracking-wide text-violet-800">
+                <tr>
+                  <th className="px-4 py-2 font-bold">Fecha</th>
+                  <th className="px-4 py-2 text-right font-bold">Matches</th>
+                  <th className="px-4 py-2 text-right font-bold">Total Banco</th>
+                  <th className="px-4 py-2 text-right font-bold">Total SAP</th>
+                  <th className="px-4 py-2 text-right font-bold">Diferencia</th>
+                  {onKeepOnlyDate && dateSubtotals.length > 1 ? (
+                    <th className="px-4 py-2 text-right font-bold">Procesar</th>
+                  ) : null}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-violet-100 bg-white/70 text-slate-700">
+                {dateSubtotals.map((subtotal) => {
+                  const difference = Math.abs(subtotal.bank - subtotal.system);
+                  const balanced = difference < 0.01;
+                  return (
+                    <tr key={subtotal.key}>
+                      <td className="px-4 py-2 font-bold text-slate-800">{subtotal.label}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{subtotal.matches}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-amber-800">
+                        {formatAmountPyg(subtotal.bank)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold text-sky-800">
+                        {formatAmountPyg(subtotal.system)}
+                      </td>
+                      <td
+                        className={`px-4 py-2 text-right font-bold ${
+                          balanced ? "text-emerald-700" : "text-rose-700"
+                        }`}
+                      >
+                        {balanced ? "Cuadrado" : formatAmountPyg(difference)}
+                      </td>
+                      {onKeepOnlyDate && dateSubtotals.length > 1 ? (
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => onKeepOnlyDate(subtotal.key)}
+                            title={`Conservar solamente los matches de ${subtotal.label}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 font-bold text-violet-700 transition hover:border-violet-400 hover:bg-violet-100"
+                          >
+                            <FiCheck className="h-3.5 w-3.5" /> Conservar
+                          </button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

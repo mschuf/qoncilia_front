@@ -955,12 +955,12 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     }
   }
 
-  // Deposito masivo: el backend crea UN deposito por AbsId (misma cabecera y
-  // JournalRemarks). Devuelve que AbsIds se depositaron y cuales fallaron para
-  // que la seccion conserve solo los fallidos; null = no se llego a enviar.
+  // Deposito masivo: cada invocacion crea UN deposito con todos los AbsId del
+  // lote. La seccion invoca esta funcion una vez para Debito y otra para Credito.
   const sendSapTarjetasDepositToErp = async (
     matches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }>,
-    options: { depositAccount: string; depositDate: string; journalRemarks: string }
+    options: { depositAccount: string; depositDate: string; journalRemarks: string },
+    kind: "debit" | "credit"
   ): Promise<
     { succeededAbsIds: number[]; failedAbsIds: number[]; errors: string[] } | null
   > => {
@@ -1031,14 +1031,16 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       bankBranch: cardSystemQuery.bankBranch ?? undefined,
       creditLines
     }
+    const kindLabel = kind === "credit" ? "crédito" : "débito"
 
     try {
       setIsSendingExternalReconciliation(true)
-      // Un POST a SAP por cada deposito: el timeout escala con el lote.
+      // Un POST a nuestro backend por lote; este conserva todos los AbsId en un
+      // solo JSON CreditLines para una unica llamada al Service Layer.
       const response = await apiClient.post<SapTarjetasBulkDepositResult>(
         "/erp/sap/credit-cards/deposits",
         request,
-        { timeoutMs: Math.min(300000, 30000 + creditLines.length * 15000) }
+        { timeoutMs: Math.min(300000, 30000 + creditLines.length * 3000) }
       )
 
       const failedItems = response.results.filter((item) => item.status === "error")
@@ -1046,22 +1048,26 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
         .filter((item) => item.status === "success")
         .map((item) => item.absId)
       const failedAbsIds = failedItems.map((item) => item.absId)
-      const depositErrors = failedItems.map(
-        (item) => `AbsId ${item.absId}: ${item.errorMessage ?? "SAP no informo el motivo del error."}`
-      )
+      const depositErrors = [
+        ...new Set(
+          failedItems.map(
+            (item) =>
+              `${kindLabel}: ${item.errorMessage ?? "SAP no informo el motivo del error."}`
+          )
+        )
+      ]
       const errorDetails = depositErrors.join(" ")
 
       if (response.failed === 0) {
         toast.success(
-          response.total === 1
-            ? "Deposito creado en SAP con reconciliacion automatica."
-            : `${response.succeeded} depositos creados en SAP con reconciliacion automatica.`
+          `Depósito de ${kindLabel} creado en SAP con ${response.succeeded} ` +
+            `${response.succeeded === 1 ? "AbsId reconciliado" : "AbsId reconciliados"}.`
         )
       } else if (response.succeeded === 0) {
-        toast.error(`No se creo ningun deposito en SAP. ${errorDetails}`)
+        toast.error(`No se creó el depósito de ${kindLabel} en SAP. ${errorDetails}`)
       } else {
         toast.error(
-          `Se crearon ${response.succeeded} de ${response.total} depositos. ` +
+          `El depósito de ${kindLabel} incluyó ${response.succeeded} de ${response.total} AbsId. ` +
             `Fallaron AbsId ${failedAbsIds.join(", ")}. ${errorDetails}`
         )
       }

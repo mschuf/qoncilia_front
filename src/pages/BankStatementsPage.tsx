@@ -111,7 +111,7 @@ export default function BankStatementsPage() {
   const [bankStatementsPagination, setBankStatementsPagination] =
     useState<BankStatementPagination>({
       page: 1,
-      limit: 10,
+      limit: 5,
       total: 0,
       lastPage: 1,
     });
@@ -202,7 +202,7 @@ export default function BankStatementsPage() {
 
   const loadBankStatements = useCallback(
     async (targetPage = 1) => {
-      if (!selectedUserId || !selectedBankId) {
+      if (isSuperAdminRole(role) && !selectedUserId) {
         setBankStatements([]);
         setBankStatementsPagination((current) => ({
           ...current,
@@ -216,12 +216,11 @@ export default function BankStatementsPage() {
       setIsLoadingStatements(true);
       try {
         const params = new URLSearchParams({
-          userBankId: String(selectedBankId),
           page: String(targetPage),
           limit: String(bankStatementsPagination.limit),
         });
 
-        if (isAdminRole(role)) {
+        if (isSuperAdminRole(role)) {
           params.set("userId", String(selectedUserId));
         }
 
@@ -251,7 +250,6 @@ export default function BankStatementsPage() {
     [
       bankStatementsPagination.limit,
       role,
-      selectedBankId,
       selectedUserId,
       toast,
     ],
@@ -722,15 +720,21 @@ export default function BankStatementsPage() {
                 Ultimos ingresos
               </p>
               <h2 className="mt-1 text-lg font-extrabold text-slate-900">
-                Extractos guardados por banco
+                Extractos guardados por la empresa
               </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Incluye las cargas de todos los usuarios de tu empresa.
+              </p>
             </div>
             <button
               type="button"
               onClick={() =>
                 void loadBankStatements(bankStatementsPagination.page)
               }
-              disabled={isLoadingStatements || !selectedBankId}
+              disabled={
+                isLoadingStatements ||
+                (isSuperAdminRole(role) && !selectedUserId)
+              }
               title="Actualizar extractos"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -742,6 +746,8 @@ export default function BankStatementsPage() {
             statements={bankStatements}
             pagination={bankStatementsPagination}
             loading={isLoadingStatements}
+            viewerUserId={Number(user?.id ?? 0)}
+            canDeleteCompanyStatements={isAdminRole(role)}
             onPageChange={(page) => void loadBankStatements(page)}
             onOpen={(statementId) => void openSavedStatement(statementId)}
             onDelete={(statement) => setDeleteStatementTarget(statement)}
@@ -817,6 +823,8 @@ const BankStatementsTable = memo(function BankStatementsTable({
   statements,
   pagination,
   loading,
+  viewerUserId,
+  canDeleteCompanyStatements,
   onPageChange,
   onOpen,
   onDelete,
@@ -824,6 +832,8 @@ const BankStatementsTable = memo(function BankStatementsTable({
   statements: BankStatementSummary[];
   pagination: BankStatementPagination;
   loading: boolean;
+  viewerUserId: number;
+  canDeleteCompanyStatements: boolean;
   onPageChange: (page: number) => void;
   onOpen: (statementId: number) => void;
   onDelete: (statement: BankStatementSummary) => void;
@@ -844,7 +854,9 @@ const BankStatementsTable = memo(function BankStatementsTable({
               <tr>
                 <th className="px-3 py-2">Fecha</th>
                 <th className="px-3 py-2">Extracto</th>
+                <th className="px-3 py-2">Banco</th>
                 <th className="px-3 py-2">Cuenta</th>
+                <th className="px-3 py-2">Subido por</th>
                 <th className="px-3 py-2">Estado</th>
                 <th className="px-3 py-2 text-right">Filas</th>
                 <th className="w-24 px-3 py-2" />
@@ -867,6 +879,9 @@ const BankStatementsTable = memo(function BankStatementsTable({
                       {statement.fileName}
                     </p>
                   </td>
+                  <td className="px-3 py-3 font-semibold text-slate-900">
+                    {statement.bankName}
+                  </td>
                   <td className="px-3 py-3">
                     <p className="font-semibold text-slate-900">
                       {statement.companyBankAccountName}
@@ -875,6 +890,9 @@ const BankStatementsTable = memo(function BankStatementsTable({
                       {statement.companyBankAccountNumber} ·{" "}
                       {statement.companyBankAccountCurrency}
                     </p>
+                  </td>
+                  <td className="px-3 py-3 text-slate-600">
+                    {statement.userLogin}
                   </td>
                   <td className="px-3 py-3">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
@@ -896,14 +914,17 @@ const BankStatementsTable = memo(function BankStatementsTable({
                       >
                         <FiEye className="h-4 w-4" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(statement)}
-                        title="Eliminar extracto"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
-                      >
-                        <FiTrash2 className="h-4 w-4" />
-                      </button>
+                      {canDeleteCompanyStatements ||
+                      statement.userId === viewerUserId ? (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(statement)}
+                          title="Eliminar extracto"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
+                        >
+                          <FiTrash2 className="h-4 w-4" />
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -911,12 +932,12 @@ const BankStatementsTable = memo(function BankStatementsTable({
               {statements.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={8}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     {loading
                       ? "Cargando extractos..."
-                      : "No hay extractos guardados para este banco."}
+                      : "No hay extractos guardados para tu empresa."}
                   </td>
                 </tr>
               ) : null}
@@ -1199,4 +1220,3 @@ const RowsTable = memo(function RowsTable({
     </section>
   );
 });
-

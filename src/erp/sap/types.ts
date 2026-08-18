@@ -59,7 +59,7 @@ export interface SapTarjetasSystemQueryResult {
 }
 
 // Resultado de parsear el archivo de la procesadora (no se guarda en el backend).
-// includedRows = operaciones de debito incluidas para el match.
+// includedRows = operaciones de debito y credito incluidas para el match.
 export interface SapTarjetasCsvParseResult {
   fileName: string
   totalRows: number
@@ -114,8 +114,8 @@ export interface SapTarjetasDepositRequest {
   creditLines: SapTarjetasDepositCreditLineInput[]
 }
 
-// Deposito masivo: el backend crea UN deposito por AbsId y devuelve el detalle
-// registro por registro (los fallidos se conservan en la tabla para reintentar).
+// Deposito masivo: el backend crea UN deposito con todos los AbsId del lote y
+// devuelve el detalle por registro para conservar los fallidos y reintentarlos.
 export interface SapTarjetasDepositItemResult {
   absId: number
   status: "success" | "error"

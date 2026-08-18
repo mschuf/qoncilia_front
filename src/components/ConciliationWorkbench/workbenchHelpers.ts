@@ -184,8 +184,8 @@ export function formatDateTime(value: string) {
 export function formatQueryValue(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "number") return value.toLocaleString("es-PY");
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
-    return new Date(value).toLocaleDateString();
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return formatIsoToDdMmYyyy(value);
   }
   return String(value);
 }
