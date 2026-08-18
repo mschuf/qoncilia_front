@@ -32,15 +32,22 @@ import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
 import { isAdminRole, isSuperAdminRole, ROLE_VALUES } from "../utils/role";
 
 export type ConciliationWorkbenchMode = "banco" | "tarjetas";
+export type CardPaymentKind = "debit" | "credit";
 
 type ConciliationWorkbenchPageProps = {
   // Fija el workbench a un solo modo ERP: "banco" (SAP_B1) o "tarjetas"
   // (SAP_TARJETAS). Sin prop, mantiene el comportamiento clasico multi-modo.
   mode?: ConciliationWorkbenchMode;
+  // Permite que una empresa use su propio modulo SAP sin cambiar las rutas del
+  // workbench estandar.
+  sapApiBasePath?: string;
+  cardPaymentKind?: CardPaymentKind;
 };
 
 export default function ConciliationWorkbenchPage({
   mode,
+  sapApiBasePath,
+  cardPaymentKind,
 }: ConciliationWorkbenchPageProps) {
   const {
     role,
@@ -113,6 +120,7 @@ export default function ConciliationWorkbenchPage({
   } = useConciliationWorkbench({
     erpCodeFilter:
       mode === "banco" ? "SAP_B1" : mode === "tarjetas" ? "SAP_TARJETAS" : undefined,
+    sapApiBasePath,
   });
 
   const bankLabel =
@@ -120,6 +128,12 @@ export default function ConciliationWorkbenchPage({
   const systemLabel =
     preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
   const erpStatus = resolveErpStatus(erpSession);
+  const cardPaymentTitle =
+    cardPaymentKind === "debit"
+      ? "Pagos Débito"
+      : cardPaymentKind === "credit"
+        ? "Pagos Crédito"
+        : "Pago de tarjeta";
   const [isErpPanelOpen, setIsErpPanelOpen] = useState(false);
   const [isErpLoginModalOpen, setIsErpLoginModalOpen] = useState(false);
   const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
@@ -361,7 +375,7 @@ export default function ConciliationWorkbenchPage({
           {mode === "banco"
             ? "Conciliacion de banco"
             : mode === "tarjetas"
-              ? "Pago de tarjeta"
+              ? cardPaymentTitle
               : "Conciliar extracto con IA"}
         </h1>
       </div>
@@ -635,6 +649,7 @@ export default function ConciliationWorkbenchPage({
           isSendingDeposit={isSendingExternalReconciliation}
           sendDeposit={sendSapTarjetasDepositToErp}
           refreshSystemQuery={runCardSystemQuery}
+          cardPaymentKind={cardPaymentKind}
         />
       ) : mode ? (
         <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">

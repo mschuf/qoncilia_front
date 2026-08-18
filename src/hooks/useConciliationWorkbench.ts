@@ -9,6 +9,7 @@ import {
   getStoredSapConfigId,
   storeSapConfigId,
   type SapB1QueryComparisonResult,
+  type SapB1QueryTable,
   type SapB1QueryPreviewResult,
   type SapExternalReconciliationRequest,
   type SapExternalReconciliationResult,
@@ -231,10 +232,14 @@ export type UseConciliationWorkbenchOptions = {
   // Limita las configs ERP disponibles a un code (paginas dedicadas
   // "Conciliacion de banco" / "Pago de tarjeta"). Sin filtro = workbench clasico.
   erpCodeFilter?: WorkbenchErpCodeFilter
+  // Los modulos especializados pueden usar un backend SAP propio sin afectar
+  // las rutas del workbench estandar.
+  sapApiBasePath?: string
 }
 
 export default function useConciliationWorkbench(options?: UseConciliationWorkbenchOptions) {
   const erpCodeFilter = options?.erpCodeFilter
+  const sapApiBasePath = options?.sapApiBasePath?.replace(/\/+$/, "") || "/erp/sap"
   const { role, user } = useAuth()
   // Conciliar en SAP: admin/superadmin o gestor de cobranzas (igual que el backend).
   const canReconcileErp = isAdminRole(role) || role === ROLE_VALUES.gestorCobranza
@@ -373,7 +378,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
 
     try {
       const response = await apiClient.get<SapErpSession>(
-        `/erp/sap/sessions/status?companyErpConfigId=${selectedErpConfigId}`,
+        `${sapApiBasePath}/sessions/status?companyErpConfigId=${selectedErpConfigId}`,
         { timeoutMs: 20000 }
       )
       setErpSession(response)
@@ -397,7 +402,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       }
       throw error
     }
-  }, [erpCodeFilter, selectedErpConfigId, toast])
+  }, [erpCodeFilter, sapApiBasePath, selectedErpConfigId, toast])
 
   const loginErpSession = useCallback(
     async (username?: string, password?: string): Promise<boolean> => {
@@ -409,7 +414,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       setIsErpLoggingIn(true)
       try {
         const response = await apiClient.post<SapErpSession>(
-          "/erp/sap/sessions/login",
+          `${sapApiBasePath}/sessions/login`,
           {
             companyErpConfigId: selectedErpConfigId,
             username: username || undefined,
@@ -432,7 +437,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
         setIsErpLoggingIn(false)
       }
     },
-    [erpCodeFilter, selectedErpConfigId, toast]
+    [erpCodeFilter, sapApiBasePath, selectedErpConfigId, toast]
   )
 
   useEffect(() => {
@@ -753,7 +758,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsRunningSapB1Queries(true)
       const response = await apiClient.post<SapB1QueryPreviewResult>(
-        "/erp/sap/query-preview",
+        `${sapApiBasePath}/query-preview`,
         {
           companyErpConfigId: selectedErpConfigId,
           companyBankAccountId: selectedCompanyBankAccountId,
@@ -799,7 +804,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsComparing(true)
       const response = await apiClient.post<SapB1QueryComparisonResult>(
-        "/erp/sap/query-preview/compare",
+        `${sapApiBasePath}/query-preview/compare`,
         {
           companyErpConfigId: selectedErpConfigId,
           bank: sapB1QueryPreview.bank,
@@ -835,7 +840,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsRunningCardSystemQuery(true)
       const response = await apiClient.post<SapTarjetasSystemQueryResult>(
-        "/erp/sap/credit-cards/system-query",
+        `${sapApiBasePath}/credit-cards/system-query`,
         {
           companyErpConfigId: selectedErpConfigId,
           companyBankAccountId: selectedCompanyBankAccountId || undefined,
@@ -868,7 +873,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       formData.append("companyErpConfigId", String(selectedErpConfigId))
       formData.append("file", file)
       const response = await apiClient.post<SapTarjetasCsvParseResult>(
-        "/erp/sap/credit-cards/parse-csv",
+        `${sapApiBasePath}/credit-cards/parse-csv`,
         formData,
         { showBackdrop: false, timeoutMs: 45000 }
       )
@@ -901,10 +906,12 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
 
   const runCardComparison = async ({
     columns,
+    bankTable,
     excludedBankRowIds = [],
     excludedSystemRowIds = []
   }: {
     columns: string[]
+    bankTable?: SapB1QueryTable
     excludedBankRowIds?: string[]
     excludedSystemRowIds?: string[]
   }): Promise<SapB1QueryComparisonResult | null> => {
@@ -923,6 +930,8 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       return null
     }
 
+    const bank = bankTable ?? cardCsvResult.bank
+
     if (columns.length === 0) {
       toast.error("No hay columnas disponibles para comparar.")
       return null
@@ -931,10 +940,10 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsComparing(true)
       const response = await apiClient.post<SapB1QueryComparisonResult>(
-        "/erp/sap/query-preview/compare",
+        `${sapApiBasePath}/query-preview/compare`,
         {
           companyErpConfigId: selectedErpConfigId,
-          bank: cardCsvResult.bank,
+          bank,
           system: cardSystemQuery.system,
           columns,
           excludedBankRowIds,
@@ -1004,6 +1013,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     }
 
     const seenAbsIds = new Set<number>()
+    const uniqueMatches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }> = []
     const creditLines: SapTarjetasDepositRequest["creditLines"] = []
     for (const match of matches) {
       const absId = parseRowNumber(match.systemRow, ["AbsId", "AbsID", "absId", "abs_id"])
@@ -1014,7 +1024,26 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       if (!seenAbsIds.has(absId)) {
         seenAbsIds.add(absId)
         creditLines.push({ absId })
+        uniqueMatches.push(match)
       }
+    }
+
+    const isOchoACreditDeposit = sapApiBasePath === "/erp/sap/ocho-a" && kind === "credit"
+    let commission: number | undefined
+    if (isOchoACreditDeposit) {
+      let calculatedCommission = 0
+      for (const match of uniqueMatches) {
+        const amount = parseRowNumber(match.bankRow, ["Importe"])
+        const netAmount = parseRowNumber(match.bankRow, ["Importe neto"])
+        if (amount === undefined || netAmount === undefined) {
+          toast.error(
+            "El CSV de credito debe incluir Importe e Importe neto para calcular la comision."
+          )
+          return null
+        }
+        calculatedCommission += amount - netAmount
+      }
+      commission = Number(calculatedCommission.toFixed(6))
     }
 
     const request: SapTarjetasDepositRequest = {
@@ -1029,6 +1058,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       bankAccountNum: cardSystemQuery.paymentAccountCode ?? undefined,
       bank: cardSystemQuery.bankName ?? undefined,
       bankBranch: cardSystemQuery.bankBranch ?? undefined,
+      ...(commission !== undefined ? { commission } : {}),
       creditLines
     }
     const kindLabel = kind === "credit" ? "crédito" : "débito"
@@ -1038,7 +1068,9 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       // Un POST a nuestro backend por lote; este conserva todos los AbsId en un
       // solo JSON CreditLines para una unica llamada al Service Layer.
       const response = await apiClient.post<SapTarjetasBulkDepositResult>(
-        "/erp/sap/credit-cards/deposits",
+        sapApiBasePath === "/erp/sap/ocho-a"
+          ? `${sapApiBasePath}/credit-cards/deposits/${kind}`
+          : `${sapApiBasePath}/credit-cards/deposits`,
         request,
         { timeoutMs: Math.min(300000, 30000 + creditLines.length * 3000) }
       )
@@ -1293,7 +1325,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsSendingExternalReconciliation(true)
       const response = await apiClient.post<SapExternalReconciliationResult>(
-        "/erp/sap/external-reconciliations",
+        `${sapApiBasePath}/external-reconciliations`,
         request,
         { timeoutMs: 30000 }
       )
@@ -1426,7 +1458,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsSendingExternalReconciliation(true)
       const response = await apiClient.post<SapExternalReconciliationResult>(
-        "/erp/sap/external-reconciliations",
+        `${sapApiBasePath}/external-reconciliations`,
         request,
         { timeoutMs: 45000 }
       )

@@ -13,6 +13,7 @@ const BankStatementsPage = lazy(() => import("./pages/BankStatementsPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
 const ConciliacionBancoPage = lazy(() => import("./pages/ConciliacionBancoPage"));
 const PagoTarjetaPage = lazy(() => import("./pages/PagoTarjetaPage"));
+const PagoTarjetaOchoAPage = lazy(() => import("./pages/PagoTarjetaOchoAPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LayoutManagementPage = lazy(() => import("./pages/LayoutManagementPage"));
 const AdminTemplatesPage = lazy(() => import("./pages/AdminTemplatesPage"));
@@ -125,6 +126,26 @@ export default function App() {
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPayment}>
                   <PagoTarjetaPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="pago-tarjeta-8a"
+              element={<Navigate to="/pago-tarjeta-8a/debito" replace />}
+            />
+            <Route
+              path="pago-tarjeta-8a/debito"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPaymentOchoA}>
+                  <PagoTarjetaOchoAPage cardPaymentKind="debit" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="pago-tarjeta-8a/credito"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPaymentOchoA}>
+                  <PagoTarjetaOchoAPage cardPaymentKind="credit" />
                 </ProtectedRoute>
               }
             />

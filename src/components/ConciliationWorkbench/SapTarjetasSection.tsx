@@ -64,6 +64,50 @@ function findRowText(
 
 type CardMatchKind = "credit" | "debit";
 
+function findTableRowText(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const direct = row[key];
+    if (direct !== undefined && direct !== null && String(direct).trim()) {
+      return String(direct).trim();
+    }
+
+    const found = Object.entries(row).find(
+      ([entryKey]) => normalizeLookupKey(entryKey) === normalizeLookupKey(key),
+    );
+    const value = found?.[1];
+    if (value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+
+  return "";
+}
+
+function resolveCardTableRowKind(row: Record<string, unknown>): CardMatchKind {
+  const cardType = normalizeLookupKey(
+    findTableRowText(row, ["Tipo de tarjeta"]),
+  );
+  const presentation = normalizeLookupKey(
+    findTableRowText(row, ["PrestaciÃ³n", "Prestacion"]),
+  );
+
+  return cardType === "credito" || presentation.startsWith("tc")
+    ? "credit"
+    : "debit";
+}
+
+function toCsvDateKey(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  return toIsoLoose(raw) ?? raw;
+}
+
+function formatCsvDateKey(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
 // El CSV identifica las tarjetas de credito tanto por el tipo como por la
 // prestacion. La segunda regla cubre los registros que la procesadora clasifica
 // como "Otro"; por ejemplo, TC, TCQR y TCTK.
@@ -125,6 +169,7 @@ export default function SapTarjetasSection({
   isSendingDeposit,
   sendDeposit,
   refreshSystemQuery,
+  cardPaymentKind,
 }: {
   systemTable: SapB1QueryTable | null;
   bankTable: SapB1QueryTable | null;
@@ -141,6 +186,7 @@ export default function SapTarjetasSection({
   isComparing: boolean;
   runComparison: (args: {
     columns: string[];
+    bankTable?: SapB1QueryTable;
     excludedBankRowIds?: string[];
     excludedSystemRowIds?: string[];
   }) => Promise<SapB1QueryComparisonResult | null>;
@@ -165,6 +211,9 @@ export default function SapTarjetasSection({
   // Re-ejecuta la consulta del sistema (mismo efecto que el boton Buscar) para
   // refrescar los datos de SAP tras depositar y no volver a depositar repetido.
   refreshSystemQuery: () => Promise<void>;
+  // OCHO A usa una pantalla por tipo. Sin este valor se conserva la pantalla
+  // estandar con debito y credito juntos.
+  cardPaymentKind?: CardMatchKind;
 }) {
   const [selectedBankRowIndex, setSelectedBankRowIndex] = useState<
     number | null
@@ -178,8 +227,62 @@ export default function SapTarjetasSection({
   const [depositDate, setDepositDate] = useState(defaultDepositDate);
   const [journalRemarks, setJournalRemarks] = useState(DEFAULT_JOURNAL_REMARKS);
   const [depositErrors, setDepositErrors] = useState<string[]>([]);
+  const [csvDateColumn, setCsvDateColumn] = useState("");
+  const [csvDateFilter, setCsvDateFilter] = useState("");
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
+
+  const csvDateColumns = useMemo(
+    () =>
+      (bankTable?.columns ?? []).filter((column) =>
+        normalizeLookupKey(column).includes("fecha"),
+      ),
+    [bankTable],
+  );
+
+  useEffect(() => {
+    const preferredColumn = csvDateColumns.find(
+      (column) => normalizeLookupKey(column) === "fecha",
+    );
+    setCsvDateColumn(preferredColumn ?? csvDateColumns[0] ?? "");
+    setCsvDateFilter("");
+  }, [bankTable, cardPaymentKind, csvDateColumns]);
+
+  const csvDates = useMemo(() => {
+    if (!bankTable || !csvDateColumn) return [];
+
+    return [...new Set(
+      bankTable.rows
+        .filter(
+          (row) =>
+            !cardPaymentKind ||
+            resolveCardTableRowKind(row) === cardPaymentKind,
+        )
+        .map((row) => toCsvDateKey(row[csvDateColumn]))
+        .filter((date): date is string => Boolean(date)),
+    )].sort((left, right) => right.localeCompare(left));
+  }, [bankTable, cardPaymentKind, csvDateColumn]);
+
+  const filteredBankTable = useMemo(() => {
+    if (!bankTable) return null;
+
+    const rows = bankTable.rows.filter((row) => {
+      if (cardPaymentKind && resolveCardTableRowKind(row) !== cardPaymentKind) {
+        return false;
+      }
+
+      return !csvDateFilter || toCsvDateKey(row[csvDateColumn]) === csvDateFilter;
+    });
+
+    return { ...bankTable, rows };
+  }, [bankTable, cardPaymentKind, csvDateColumn, csvDateFilter]);
+
+  const cardKindLabel =
+    cardPaymentKind === "credit"
+      ? "crédito"
+      : cardPaymentKind === "debit"
+        ? "débito"
+        : "débito y crédito";
 
   // Si cambian los datos de origen (CSV u OCRH), se reinician las coincidencias.
   useEffect(() => {
@@ -188,7 +291,7 @@ export default function SapTarjetasSection({
     setSelectedBankRowIndex(null);
     setSelectedSystemRowIndex(null);
     setDepositErrors([]);
-  }, [systemTable, bankTable]);
+  }, [systemTable, filteredBankTable]);
 
   // Scroll a la tabla de resultados al comparar.
   useEffect(() => {
@@ -203,12 +306,12 @@ export default function SapTarjetasSection({
   }, [accountCode]);
 
   const comparisonColumns = useMemo(() => {
-    if (!systemTable || !bankTable) return [];
+    if (!systemTable || !filteredBankTable) return [];
     return resolveSapB1ComparisonColumns({
-      bank: bankTable,
+      bank: filteredBankTable,
       system: systemTable,
     });
-  }, [systemTable, bankTable]);
+  }, [systemTable, filteredBankTable]);
 
   const matchedBankIndices = useMemo(
     () => new Set(smartMatches.map((m) => m.bankRow.rowNumber - 1)),
@@ -239,20 +342,20 @@ export default function SapTarjetasSection({
   );
   const smartMatchBankColumns = useMemo(
     () =>
-      (bankTable?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
-    [bankTable],
+      (filteredBankTable?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
+    [filteredBankTable],
   );
 
   const handleManualMatch = () => {
     if (
-      !bankTable ||
+      !filteredBankTable ||
       !systemTable ||
       selectedBankRowIndex === null ||
       selectedSystemRowIndex === null
     )
       return;
 
-    const bankRows = convertSapB1TableToPreviewRows(bankTable);
+    const bankRows = convertSapB1TableToPreviewRows(filteredBankTable);
     const systemRows = convertSapB1TableToPreviewRows(systemTable);
     const bankRow = bankRows[selectedBankRowIndex];
     const systemRow = systemRows[selectedSystemRowIndex];
@@ -276,12 +379,13 @@ export default function SapTarjetasSection({
   };
 
   const handleCompare = async () => {
-    if (!bankTable || !systemTable) return;
+    if (!filteredBankTable || !systemTable) return;
     const excludedBankRowIds = smartMatches.map((m) => m.bankRow.rowId);
     const excludedSystemRowIds = smartMatches.map((m) => m.systemRow.rowId);
 
     const result = await runComparison({
       columns: comparisonColumns,
+      bankTable: filteredBankTable,
       excludedBankRowIds,
       excludedSystemRowIds,
     });
@@ -326,10 +430,20 @@ export default function SapTarjetasSection({
 
   const handleSendDeposit = async () => {
     setDepositErrors([]);
-    const batches: Array<{ kind: CardMatchKind; matches: SmartMatch[] }> = [
-      { kind: "debit", matches: debitSmartMatches },
-      { kind: "credit", matches: creditSmartMatches },
-    ].filter((batch) => batch.matches.length > 0);
+    const batches: Array<{ kind: CardMatchKind; matches: SmartMatch[] }> = cardPaymentKind
+      ? [
+          {
+            kind: cardPaymentKind,
+            matches:
+              cardPaymentKind === "credit"
+                ? creditSmartMatches
+                : debitSmartMatches,
+          },
+        ].filter((batch) => batch.matches.length > 0)
+      : [
+          { kind: "debit", matches: debitSmartMatches },
+          { kind: "credit", matches: creditSmartMatches },
+        ].filter((batch) => batch.matches.length > 0);
     const results: Array<{
       succeededAbsIds: number[];
       failedAbsIds: number[];
@@ -381,7 +495,7 @@ export default function SapTarjetasSection({
   };
 
   const canCompare =
-    Boolean(bankTable?.rows.length) &&
+    Boolean(filteredBankTable?.rows.length) &&
     Boolean(systemTable?.rows.length) &&
     !isComparing;
   const canSendDeposit =
@@ -430,12 +544,64 @@ export default function SapTarjetasSection({
           </div>
         </div>
 
+        {cardPaymentKind && bankTable ? (
+          <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-brand-100 bg-brand-50/40 p-3">
+            <div className="mr-auto">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-brand-700">
+                Pagos {cardKindLabel}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-600">
+                El filtro limita las filas del CSV que se enviaran al matching.
+              </p>
+            </div>
+            {csvDateColumns.length > 1 ? (
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-slate-600">Columna de fecha</span>
+                <select
+                  value={csvDateColumn}
+                  onChange={(event) => {
+                    setCsvDateColumn(event.target.value);
+                    setCsvDateFilter("");
+                  }}
+                  className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                >
+                  {csvDateColumns.map((column) => (
+                    <option key={column} value={column}>
+                      {column}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {csvDateColumns.length > 0 ? (
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-slate-600">Fecha a procesar</span>
+                <select
+                  value={csvDateFilter}
+                  onChange={(event) => setCsvDateFilter(event.target.value)}
+                  className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                >
+                  <option value="">Todas las fechas</option>
+                  {csvDates.map((date) => (
+                    <option key={date} value={date}>
+                      {formatCsvDateKey(date)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <span className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm">
+              {filteredBankTable?.rows.length ?? 0} de {bankTable.rows.length} filas
+            </span>
+          </div>
+        ) : null}
+
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
-            {bankTable ? (
+            {filteredBankTable ? (
               <SapB1QueryTableView
-                title="Tarjetas de débito y crédito"
-                table={bankTable}
+                title={`Tarjetas de ${cardKindLabel}`}
+                table={filteredBankTable}
                 selectedRowIndex={selectedBankRowIndex}
                 onSelectRow={setSelectedBankRowIndex}
                 matchedIndices={matchedBankIndices}
@@ -468,7 +634,7 @@ export default function SapTarjetasSection({
           </div>
         </div>
 
-        {bankTable && systemTable ? (
+        {filteredBankTable && systemTable ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <button
               type="button"
@@ -510,9 +676,10 @@ export default function SapTarjetasSection({
         ) : null}
       </section>
 
-      {showComparison && bankTable && systemTable ? (
+      {showComparison && filteredBankTable && systemTable ? (
         <>
           <div ref={matchesRef} className="scroll-mt-20">
+            {!cardPaymentKind || cardPaymentKind === "debit" ? (
             <SmartMatchesTable
               title="Resultados del matching Débito"
               exportFileName="resultados-matching-debito"
@@ -522,7 +689,9 @@ export default function SapTarjetasSection({
               onRemove={handleRemoveSmartMatch}
               onClear={() => handleClearSmartMatchesByKind("debit")}
             />
-            <div className="mt-5">
+            ) : null}
+            {!cardPaymentKind || cardPaymentKind === "credit" ? (
+            <div className={cardPaymentKind ? "" : "mt-5"}>
               <SmartMatchesTable
                 title="Resultados del matching Crédito"
                 exportFileName="resultados-matching-credito"
@@ -536,6 +705,7 @@ export default function SapTarjetasSection({
                 onKeepOnlyDate={handleKeepOnlyCreditDate}
               />
             </div>
+            ) : null}
           </div>
 
           {smartMatches.length > 0 ? (

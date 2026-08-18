@@ -111,6 +111,8 @@ export interface SapTarjetasDepositRequest {
   bank?: string
   // Sucursal de la cuenta bancaria (cabecera BankBranch).
   bankBranch?: string
+  // Solo credito de OCHO A: suma de Importe - Importe neto del lote.
+  commission?: number
   creditLines: SapTarjetasDepositCreditLineInput[]
 }
 

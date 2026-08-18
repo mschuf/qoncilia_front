@@ -163,6 +163,26 @@ export default function Navbar() {
       show: hasModule(APP_MODULE_VALUES.cardPayment),
     },
     {
+      key: "pagos-tarjetas-8a",
+      icon: <FiCreditCard className="h-4 w-4" />,
+      label: "Pagos Tarjetas",
+      show: hasModule(APP_MODULE_VALUES.cardPaymentOchoA),
+      children: [
+        {
+          to: "/pago-tarjeta-8a/debito",
+          icon: <FiCreditCard className="h-4 w-4" />,
+          label: "Pagos Débito",
+          show: hasModule(APP_MODULE_VALUES.cardPaymentOchoA),
+        },
+        {
+          to: "/pago-tarjeta-8a/credito",
+          icon: <FiCreditCard className="h-4 w-4" />,
+          label: "Pagos Crédito",
+          show: hasModule(APP_MODULE_VALUES.cardPaymentOchoA),
+        },
+      ],
+    },
+    {
       key: "bancos",
       icon: <FiBriefcase className="h-4 w-4" />,
       label: "Banco",

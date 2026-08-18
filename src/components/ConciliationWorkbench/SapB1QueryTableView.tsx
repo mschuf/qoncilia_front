@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import type { SapB1QueryTable } from "../../erp/sap";
 import { formatQueryCell } from "./workbenchHelpers";
 
@@ -14,6 +14,47 @@ type TableRowProps = {
   hasSelection: boolean;
   onSelectRow?: (index: number | null) => void;
 };
+
+type SortState = {
+  column: string;
+  direction: "asc" | "desc";
+};
+
+function toSortableDate(value: string): number | null {
+  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(value);
+  const dayFirstMatch = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/.exec(value);
+  const parts = isoMatch
+    ? [isoMatch[1], isoMatch[2], isoMatch[3]]
+    : dayFirstMatch
+      ? [dayFirstMatch[3], dayFirstMatch[2], dayFirstMatch[1]]
+      : null;
+
+  if (!parts) return null;
+  const timestamp = Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function compareTableValues(left: unknown, right: unknown): number {
+  const leftText = String(left ?? "").trim();
+  const rightText = String(right ?? "").trim();
+  const leftDate = toSortableDate(leftText);
+  const rightDate = toSortableDate(rightText);
+  const leftNumber = Number(leftText.replace(/\./g, "").replace(",", "."));
+  const rightNumber = Number(rightText.replace(/\./g, "").replace(",", "."));
+
+  if (leftDate !== null && rightDate !== null) {
+    return leftDate - rightDate;
+  }
+
+  if (leftText && rightText && Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+    return leftNumber - rightNumber;
+  }
+
+  return leftText.localeCompare(rightText, "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
 
 // Fila memoizada: al seleccionar/deseleccionar, React solo re-renderiza las filas
 // cuyo estado cambia (la anterior y la nueva), no las N filas de la tabla. Las
@@ -78,7 +119,8 @@ function SapB1QueryTableView({
   onSelectRow?: (index: number | null) => void;
   matchedIndices?: Set<number>;
 }) {
-  const columns = useMemo(() => table.columns.slice(0, 12), [table.columns]);
+  const columns = useMemo(() => table.columns, [table.columns]);
+  const [sort, setSort] = useState<SortState | null>(null);
   const hasSelection = onSelectRow !== undefined;
   const tableWidth = (hasSelection ? SEL_W : 0) + columns.length * COL_W;
 
@@ -88,9 +130,35 @@ function SapB1QueryTableView({
   // miles de operaciones repetidas al interactuar con la tabla.
   const formattedRows = useMemo(
     () =>
-      table.rows.map((row) => columns.map((col) => formatQueryCell(col, row[col]))),
+      table.rows.map((row, rowIndex) => ({
+        row,
+        rowIndex,
+        cells: columns.map((col) => formatQueryCell(col, row[col])),
+      })),
     [table.rows, columns],
   );
+
+  const sortedRows = useMemo(() => {
+    if (!sort) return formattedRows;
+
+    return [...formattedRows].sort((left, right) => {
+      const comparison = compareTableValues(
+        left.row[sort.column],
+        right.row[sort.column],
+      );
+      return sort.direction === "asc" ? comparison : -comparison;
+    });
+  }, [formattedRows, sort]);
+
+  const toggleSort = (column: string) => {
+    setSort((current) => ({
+      column,
+      direction:
+        current?.column === column && current.direction === "asc"
+          ? "desc"
+          : "asc",
+    }));
+  };
 
   return (
     <div className="min-w-0">
@@ -114,21 +182,35 @@ function SapB1QueryTableView({
                     className="px-2 py-1"
                     style={{ width: COL_W }}
                   >
-                    <div className="no-scrollbar overflow-x-auto whitespace-nowrap">
-                      {column}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(column)}
+                      title={`Ordenar por ${column}`}
+                      className="flex w-full items-center gap-1 text-left hover:text-slate-900"
+                    >
+                      <span className="no-scrollbar overflow-x-auto whitespace-nowrap">
+                        {column}
+                      </span>
+                      <span className="shrink-0 text-[9px] text-slate-400">
+                        {sort?.column === column
+                          ? sort.direction === "asc"
+                            ? "▲"
+                            : "▼"
+                          : "↕"}
+                      </span>
+                    </button>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {formattedRows.map((cells, index) => (
+              {sortedRows.map(({ cells, rowIndex }) => (
                 <TableRow
-                  key={index}
+                  key={rowIndex}
                   cells={cells}
-                  index={index}
-                  isSelected={selectedRowIndex === index}
-                  isMatched={matchedIndices?.has(index) ?? false}
+                  index={rowIndex}
+                  isSelected={selectedRowIndex === rowIndex}
+                  isMatched={matchedIndices?.has(rowIndex) ?? false}
                   hasSelection={hasSelection}
                   onSelectRow={onSelectRow}
                 />
@@ -150,12 +232,6 @@ function SapB1QueryTableView({
           </table>
         </div>
       </div>
-      {table.columns.length > columns.length ? (
-        <p className="mt-2 text-xs text-slate-500">
-          Mostrando las primeras {columns.length} columnas de{" "}
-          {table.columns.length}.
-        </p>
-      ) : null}
     </div>
   );
 }
