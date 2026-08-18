@@ -40,6 +40,22 @@ function resolveMatchColumnType(column: MatchColumn): "amount" | "date" | "text"
   return "text";
 }
 
+// Algunas columnas monetarias son auxiliares y no representan un segundo
+// movimiento. "Importe neto" se conserva para calcular la comision de OCHO A,
+// pero los totales del matching deben reflejar solamente el Importe presentado.
+function isAuxiliaryAmountColumn(column: MatchColumn): boolean {
+  const key = `${column.fieldKey} ${column.label}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+  return key.includes("importeneto");
+}
+
+function isSummableAmountColumn(column: MatchColumn): boolean {
+  return resolveMatchColumnType(column) === "amount" && !isAuxiliaryAmountColumn(column);
+}
+
 // Convierte una celda tipo importe a numero: usa el valor normalizado si ya es
 // numerico; si no, parsea el texto crudo. Devuelve null si no hay numero.
 function matchAmountToNumber(
@@ -123,16 +139,16 @@ export function buildMatchesExportRows(
   return rows;
 }
 
-// Suma todas las columnas tipo importe (credito, debito, monto, etc.) de un lado
-// (banco o sistema) sobre todas las filas. Combina todas las columnas de monto en
-// un solo total, no uno por columna.
+// Suma las columnas que representan el movimiento (credito, debito, monto, etc.)
+// de un lado sobre todas las filas. Excluye importes auxiliares como "Importe
+// neto", que se muestran en la tabla pero no deben duplicar el total presentado.
 function sumSideAmounts(
   matches: SmartMatch[],
   columns: MatchColumn[],
   side: "bank" | "system"
 ): number {
   const amountColumns = columns.filter(
-    (column) => resolveMatchColumnType(column) === "amount"
+    isSummableAmountColumn
   );
   let total = 0;
   for (const match of matches) {
@@ -165,8 +181,8 @@ export function computeMatchAmountTotals(
   systemColumns: MatchColumn[]
 ): MatchAmountTotals {
   const hasAmountColumns =
-    bankColumns.some((column) => resolveMatchColumnType(column) === "amount") ||
-    systemColumns.some((column) => resolveMatchColumnType(column) === "amount");
+    bankColumns.some(isSummableAmountColumn) ||
+    systemColumns.some(isSummableAmountColumn);
   const bank = sumSideAmounts(matches, bankColumns, "bank");
   const system = sumSideAmounts(matches, systemColumns, "system");
   return {
