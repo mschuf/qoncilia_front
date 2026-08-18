@@ -29,6 +29,18 @@ export default function HomePage() {
   const { user, role, hasModule } = useAuth();
   const toast = useToast();
   const [kpis, setKpis] = useState<ConciliationKpis | null>(null);
+  const hasOchoAConciliation = hasModule(APP_MODULE_VALUES.conciliationOchoA);
+  const hasOchoABankConciliation = hasModule(
+    APP_MODULE_VALUES.bankConciliationOchoA,
+  );
+  const bankStatementsPath = hasOchoAConciliation
+    ? "/ocho-a/cargar-extractos"
+    : "/bank-statements";
+  const bankConciliationPath = hasOchoABankConciliation
+    ? "/ocho-a/conciliacion-banco"
+    : "/conciliacion-banco";
+  const canAccessBankConciliation =
+    hasModule(APP_MODULE_VALUES.bankConciliation) || hasOchoABankConciliation;
 
   useEffect(() => {
     apiClient
@@ -60,7 +72,7 @@ export default function HomePage() {
         <div className="space-y-8">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <Link
-              to="/bank-statements"
+              to={bankStatementsPath}
               className="group rounded-3xl border border-slate-200 bg-white p-5 transition hover:border-brand-500 hover:shadow-md"
             >
               <div className="flex items-center gap-3 text-brand-600">
@@ -75,9 +87,9 @@ export default function HomePage() {
               <p className="mt-1 text-xs text-slate-500">Extractos bancarios</p>
             </Link>
 
-            {hasModule(APP_MODULE_VALUES.bankConciliation) ? (
+            {canAccessBankConciliation ? (
               <Link
-                to="/conciliacion-banco"
+                to={bankConciliationPath}
                 className="group rounded-3xl border border-slate-200 bg-white p-5 transition hover:border-emerald-500 hover:shadow-md"
               >
                 <div className="flex items-center gap-3 text-emerald-600">
@@ -193,7 +205,7 @@ export default function HomePage() {
                   Extractos recientes
                 </h3>
                 <Link
-                  to="/bank-statements"
+                  to={bankStatementsPath}
                   className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand-600 transition hover:text-brand-700"
                 >
                   <FiClock className="h-4 w-4" /> Ver extractos
@@ -229,7 +241,7 @@ export default function HomePage() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             <Link
-                              to="/bank-statements"
+                              to={bankStatementsPath}
                               className="inline-flex rounded-lg p-2 text-slate-400 transition hover:bg-slate-200 hover:text-brand-600"
                               title="Ver extractos bancarios"
                             >

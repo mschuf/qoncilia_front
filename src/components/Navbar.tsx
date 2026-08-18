@@ -137,10 +137,22 @@ export default function Navbar() {
       show: hasModule(APP_MODULE_VALUES.conciliation),
     },
     {
+      to: "/ocho-a/cargar-extractos",
+      icon: <FiDatabase className="h-4 w-4" />,
+      label: "Cargar Extractos",
+      show: hasModule(APP_MODULE_VALUES.conciliationOchoA),
+    },
+    {
       to: "/conciliacion-banco",
       icon: <FiActivity className="h-4 w-4" />,
       label: "Conciliacion de banco",
       show: hasModule(APP_MODULE_VALUES.bankConciliation),
+    },
+    {
+      to: "/ocho-a/conciliacion-banco",
+      icon: <FiActivity className="h-4 w-4" />,
+      label: "Conciliacion de banco",
+      show: hasModule(APP_MODULE_VALUES.bankConciliationOchoA),
     },
   ];
 

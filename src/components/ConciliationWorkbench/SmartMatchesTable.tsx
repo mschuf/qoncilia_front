@@ -7,7 +7,12 @@ import {
 } from "./workbenchHelpers";
 import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
 import { downloadXlsx } from "../../utils/xlsx";
-import { formatAmountPyg, formatIsoToDdMmYyyy, toIsoLoose } from "../../utils/format";
+import {
+  formatAmountPyg,
+  formatIsoToDdMmYyyy,
+  parseLooseNumber,
+  toIsoLoose,
+} from "../../utils/format";
 
 // Ancho fijo por columna; si el contenido se pasa, la celda hace scroll (no crece).
 const COL_W = 90;
@@ -18,6 +23,7 @@ type DateSubtotal = {
   label: string;
   matches: number;
   bank: number;
+  bankExtra: number;
   system: number;
 };
 
@@ -31,6 +37,8 @@ function SmartMatchesTable({
   exportFileName = "resultados-matching",
   dateSubtotalColumn,
   dateSubtotalLabel = "Totales por fecha",
+  dateSubtotalBankExtraColumn,
+  dateSubtotalBankExtraLabel = "Total Importe Neto",
   onKeepOnlyDate,
 }: {
   matches: SmartMatch[];
@@ -46,6 +54,10 @@ function SmartMatchesTable({
   // lado Banco. Se usa para las liquidaciones de tarjetas de credito.
   dateSubtotalColumn?: string;
   dateSubtotalLabel?: string;
+  // Columna monetaria auxiliar del CSV para el resumen por fecha. Credito usa
+  // "Importe neto" para mostrar lo que realmente se acredita al comercio.
+  dateSubtotalBankExtraColumn?: string;
+  dateSubtotalBankExtraLabel?: string;
   // Conserva solamente los matches de la fecha indicada. La tabla de tarjetas
   // la usa para procesar una fecha de credito a la vez.
   onKeepOnlyDate?: (dateKey: string) => void;
@@ -67,6 +79,15 @@ function SmartMatchesTable({
     [matches, bankColumns, systemColumns]
   );
   const showTotals = matches.length > 0 && amountTotals.hasAmountColumns;
+  const dateSubtotalBankExtra = useMemo(
+    () =>
+      dateSubtotalBankExtraColumn
+        ? bankColumns.find(
+            (column) => column.fieldKey === dateSubtotalBankExtraColumn,
+          ) ?? null
+        : null,
+    [bankColumns, dateSubtotalBankExtraColumn],
+  );
 
   const dateSubtotals = useMemo(() => {
     if (!dateSubtotalColumn || !amountTotals.hasAmountColumns) return [];
@@ -94,11 +115,25 @@ function SmartMatchesTable({
         label,
         matches: 0,
         bank: 0,
+        bankExtra: 0,
         system: 0,
       };
       const rowTotals = computeMatchAmountTotals([match], bankColumns, systemColumns);
+      const extraRaw = dateSubtotalBankExtra
+        ? match.bankRow.values[dateSubtotalBankExtra.fieldKey]
+        : null;
+      const extraNormalized = dateSubtotalBankExtra
+        ? match.bankRow.normalized[dateSubtotalBankExtra.fieldKey]
+        : null;
+      const extraAmount =
+        typeof extraNormalized === "number"
+          ? extraNormalized
+          : extraRaw == null || extraRaw === ""
+            ? null
+            : parseLooseNumber(extraRaw);
       current.matches += 1;
       current.bank += rowTotals.bank;
+      if (extraAmount !== null) current.bankExtra += extraAmount;
       current.system += rowTotals.system;
       grouped.set(key, current);
     }
@@ -108,7 +143,14 @@ function SmartMatchesTable({
       if (right.key === "sin-fecha") return -1;
       return left.key.localeCompare(right.key);
     });
-  }, [amountTotals.hasAmountColumns, bankColumns, dateSubtotalColumn, matches, systemColumns]);
+  }, [
+    amountTotals.hasAmountColumns,
+    bankColumns,
+    dateSubtotalBankExtra,
+    dateSubtotalColumn,
+    matches,
+    systemColumns,
+  ]);
 
   // Formateo precomputado de las celdas (banco/sistema) por fila. formatMatchCell
   // hace regex + parseo; con esto corre solo cuando cambian matches/columnas, no en
@@ -371,6 +413,11 @@ function SmartMatchesTable({
                   <th className="px-4 py-2 font-bold">Fecha</th>
                   <th className="px-4 py-2 text-right font-bold">Matches</th>
                   <th className="px-4 py-2 text-right font-bold">Total Banco</th>
+                  {dateSubtotalBankExtra ? (
+                    <th className="px-4 py-2 text-right font-bold">
+                      {dateSubtotalBankExtraLabel}
+                    </th>
+                  ) : null}
                   <th className="px-4 py-2 text-right font-bold">Total SAP</th>
                   <th className="px-4 py-2 text-right font-bold">Diferencia</th>
                   {onKeepOnlyDate && dateSubtotals.length > 1 ? (
@@ -389,6 +436,11 @@ function SmartMatchesTable({
                       <td className="px-4 py-2 text-right font-semibold text-amber-800">
                         {formatAmountPyg(subtotal.bank)}
                       </td>
+                      {dateSubtotalBankExtra ? (
+                        <td className="px-4 py-2 text-right font-semibold text-emerald-800">
+                          {formatAmountPyg(subtotal.bankExtra)}
+                        </td>
+                      ) : null}
                       <td className="px-4 py-2 text-right font-semibold text-sky-800">
                         {formatAmountPyg(subtotal.system)}
                       </td>

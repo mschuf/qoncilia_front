@@ -105,6 +105,8 @@ export interface SapTarjetasDepositRequest {
   // Comentario del asiento (JournalRemarks); el backend aplica el default
   // "COMPRA P.O.S BANCARD" si va vacio.
   journalRemarks?: string
+  // Solo credito de OCHO A: referencia bancaria editable (BankReference).
+  bankReference?: string
   // "Cuenta Pago ERP" de la cuenta bancaria (cabecera BankAccountNum).
   bankAccountNum?: string
   // Descripcion del banco (cabecera Bank).

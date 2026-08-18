@@ -82,9 +82,14 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-export default function BankStatementsPage() {
+export default function BankStatementsPage({
+  conciliationApiBasePath = "/conciliation",
+}: {
+  conciliationApiBasePath?: string;
+}) {
   const { role, user } = useAuth();
   const toast = useToast();
+  const bankStatementsApiBasePath = `${conciliationApiBasePath.replace(/\/+$/, "")}/bank-statements`;
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number>(
     Number(user?.id ?? 0),
@@ -151,7 +156,7 @@ export default function BankStatementsPage() {
       try {
         const query = isAdminRole(role) && userId ? `?userId=${userId}` : "";
         const response = await apiClient.get<UserBankWithLayouts[]>(
-          `/conciliation/catalog${query}`,
+          `${conciliationApiBasePath}/catalog${query}`,
         );
         const nextBanks = response ?? [];
         catalogCacheRef.current.set(userId, nextBanks);
@@ -171,7 +176,7 @@ export default function BankStatementsPage() {
         setIsLoadingCatalog(false);
       }
     },
-    [role, toast],
+    [conciliationApiBasePath, role, toast],
   );
 
   const loadSapB1ConfigStatus = useCallback(
@@ -184,7 +189,7 @@ export default function BankStatementsPage() {
       try {
         const query = isSuperAdminRole(role) ? `?userId=${userId}` : "";
         const response = await apiClient.get<SapB1ConfigStatus>(
-          `/conciliation/bank-statements/sap-b1-config${query}`,
+          `${bankStatementsApiBasePath}/sap-b1-config${query}`,
           { showBackdrop: false },
         );
         setSapB1ConfigStatus(response);
@@ -197,7 +202,7 @@ export default function BankStatementsPage() {
         );
       }
     },
-    [role, toast],
+    [bankStatementsApiBasePath, role, toast],
   );
 
   const loadBankStatements = useCallback(
@@ -226,7 +231,7 @@ export default function BankStatementsPage() {
 
         const response = await apiClient.get<
           PaginatedResponse<BankStatementSummary>
-        >(`/conciliation/bank-statements?${params.toString()}`, {
+        >(`${bankStatementsApiBasePath}?${params.toString()}`, {
           showBackdrop: false,
         });
 
@@ -248,6 +253,7 @@ export default function BankStatementsPage() {
       }
     },
     [
+      bankStatementsApiBasePath,
       bankStatementsPagination.limit,
       role,
       selectedUserId,
@@ -394,7 +400,7 @@ export default function BankStatementsPage() {
   const openSavedStatement = async (statementId: number) => {
     try {
       const response = await apiClient.get<BankStatementDetail>(
-        `/conciliation/bank-statements/${statementId}`,
+        `${bankStatementsApiBasePath}/${statementId}`,
       );
       setSelectedDetail(response);
       setPreview(null);
@@ -413,7 +419,7 @@ export default function BankStatementsPage() {
 
     try {
       await apiClient.delete<DeleteBankStatementResponse>(
-        `/conciliation/bank-statements/${deleteStatementTarget.id}`,
+        `${bankStatementsApiBasePath}/${deleteStatementTarget.id}`,
       );
       if (selectedDetail?.id === deleteStatementTarget.id) {
         setSelectedDetail(null);
@@ -454,7 +460,7 @@ export default function BankStatementsPage() {
 
     try {
       const response = await apiClient.post<BankStatementPreviewResponse>(
-        "/conciliation/bank-statements/preview",
+        `${bankStatementsApiBasePath}/preview`,
         formData,
       );
       setPreview(response);
@@ -489,7 +495,7 @@ export default function BankStatementsPage() {
 
     try {
       const response = await apiClient.post<BankStatementDetail>(
-        "/conciliation/bank-statements",
+        bankStatementsApiBasePath,
         formData,
       );
       setSelectedDetail(response);
@@ -541,7 +547,7 @@ export default function BankStatementsPage() {
 
     try {
       const response = await apiClient.post<SapBankPageProcessResponse>(
-        "/conciliation/bank-statements/process-sap-b1",
+        `${bankStatementsApiBasePath}/process-sap-b1`,
         formData,
       );
       setSelectedDetail(response);

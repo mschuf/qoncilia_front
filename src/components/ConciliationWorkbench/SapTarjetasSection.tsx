@@ -199,6 +199,7 @@ export default function SapTarjetasSection({
       depositAccount: string;
       depositDate: string;
       journalRemarks: string;
+      bankReference?: string;
     },
     kind: CardMatchKind,
   ) => Promise<
@@ -226,6 +227,7 @@ export default function SapTarjetasSection({
   const [depositAccount, setDepositAccount] = useState("");
   const [depositDate, setDepositDate] = useState(defaultDepositDate);
   const [journalRemarks, setJournalRemarks] = useState(DEFAULT_JOURNAL_REMARKS);
+  const [bankReference, setBankReference] = useState("");
   const [depositErrors, setDepositErrors] = useState<string[]>([]);
   const [csvDateColumn, setCsvDateColumn] = useState("");
   const [csvDateFilter, setCsvDateFilter] = useState("");
@@ -406,6 +408,7 @@ export default function SapTarjetasSection({
     setSmartMatches([]);
     setShowComparison(false);
     setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
+    setBankReference("");
     setDepositDate(defaultDepositDate());
     setDepositErrors([]);
   }, []);
@@ -455,7 +458,12 @@ export default function SapTarjetasSection({
     for (const batch of batches) {
       const result = await sendDeposit(
         batch.matches,
-        { depositAccount, depositDate, journalRemarks },
+        {
+          depositAccount,
+          depositDate,
+          journalRemarks,
+          ...(cardPaymentKind === "credit" ? { bankReference } : {}),
+        },
         batch.kind,
       );
       if (!result) return;
@@ -474,6 +482,7 @@ export default function SapTarjetasSection({
       setSelectedBankRowIndex(null);
       setSelectedSystemRowIndex(null);
       setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
+      setBankReference("");
       setDepositDate(defaultDepositDate());
       // Deposito completo OK: se re-ejecuta la busqueda del sistema para traer
       // el estado fresco de SAP y no re-matchear/depositar vouchers ya enviados.
@@ -702,6 +711,8 @@ export default function SapTarjetasSection({
                 onClear={() => handleClearSmartMatchesByKind("credit")}
                 dateSubtotalColumn="Fecha de credito del comercio"
                 dateSubtotalLabel="Totales por fecha de crédito"
+                dateSubtotalBankExtraColumn="Importe neto"
+                dateSubtotalBankExtraLabel="Total Importe Neto"
                 onKeepOnlyDate={handleKeepOnlyCreditDate}
               />
             </div>
@@ -715,7 +726,13 @@ export default function SapTarjetasSection({
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
                     Deposito SAP
                   </p>
-                  <div className="mt-3 grid gap-3 md:grid-cols-4">
+                  <div
+                    className={`mt-3 grid gap-3 ${
+                      cardPaymentKind === "credit"
+                        ? "md:grid-cols-5"
+                        : "md:grid-cols-4"
+                    }`}
+                  >
                     <div className="space-y-1">
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
                         Cuenta Deposito
@@ -753,6 +770,21 @@ export default function SapTarjetasSection({
                         className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
                       />
                     </label>
+                    {cardPaymentKind === "credit" ? (
+                      <label className="space-y-1">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Referencia
+                        </span>
+                        <input
+                          type="text"
+                          value={bankReference}
+                          onChange={(event) => setBankReference(event.target.value)}
+                          placeholder="Referencia bancaria"
+                          maxLength={100}
+                          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                        />
+                      </label>
+                    ) : null}
                   </div>
                 </div>
                 <button

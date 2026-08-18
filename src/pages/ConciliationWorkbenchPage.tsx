@@ -41,12 +41,15 @@ type ConciliationWorkbenchPageProps = {
   // Permite que una empresa use su propio modulo SAP sin cambiar las rutas del
   // workbench estandar.
   sapApiBasePath?: string;
+  // Fachada exclusiva de extractos/catalogos de una empresa.
+  conciliationApiBasePath?: string;
   cardPaymentKind?: CardPaymentKind;
 };
 
 export default function ConciliationWorkbenchPage({
   mode,
   sapApiBasePath,
+  conciliationApiBasePath,
   cardPaymentKind,
 }: ConciliationWorkbenchPageProps) {
   const {
@@ -121,6 +124,7 @@ export default function ConciliationWorkbenchPage({
     erpCodeFilter:
       mode === "banco" ? "SAP_B1" : mode === "tarjetas" ? "SAP_TARJETAS" : undefined,
     sapApiBasePath,
+    conciliationApiBasePath,
   });
 
   const bankLabel =

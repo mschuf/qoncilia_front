@@ -235,11 +235,16 @@ export type UseConciliationWorkbenchOptions = {
   // Los modulos especializados pueden usar un backend SAP propio sin afectar
   // las rutas del workbench estandar.
   sapApiBasePath?: string
+  // API de extractos/catalagos. OCHO A usa su propia fachada para que sus
+  // personalizaciones no modifiquen el flujo de las demas empresas.
+  conciliationApiBasePath?: string
 }
 
 export default function useConciliationWorkbench(options?: UseConciliationWorkbenchOptions) {
   const erpCodeFilter = options?.erpCodeFilter
   const sapApiBasePath = options?.sapApiBasePath?.replace(/\/+$/, "") || "/erp/sap"
+  const conciliationApiBasePath =
+    options?.conciliationApiBasePath?.replace(/\/+$/, "") || "/conciliation"
   const { role, user } = useAuth()
   // Conciliar en SAP: admin/superadmin o gestor de cobranzas (igual que el backend).
   const canReconcileErp = isAdminRole(role) || role === ROLE_VALUES.gestorCobranza
@@ -320,7 +325,9 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       setIsLoadingCatalog(true)
       try {
       const query = isSuperAdminRole(role) && userId ? `?userId=${userId}` : ""
-      const response = await apiClient.get<UserBankWithLayouts[]>(`/conciliation/catalog${query}`)
+      const response = await apiClient.get<UserBankWithLayouts[]>(
+        `${conciliationApiBasePath}/catalog${query}`
+      )
         const nextBanks = response ?? []
         catalogCacheRef.current.set(userId, nextBanks)
         setBanks(nextBanks)
@@ -332,7 +339,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
         setIsLoadingCatalog(false)
       }
     },
-    [role]
+    [conciliationApiBasePath, role]
   )
 
   const refreshCatalog = useCallback(() => {
@@ -524,7 +531,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       params.set("limit", String(pageSize))
 
       const response = await apiClient.get<PaginatedResponse<BankStatementSummary>>(
-        `/conciliation/bank-statements?${params.toString()}`,
+        `${conciliationApiBasePath}/bank-statements?${params.toString()}`,
         { signal: options?.signal }
       )
       const nextStatements = response?.data ?? []
@@ -537,6 +544,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       })
     },
     [
+      conciliationApiBasePath,
       role,
       selectedBankId,
       selectedCompanyBankAccountId,
@@ -692,7 +700,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsComparing(true)
       const response = await apiClient.post<PreviewResponse>(
-        "/conciliation/compare-bank-statement",
+        `${conciliationApiBasePath}/compare-bank-statement`,
         formData,
         { showBackdrop: false, timeoutMs: 45000 }
       )
@@ -968,7 +976,12 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
   // lote. La seccion invoca esta funcion una vez para Debito y otra para Credito.
   const sendSapTarjetasDepositToErp = async (
     matches: Array<{ systemRow: PreviewRow; bankRow: PreviewRow }>,
-    options: { depositAccount: string; depositDate: string; journalRemarks: string },
+    options: {
+      depositAccount: string
+      depositDate: string
+      journalRemarks: string
+      bankReference?: string
+    },
     kind: "debit" | "credit"
   ): Promise<
     { succeededAbsIds: number[]; failedAbsIds: number[]; errors: string[] } | null
@@ -1001,6 +1014,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     const depositAccount = options.depositAccount.trim()
     const depositDate = options.depositDate.trim()
     const journalRemarks = options.journalRemarks.trim()
+    const bankReference = options.bankReference?.trim()
     if (!depositAccount) {
       toast.error(
         "Falta la Cuenta Deposito: selecciona una cuenta bancaria con Cuenta Mayor configurada."
@@ -1053,6 +1067,10 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       depositDate,
       // Si el usuario lo dejo vacio, el backend aplica "COMPRA P.O.S BANCARD".
       journalRemarks: journalRemarks || undefined,
+      // Solo credito de OCHO A: referencia bancaria editable para SAP.
+      ...(isOchoACreditDeposit && bankReference
+        ? { bankReference }
+        : {}),
       // Datos de la cuenta bancaria seleccionada en la busqueda: Cuenta Pago
       // ERP, descripcion del banco y sucursal de la cuenta.
       bankAccountNum: cardSystemQuery.paymentAccountCode ?? undefined,

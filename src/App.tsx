@@ -10,8 +10,10 @@ import { ROLE_VALUES } from "./utils/role";
 const AppLayout = lazy(() => import("./layouts/AppLayout"));
 const AdminBankingPage = lazy(() => import("./pages/AdminBankingPage"));
 const BankStatementsPage = lazy(() => import("./pages/BankStatementsPage"));
+const CargaExtractosOchoAPage = lazy(() => import("./pages/CargaExtractosOchoAPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
 const ConciliacionBancoPage = lazy(() => import("./pages/ConciliacionBancoPage"));
+const ConciliacionBancoOchoAPage = lazy(() => import("./pages/ConciliacionBancoOchoAPage"));
 const PagoTarjetaPage = lazy(() => import("./pages/PagoTarjetaPage"));
 const PagoTarjetaOchoAPage = lazy(() => import("./pages/PagoTarjetaOchoAPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
@@ -83,6 +85,14 @@ export default function App() {
               }
             />
             <Route
+              path="ocho-a/cargar-extractos"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliationOchoA}>
+                  <CargaExtractosOchoAPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="banks"
               element={
                 <ProtectedRoute
@@ -118,6 +128,14 @@ export default function App() {
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.bankConciliation}>
                   <ConciliacionBancoPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="ocho-a/conciliacion-banco"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.bankConciliationOchoA}>
+                  <ConciliacionBancoOchoAPage />
                 </ProtectedRoute>
               }
             />

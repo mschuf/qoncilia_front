@@ -6,6 +6,8 @@ export const APP_MODULE_VALUES = {
   profile: "profile",
   conciliation: "conciliation",
   bankConciliation: "bank_conciliation",
+  conciliationOchoA: "conciliation_ocho_a",
+  bankConciliationOchoA: "bank_conciliation_ocho_a",
   cardPayment: "card_payment",
   cardPaymentOchoA: "card_payment_ocho_a",
   users: "users",
