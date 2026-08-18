@@ -189,6 +189,7 @@ export default function SapTarjetasSection({
     bankTable?: SapB1QueryTable;
     excludedBankRowIds?: string[];
     excludedSystemRowIds?: string[];
+    strictReferenceAmountMatch?: boolean;
   }) => Promise<SapB1QueryComparisonResult | null>;
   isSendingDeposit: boolean;
   // Deposito masivo: un deposito por lote (debito o credito). Devuelve los
@@ -390,6 +391,9 @@ export default function SapTarjetasSection({
       bankTable: filteredBankTable,
       excludedBankRowIds,
       excludedSystemRowIds,
+      // Las dos pantallas exclusivas de OCHO_A (Debito y Credito) requieren
+      // referencia contenida y el mismo importe antes del matching automatico.
+      strictReferenceAmountMatch: Boolean(cardPaymentKind),
     });
     if (!result) return;
 

@@ -916,12 +916,14 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     columns,
     bankTable,
     excludedBankRowIds = [],
-    excludedSystemRowIds = []
+    excludedSystemRowIds = [],
+    strictReferenceAmountMatch = false
   }: {
     columns: string[]
     bankTable?: SapB1QueryTable
     excludedBankRowIds?: string[]
     excludedSystemRowIds?: string[]
+    strictReferenceAmountMatch?: boolean
   }): Promise<SapB1QueryComparisonResult | null> => {
     if (!selectedErpConfigId || !isSapTarjetasMode) {
       toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
@@ -958,7 +960,12 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
           excludedSystemRowIds,
           // SAP_TARJETAS: match de referencia por "like" (contencion) para tolerar
           // el padding de ceros del Cod. autorizacion vs VoucherNum del sistema.
-          referenceMatchMode: "like"
+          referenceMatchMode: "like",
+          // Debito y Credito OCHO_A exigen que referencia e importe sean ambos
+          // gates obligatorios del matching automatico.
+          ...(sapApiBasePath === "/erp/sap/ocho-a" && strictReferenceAmountMatch
+            ? { strictReferenceAmountMatch: true }
+            : {})
         },
         { showBackdrop: false, timeoutMs: 45000 }
       )
