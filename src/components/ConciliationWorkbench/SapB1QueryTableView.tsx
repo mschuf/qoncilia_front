@@ -12,7 +12,9 @@ type TableRowProps = {
   isSelected: boolean;
   isMatched: boolean;
   hasSelection: boolean;
+  selectionMode: "single" | "multiple";
   onSelectRow?: (index: number | null) => void;
+  onToggleRow?: (index: number, selected: boolean) => void;
 };
 
 type SortState = {
@@ -65,7 +67,9 @@ const TableRow = memo(function TableRow({
   isSelected,
   isMatched,
   hasSelection,
+  selectionMode,
   onSelectRow,
+  onToggleRow,
 }: TableRowProps) {
   return (
     <tr
@@ -80,14 +84,18 @@ const TableRow = memo(function TableRow({
       }`}
       onClick={() => {
         if (hasSelection && !isMatched) {
-          onSelectRow?.(isSelected ? null : index);
+          if (onToggleRow) {
+            onToggleRow(index, !isSelected);
+          } else {
+            onSelectRow?.(isSelected ? null : index);
+          }
         }
       }}
     >
       {hasSelection ? (
         <td className="px-2 py-1 text-center" style={{ width: SEL_W }}>
           <input
-            type="radio"
+            type={selectionMode === "multiple" ? "checkbox" : "radio"}
             checked={isSelected}
             disabled={isMatched}
             readOnly
@@ -110,18 +118,23 @@ function SapB1QueryTableView({
   title,
   table,
   selectedRowIndex,
+  selectedRowIndices,
   onSelectRow,
+  onToggleRow,
   matchedIndices,
 }: {
   title: string;
   table: SapB1QueryTable;
   selectedRowIndex?: number | null;
+  selectedRowIndices?: ReadonlySet<number>;
   onSelectRow?: (index: number | null) => void;
+  onToggleRow?: (index: number, selected: boolean) => void;
   matchedIndices?: Set<number>;
 }) {
   const columns = useMemo(() => table.columns, [table.columns]);
   const [sort, setSort] = useState<SortState | null>(null);
-  const hasSelection = onSelectRow !== undefined;
+  const hasSelection = onSelectRow !== undefined || onToggleRow !== undefined;
+  const selectionMode = onToggleRow ? "multiple" : "single";
   const tableWidth = (hasSelection ? SEL_W : 0) + columns.length * COL_W;
 
   // Formateo precomputado de TODAS las celdas: corre solo cuando cambian los datos
@@ -209,10 +222,14 @@ function SapB1QueryTableView({
                   key={rowIndex}
                   cells={cells}
                   index={rowIndex}
-                  isSelected={selectedRowIndex === rowIndex}
+                  isSelected={
+                    selectedRowIndices?.has(rowIndex) ?? selectedRowIndex === rowIndex
+                  }
                   isMatched={matchedIndices?.has(rowIndex) ?? false}
                   hasSelection={hasSelection}
+                  selectionMode={selectionMode}
                   onSelectRow={onSelectRow}
+                  onToggleRow={onToggleRow}
                 />
               ))}
               {table.rows.length === 0 ? (

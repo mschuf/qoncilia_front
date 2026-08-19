@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FiRefreshCw,
   FiSend,
@@ -20,6 +20,7 @@ import SmartMatchesTable from "../components/ConciliationWorkbench/SmartMatchesT
 import StatementRow from "../components/ConciliationWorkbench/StatementRow";
 import ErpFloatingPanel from "../components/ConciliationWorkbench/ErpFloatingPanel";
 import ErpLoginModal from "../components/ConciliationWorkbench/ErpLoginModal";
+import { formatAmountPyg, parseLooseNumber } from "../utils/format";
 import {
   convertPreviewMatchesToSmartMatches,
   convertSapB1TableToPreviewRows,
@@ -34,6 +35,64 @@ import { isAdminRole, isSuperAdminRole, ROLE_VALUES } from "../utils/role";
 export type ConciliationWorkbenchMode = "banco" | "tarjetas";
 export type CardPaymentKind = "debit" | "credit";
 
+function normalizeSapB1ColumnKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+function findSapB1AmountColumn(columns: string[], keys: string[]) {
+  const columnsByKey = new Map(
+    columns.map((column) => [normalizeSapB1ColumnKey(column), column]),
+  );
+  return keys.map((key) => columnsByKey.get(key)).find(Boolean) ?? null;
+}
+
+function getSapB1RowNet(
+  row: SmartMatch["systemRow"],
+  columns: string[],
+  side: "bank" | "system",
+) {
+  const debit = findSapB1AmountColumn(columns, [
+    "debito",
+    "debitos",
+    "debe",
+    "debit",
+    "importedebito",
+  ]);
+  const credit = findSapB1AmountColumn(columns, [
+    "credito",
+    "creditos",
+    "haber",
+    "credit",
+    "importecredito",
+  ]);
+  const parse = (column: string | null) => {
+    if (!column) return null;
+    const value = row.values[column] ?? row.normalized[column];
+    return value == null || value === "" ? null : parseLooseNumber(String(value));
+  };
+
+  if (debit && credit) {
+    const debitAmount = parse(debit);
+    const creditAmount = parse(credit);
+    if (debitAmount === null && creditAmount === null) return null;
+    const debitValue = Math.abs(debitAmount ?? 0);
+    const creditValue = Math.abs(creditAmount ?? 0);
+    return side === "bank"
+      ? creditValue - debitValue
+      : debitValue - creditValue;
+  }
+
+  const single =
+    findSapB1AmountColumn(columns, ["monto", "importe", "amount"]) ??
+    debit ??
+    credit;
+  return parse(single);
+}
+
 type ConciliationWorkbenchPageProps = {
   // Fija el workbench a un solo modo ERP: "banco" (SAP_B1) o "tarjetas"
   // (SAP_TARJETAS). Sin prop, mantiene el comportamiento clasico multi-modo.
@@ -44,6 +103,9 @@ type ConciliationWorkbenchPageProps = {
   // Fachada exclusiva de extractos/catalogos de una empresa.
   conciliationApiBasePath?: string;
   cardPaymentKind?: CardPaymentKind;
+  // OCHO A permite conciliar una fila del banco contra varias lineas del
+  // sistema. El resto de empresas conserva el matching uno a uno.
+  allowSapB1SystemManyToOne?: boolean;
 };
 
 export default function ConciliationWorkbenchPage({
@@ -51,6 +113,7 @@ export default function ConciliationWorkbenchPage({
   sapApiBasePath,
   conciliationApiBasePath,
   cardPaymentKind,
+  allowSapB1SystemManyToOne = false,
 }: ConciliationWorkbenchPageProps) {
   const {
     role,
@@ -125,6 +188,7 @@ export default function ConciliationWorkbenchPage({
       mode === "banco" ? "SAP_B1" : mode === "tarjetas" ? "SAP_TARJETAS" : undefined,
     sapApiBasePath,
     conciliationApiBasePath,
+    allowSapB1SystemManyToOne,
   });
 
   const bankLabel =
@@ -157,6 +221,74 @@ export default function ConciliationWorkbenchPage({
   >(null);
   const [selectedSapB1SystemRowIndex, setSelectedSapB1SystemRowIndex] =
     useState<number | null>(null);
+  const [selectedSapB1SystemRowIndices, setSelectedSapB1SystemRowIndices] =
+    useState<Set<number>>(new Set());
+  const toggleSapB1SystemRow = useCallback((rowIndex: number, selected: boolean) => {
+    setSelectedSapB1SystemRowIndices((current) => {
+      const next = new Set(current);
+      if (selected) next.add(rowIndex);
+      else next.delete(rowIndex);
+      return next;
+    });
+  }, []);
+  const clearSapB1SelectedRows = () => {
+    setSelectedSapB1BankRowIndex(null);
+    setSelectedSapB1SystemRowIndex(null);
+    setSelectedSapB1SystemRowIndices(new Set());
+  };
+  const selectedSapB1SystemIndices = useMemo(
+    () =>
+      allowSapB1SystemManyToOne
+        ? [...selectedSapB1SystemRowIndices].sort((left, right) => left - right)
+        : selectedSapB1SystemRowIndex === null
+          ? []
+          : [selectedSapB1SystemRowIndex],
+    [
+      allowSapB1SystemManyToOne,
+      selectedSapB1SystemRowIndex,
+      selectedSapB1SystemRowIndices,
+    ],
+  );
+  const sapB1ManualSelectionSummary = useMemo(() => {
+    if (
+      !allowSapB1SystemManyToOne ||
+      !sapB1QueryPreview ||
+      selectedSapB1BankRowIndex === null ||
+      selectedSapB1SystemIndices.length === 0
+    ) {
+      return null;
+    }
+
+    const bankRow = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank)[
+      selectedSapB1BankRowIndex
+    ];
+    const systemPreviewRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
+    const systemRows = selectedSapB1SystemIndices
+      .map((rowIndex) => systemPreviewRows[rowIndex])
+      .filter((row): row is SmartMatch["systemRow"] => Boolean(row));
+    if (!bankRow || systemRows.length !== selectedSapB1SystemIndices.length) return null;
+
+    const bank = getSapB1RowNet(bankRow, sapB1QueryPreview.bank.columns, "bank");
+    const systemAmounts = systemRows.map((row) =>
+      getSapB1RowNet(row, sapB1QueryPreview.system.columns, "system"),
+    );
+    if (bank === null || systemAmounts.some((amount) => amount === null)) return null;
+
+    const system = systemAmounts.reduce((total, amount) => total + (amount ?? 0), 0);
+    return {
+      bank,
+      system,
+      difference: bank - system,
+      balanced: Math.abs(bank - system) < 0.0001,
+    };
+  }, [
+    allowSapB1SystemManyToOne,
+    sapB1QueryPreview,
+    selectedSapB1BankRowIndex,
+    selectedSapB1SystemIndices,
+  ]);
+  const isSapB1ManualSelectionBalanced =
+    !allowSapB1SystemManyToOne || sapB1ManualSelectionSummary?.balanced === true;
   const sapB1ComparisonColumns = useMemo(
     () =>
       sapB1QueryPreview ? resolveSapB1ComparisonColumns(sapB1QueryPreview) : [],
@@ -189,8 +321,7 @@ export default function ConciliationWorkbenchPage({
     setShowComparison(false);
     setSapB1SmartMatches([]);
     setShowSapB1Comparison(false);
-    setSelectedSapB1BankRowIndex(null);
-    setSelectedSapB1SystemRowIndex(null);
+    clearSapB1SelectedRows();
 
     if (isSuperAdminRole(role) && banks.length === 0) {
       await loadCatalog(selectedUserId);
@@ -303,7 +434,12 @@ export default function ConciliationWorkbenchPage({
   };
   const handleRemoveSapB1SmartMatch = (target: SmartMatch) => {
     setSapB1SmartMatches((current) =>
-      current.filter((item) => !isSameSmartMatch(item, target)),
+      allowSapB1SystemManyToOne
+        // Quitar una linea de un grupo dejaria un banco con importe incompleto.
+        // En OCHO A se quita el grupo entero y la fila bancaria queda disponible
+        // para volver a seleccionarla con las lineas correctas.
+        ? current.filter((item) => item.bankRow.rowId !== target.bankRow.rowId)
+        : current.filter((item) => !isSameSmartMatch(item, target)),
     );
   };
 
@@ -441,10 +577,28 @@ export default function ConciliationWorkbenchPage({
                   }
                 />
                 <SapB1QueryTableView
-                  title="Query sistema"
+                  title={
+                    allowSapB1SystemManyToOne
+                      ? "Query sistema · selección múltiple"
+                      : "Query sistema"
+                  }
                   table={sapB1QueryPreview.system}
-                  selectedRowIndex={selectedSapB1SystemRowIndex}
-                  onSelectRow={setSelectedSapB1SystemRowIndex}
+                  selectedRowIndex={
+                    allowSapB1SystemManyToOne ? null : selectedSapB1SystemRowIndex
+                  }
+                  selectedRowIndices={
+                    allowSapB1SystemManyToOne ? selectedSapB1SystemRowIndices : undefined
+                  }
+                  onSelectRow={
+                    allowSapB1SystemManyToOne
+                      ? undefined
+                      : setSelectedSapB1SystemRowIndex
+                  }
+                  onToggleRow={
+                    allowSapB1SystemManyToOne
+                      ? toggleSapB1SystemRow
+                      : undefined
+                  }
                   matchedIndices={
                     new Set(
                       sapB1SmartMatches.map((m) => m.systemRow.rowNumber - 1),
@@ -466,25 +620,54 @@ export default function ConciliationWorkbenchPage({
                   onClick={() => {
                     setShowSapB1Comparison(false);
                     setSapB1SmartMatches([]);
-                    setSelectedSapB1BankRowIndex(null);
-                    setSelectedSapB1SystemRowIndex(null);
+                    clearSapB1SelectedRows();
                   }}
                   disabled={!showSapB1Comparison}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiRefreshCw className="h-4 w-4" />
                 </button>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  {allowSapB1SystemManyToOne &&
+                  selectedSapB1BankRowIndex !== null &&
+                  selectedSapB1SystemIndices.length > 0 ? (
+                    <div
+                      className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                        sapB1ManualSelectionSummary?.balanced
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {sapB1ManualSelectionSummary ? (
+                        <>
+                          Banco {formatAmountPyg(sapB1ManualSelectionSummary.bank)}
+                          {" · "}Sistema ({selectedSapB1SystemIndices.length}){" "}
+                          {formatAmountPyg(sapB1ManualSelectionSummary.system)}
+                          {" · "}Diferencia{" "}
+                          {formatAmountPyg(
+                            Math.abs(sapB1ManualSelectionSummary.difference),
+                          )}
+                        </>
+                      ) : (
+                        "No se pudo calcular el importe de la seleccion."
+                      )}
+                    </div>
+                  ) : null}
                   <button
                     type="button"
-                    title="Match Manual"
+                    title={
+                      allowSapB1SystemManyToOne && !isSapB1ManualSelectionBalanced
+                        ? "La suma del sistema debe coincidir exactamente con la fila del banco."
+                        : "Match Manual"
+                    }
                     onClick={() => {
                       if (
                         !sapB1QueryPreview ||
                         selectedSapB1BankRowIndex === null ||
-                        selectedSapB1SystemRowIndex === null
+                        selectedSapB1SystemIndices.length === 0
                       )
                         return;
+                      if (!isSapB1ManualSelectionBalanced) return;
                       const bankRows = convertSapB1TableToPreviewRows(
                         sapB1QueryPreview.bank,
                       );
@@ -493,27 +676,32 @@ export default function ConciliationWorkbenchPage({
                       );
 
                       const bankRow = bankRows[selectedSapB1BankRowIndex];
-                      const systemRow = systemRows[selectedSapB1SystemRowIndex];
+                      const selectedSystemRows = selectedSapB1SystemIndices
+                        .map((rowIndex) => systemRows[rowIndex])
+                        .filter((row): row is SmartMatch["systemRow"] => Boolean(row));
+                      if (!bankRow || selectedSystemRows.length === 0) return;
 
-                      const manualMatch: SmartMatch = {
-                        systemRow,
-                        bankRow,
-                        score: 1,
-                        column1Match: true,
-                        column2Match: true,
-                        column3Match: true,
-                        matchReason: "manual",
-                        dateDifferenceDays: null,
-                      };
+                      const manualMatches: SmartMatch[] = selectedSystemRows.map(
+                        (systemRow) => ({
+                          systemRow,
+                          bankRow,
+                          score: 1,
+                          column1Match: true,
+                          column2Match: true,
+                          column3Match: true,
+                          matchReason: "manual",
+                          dateDifferenceDays: null,
+                        }),
+                      );
 
-                      setSapB1SmartMatches((prev) => [...prev, manualMatch]);
+                      setSapB1SmartMatches((prev) => [...prev, ...manualMatches]);
                       setShowSapB1Comparison(true);
-                      setSelectedSapB1BankRowIndex(null);
-                      setSelectedSapB1SystemRowIndex(null);
+                      clearSapB1SelectedRows();
                     }}
                     disabled={
                       selectedSapB1BankRowIndex === null ||
-                      selectedSapB1SystemRowIndex === null
+                      selectedSapB1SystemIndices.length === 0 ||
+                      !isSapB1ManualSelectionBalanced
                     }
                     className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -541,6 +729,7 @@ export default function ConciliationWorkbenchPage({
                         ...prev,
                         ...result.matches,
                       ]);
+                      clearSapB1SelectedRows();
                       setShowSapB1Comparison(true);
                       setScrollToMatchesSignal((n) => n + 1);
                     }}
@@ -574,12 +763,22 @@ export default function ConciliationWorkbenchPage({
                     fieldKey: col,
                     label: col,
                   }))}
+                  amountTotalsMode={
+                    allowSapB1SystemManyToOne ? "sap-b1-net" : "raw"
+                  }
                   onRemove={handleRemoveSapB1SmartMatch}
                   onClear={() => {
                     setSapB1SmartMatches([]);
                     setShowSapB1Comparison(false);
                   }}
                 />
+                {allowSapB1SystemManyToOne ? (
+                  <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
+                    OCHO A: una fila del banco puede estar vinculada a varias
+                    lineas del sistema. La fila bancaria se repite para mostrar
+                    cada linea, pero su total se contabiliza una sola vez.
+                  </p>
+                ) : null}
               </div>
               <section className="rounded-3xl border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
@@ -592,6 +791,9 @@ export default function ConciliationWorkbenchPage({
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       Se enviaran {sapB1SmartMatches.length} coincidencias
+                      {allowSapB1SystemManyToOne
+                        ? ` de sistema contra ${new Set(sapB1SmartMatches.map((match) => match.bankRow.rowId)).size} fila(s) bancaria(s)`
+                        : ""}
                     </p>
                     {isSapB1ExternalReconciliationDisabled &&
                     sapB1ExternalReconciliationBlockers.length > 0 ? (
@@ -619,8 +821,7 @@ export default function ConciliationWorkbenchPage({
                       if (success) {
                         setSapB1SmartMatches([]);
                         setShowSapB1Comparison(false);
-                        setSelectedSapB1BankRowIndex(null);
-                        setSelectedSapB1SystemRowIndex(null);
+                        clearSapB1SelectedRows();
                         await runSapB1QueryPreview();
                       }
                     }}

@@ -20,6 +20,7 @@ import {
 export type SmartMatch = SapB1SmartMatch;
 
 export type MatchColumn = { fieldKey: string; label: string; dataType?: string };
+export type MatchAmountTotalsMode = "raw" | "sap-b1-net";
 
 type MatchRow = SmartMatch["systemRow"];
 
@@ -96,7 +97,8 @@ export function formatMatchCell(row: MatchRow, column: MatchColumn): string {
 export function buildMatchesExportRows(
   matches: SmartMatch[],
   bankColumns: MatchColumn[],
-  systemColumns: MatchColumn[]
+  systemColumns: MatchColumn[],
+  amountTotalsMode: MatchAmountTotalsMode = "raw"
 ): string[][] {
   const header = [
     ...bankColumns.map((c) => `Banco - ${c.label}`),
@@ -110,7 +112,12 @@ export function buildMatchesExportRows(
 
   // Totales de importes al pie (solo informativo, igual que en la tabla):
   // "Total banco" alineado bajo el bloque Banco y "Total sistema" bajo Sistema.
-  const totals = computeMatchAmountTotals(matches, bankColumns, systemColumns);
+  const totals = computeMatchAmountTotals(
+    matches,
+    bankColumns,
+    systemColumns,
+    amountTotalsMode,
+  );
   if (matches.length > 0 && totals.hasAmountColumns) {
     const width = Math.max(1, bankColumns.length + systemColumns.length);
     const systemStart = bankColumns.length;
@@ -151,8 +158,16 @@ function sumSideAmounts(
     isSummableAmountColumn
   );
   let total = 0;
+  // En la conciliacion OCHO A una sola fila de banco puede estar vinculada a
+  // varias lineas del sistema. La tabla la repite para que cada linea sea
+  // auditable, pero su importe solo debe contarse una vez en el total Banco.
+  const countedBankRowIds = new Set<string>();
   for (const match of matches) {
     const row = side === "bank" ? match.bankRow : match.systemRow;
+    if (side === "bank") {
+      if (countedBankRowIds.has(row.rowId)) continue;
+      countedBankRowIds.add(row.rowId);
+    }
     for (const column of amountColumns) {
       const num = matchAmountToNumber(
         row.values[column.fieldKey],
@@ -160,6 +175,71 @@ function sumSideAmounts(
       );
       if (num !== null) total += num;
     }
+  }
+  return total;
+}
+
+function normalizeMatchAmountKey(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+function findSapB1AmountColumn(columns: MatchColumn[], keys: string[]): MatchColumn | null {
+  const columnsByKey = new Map(
+    columns.map((column) => [normalizeMatchAmountKey(column.fieldKey), column]),
+  );
+  return keys.map((key) => columnsByKey.get(key)).find(Boolean) ?? null;
+}
+
+// SAP B1 separa el movimiento en Debito/Credito. Para compararlo con OBNK se
+// debe conservar el signo de cada lado, no sumar ambas columnas como positivas.
+function sumSapB1SideNetAmounts(
+  matches: SmartMatch[],
+  columns: MatchColumn[],
+  side: "bank" | "system",
+): number {
+  const debitColumn = findSapB1AmountColumn(columns, [
+    "debito",
+    "debitos",
+    "debe",
+    "debit",
+    "importedebito",
+  ]);
+  const creditColumn = findSapB1AmountColumn(columns, [
+    "credito",
+    "creditos",
+    "haber",
+    "credit",
+    "importecredito",
+  ]);
+
+  if (!debitColumn || !creditColumn) return sumSideAmounts(matches, columns, side);
+
+  let total = 0;
+  const countedBankRowIds = new Set<string>();
+  for (const match of matches) {
+    const row = side === "bank" ? match.bankRow : match.systemRow;
+    if (side === "bank") {
+      if (countedBankRowIds.has(row.rowId)) continue;
+      countedBankRowIds.add(row.rowId);
+    }
+
+    const debit = matchAmountToNumber(
+      row.values[debitColumn.fieldKey],
+      row.normalized[debitColumn.fieldKey],
+    );
+    const credit = matchAmountToNumber(
+      row.values[creditColumn.fieldKey],
+      row.normalized[creditColumn.fieldKey],
+    );
+    if (debit === null && credit === null) continue;
+
+    const debitValue = Math.abs(debit ?? 0);
+    const creditValue = Math.abs(credit ?? 0);
+    total += side === "bank" ? creditValue - debitValue : debitValue - creditValue;
   }
   return total;
 }
@@ -178,13 +258,15 @@ export type MatchAmountTotals = {
 export function computeMatchAmountTotals(
   matches: SmartMatch[],
   bankColumns: MatchColumn[],
-  systemColumns: MatchColumn[]
+  systemColumns: MatchColumn[],
+  mode: MatchAmountTotalsMode = "raw",
 ): MatchAmountTotals {
   const hasAmountColumns =
     bankColumns.some(isSummableAmountColumn) ||
     systemColumns.some(isSummableAmountColumn);
-  const bank = sumSideAmounts(matches, bankColumns, "bank");
-  const system = sumSideAmounts(matches, systemColumns, "system");
+  const sumAmounts = mode === "sap-b1-net" ? sumSapB1SideNetAmounts : sumSideAmounts;
+  const bank = sumAmounts(matches, bankColumns, "bank");
+  const system = sumAmounts(matches, systemColumns, "system");
   return {
     bank,
     system,

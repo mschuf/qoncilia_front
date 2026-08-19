@@ -238,6 +238,9 @@ export type UseConciliationWorkbenchOptions = {
   // API de extractos/catalagos. OCHO A usa su propia fachada para que sus
   // personalizaciones no modifiquen el flujo de las demas empresas.
   conciliationApiBasePath?: string
+  // Una fila bancaria de OCHO A puede conciliarse contra varias lineas del
+  // sistema; al enviar, la linea bancaria debe ir una sola vez a SAP.
+  allowSapB1SystemManyToOne?: boolean
 }
 
 export default function useConciliationWorkbench(options?: UseConciliationWorkbenchOptions) {
@@ -245,6 +248,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
   const sapApiBasePath = options?.sapApiBasePath?.replace(/\/+$/, "") || "/erp/sap"
   const conciliationApiBasePath =
     options?.conciliationApiBasePath?.replace(/\/+$/, "") || "/conciliation"
+  const allowSapB1SystemManyToOne = options?.allowSapB1SystemManyToOne === true
   const { role, user } = useAuth()
   // Conciliar en SAP: admin/superadmin o gestor de cobranzas (igual que el backend).
   const canReconcileErp = isAdminRole(role) || role === ROLE_VALUES.gestorCobranza
@@ -819,7 +823,11 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
           system: sapB1QueryPreview.system,
           columns,
           excludedBankRowIds,
-          excludedSystemRowIds
+          excludedSystemRowIds,
+          // Solo OCHO_A Banco permite referencias contenidas (por ejemplo,
+          // 63218011 en banco y 632180111 en Referencia2). El importe neto
+          // exacto continua siendo obligatorio en el backend.
+          ...(allowSapB1SystemManyToOne ? { referenceMatchMode: "like" as const } : {})
         },
         { showBackdrop: false, timeoutMs: 45000 }
       )
@@ -1398,6 +1406,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     const journalEntryLines: NonNullable<SapExternalReconciliationRequest["journalEntryLines"]> = []
     const bankStatementLines: NonNullable<SapExternalReconciliationRequest["bankStatementLines"]> = []
     const sapMatches: NonNullable<SapExternalReconciliationRequest["matches"]> = []
+    const sentBankStatementLineKeys = new Set<string>()
 
     for (const match of matches) {
       const { systemRow, bankRow } = match
@@ -1457,10 +1466,14 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
         transactionNumber,
         lineNumber
       })
-      bankStatementLines.push({
-        bankStatementAccountCode: accountCode,
-        sequence
-      })
+      const bankStatementLineKey = `${accountCode}:${sequence}`
+      if (!allowSapB1SystemManyToOne || !sentBankStatementLineKeys.has(bankStatementLineKey)) {
+        bankStatementLines.push({
+          bankStatementAccountCode: accountCode,
+          sequence
+        })
+        sentBankStatementLineKeys.add(bankStatementLineKey)
+      }
       sapMatches.push({
         systemRowId: systemRow.rowId,
         bankRowId: bankRow.rowId,

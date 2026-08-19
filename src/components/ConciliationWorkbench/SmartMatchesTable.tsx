@@ -5,7 +5,11 @@ import {
   computeMatchAmountTotals,
   formatMatchCell,
 } from "./workbenchHelpers";
-import type { MatchColumn, SmartMatch } from "./workbenchHelpers";
+import type {
+  MatchAmountTotalsMode,
+  MatchColumn,
+  SmartMatch,
+} from "./workbenchHelpers";
 import { downloadXlsx } from "../../utils/xlsx";
 import {
   formatAmountPyg,
@@ -40,6 +44,7 @@ function SmartMatchesTable({
   dateSubtotalBankExtraColumn,
   dateSubtotalBankExtraLabel = "Total Importe Neto",
   onKeepOnlyDate,
+  amountTotalsMode = "raw",
 }: {
   matches: SmartMatch[];
   // Columnas a mostrar de cada lado. Sistema y Banco pueden traer columnas
@@ -61,6 +66,9 @@ function SmartMatchesTable({
   // Conserva solamente los matches de la fecha indicada. La tabla de tarjetas
   // la usa para procesar una fecha de credito a la vez.
   onKeepOnlyDate?: (dateKey: string) => void;
+  // SAP B1 expresa movimientos en Debito/Credito; para ese caso el pie usa
+  // importes netos con signo, igual que la validacion manual.
+  amountTotalsMode?: MatchAmountTotalsMode;
 }) {
   const hasActions = Boolean(onRemove || onClear);
   // Divisor vertical entre el bloque Banco y el bloque Sistema.
@@ -75,8 +83,8 @@ function SmartMatchesTable({
   // Suma todas las columnas de monto combinadas. Es solo informativo: no se
   // procesa ni se envia.
   const amountTotals = useMemo(
-    () => computeMatchAmountTotals(matches, bankColumns, systemColumns),
-    [matches, bankColumns, systemColumns]
+    () => computeMatchAmountTotals(matches, bankColumns, systemColumns, amountTotalsMode),
+    [amountTotalsMode, matches, bankColumns, systemColumns]
   );
   const showTotals = matches.length > 0 && amountTotals.hasAmountColumns;
   const dateSubtotalBankExtra = useMemo(
@@ -118,7 +126,12 @@ function SmartMatchesTable({
         bankExtra: 0,
         system: 0,
       };
-      const rowTotals = computeMatchAmountTotals([match], bankColumns, systemColumns);
+      const rowTotals = computeMatchAmountTotals(
+        [match],
+        bankColumns,
+        systemColumns,
+        amountTotalsMode,
+      );
       const extraRaw = dateSubtotalBankExtra
         ? match.bankRow.values[dateSubtotalBankExtra.fieldKey]
         : null;
@@ -149,6 +162,7 @@ function SmartMatchesTable({
     dateSubtotalBankExtra,
     dateSubtotalColumn,
     matches,
+    amountTotalsMode,
     systemColumns,
   ]);
 
@@ -166,7 +180,12 @@ function SmartMatchesTable({
 
   // Descarga la tabla actual (mismas columnas y formato que se ven) a un .xlsx.
   const handleDownload = () => {
-    const rows = buildMatchesExportRows(matches, bankColumns, systemColumns);
+    const rows = buildMatchesExportRows(
+      matches,
+      bankColumns,
+      systemColumns,
+      amountTotalsMode,
+    );
     const stamp = new Date().toISOString().slice(0, 10);
     downloadXlsx(`${exportFileName}-${stamp}`, rows, "Resultados");
   };
