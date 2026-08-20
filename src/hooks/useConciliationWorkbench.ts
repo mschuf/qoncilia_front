@@ -188,10 +188,39 @@ function parseRowNumber(row: PreviewRow | undefined, keys: string[]) {
   if (typeof value === "number" && Number.isFinite(value)) return Math.abs(value)
   if (typeof value !== "string") return undefined
 
-  const normalized = value.trim().replace(/\s/g, "")
-  const numberValue = normalized.includes(",")
-    ? Number(normalized.replace(/\./g, "").replace(",", "."))
-    : Number(normalized)
+  // El CSV de tarjetas puede venir como 135,000.000 (miles con coma), mientras
+  // que la interfaz muestra 135.000,000. Aceptamos ambos sin perder decimales.
+  const cleaned = value
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/[^\d,.\-+]/g, "")
+  if (!cleaned) return undefined
+
+  const sign = cleaned.startsWith("-") ? "-" : cleaned.startsWith("+") ? "+" : ""
+  const unsigned = cleaned.replace(/^[-+]/, "")
+  const lastDot = unsigned.lastIndexOf(".")
+  const lastComma = unsigned.lastIndexOf(",")
+  let normalized = unsigned
+
+  if (lastDot >= 0 && lastComma >= 0) {
+    const decimalSeparator = lastDot > lastComma ? "." : ","
+    const thousandsSeparator = decimalSeparator === "." ? "," : "."
+    normalized = unsigned
+      .replace(new RegExp(`\\${thousandsSeparator}`, "g"), "")
+      .replace(decimalSeparator, ".")
+  } else if (lastComma >= 0) {
+    const groups = unsigned.split(",")
+    const isThousandsOnly =
+      groups.length > 1 && groups.slice(1).every((group) => group.length === 3)
+    normalized = isThousandsOnly ? groups.join("") : unsigned.replace(",", ".")
+  } else if (lastDot >= 0) {
+    const groups = unsigned.split(".")
+    const isThousandsOnly =
+      groups.length > 1 && groups.slice(1).every((group) => group.length === 3)
+    normalized = isThousandsOnly ? groups.join("") : unsigned
+  }
+
+  const numberValue = Number(`${sign}${normalized}`)
 
   return Number.isFinite(numberValue) ? Math.abs(numberValue) : undefined
 }
@@ -1094,6 +1123,10 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       ...(commission !== undefined ? { commission } : {}),
       creditLines
     }
+    const depositEndpoint =
+      sapApiBasePath === "/erp/sap/ocho-a"
+        ? `${sapApiBasePath}/credit-cards/deposits/${kind}`
+        : `${sapApiBasePath}/credit-cards/deposits`
     const kindLabel = kind === "credit" ? "crédito" : "débito"
 
     try {
@@ -1101,9 +1134,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       // Un POST a nuestro backend por lote; este conserva todos los AbsId en un
       // solo JSON CreditLines para una unica llamada al Service Layer.
       const response = await apiClient.post<SapTarjetasBulkDepositResult>(
-        sapApiBasePath === "/erp/sap/ocho-a"
-          ? `${sapApiBasePath}/credit-cards/deposits/${kind}`
-          : `${sapApiBasePath}/credit-cards/deposits`,
+        depositEndpoint,
         request,
         { timeoutMs: Math.min(300000, 30000 + creditLines.length * 3000) }
       )
