@@ -31,9 +31,10 @@ type DateSubtotal = {
   system: number;
 };
 
-type MatchSummary = {
+type DateMatchSummary = {
   key: string;
-  bankRow: SmartMatch["bankRow"];
+  label: string;
+  bankRows: number;
   systemRows: number;
   bank: number;
   system: number;
@@ -92,8 +93,8 @@ function SmartMatchesTable({
   // SAP B1 expresa movimientos en Debito/Credito; para ese caso el pie usa
   // importes netos con signo, igual que la validacion manual.
   amountTotalsMode?: MatchAmountTotalsMode;
-  // Muestra un resumen compacto por matching debajo de la tabla. Se usa en
-  // Conciliacion OCHO A para validar los casos de una fila banco a varias SAP.
+  // Muestra un resumen compacto por fecha debajo de la tabla. Se usa en
+  // Conciliación OCHO A para validar los casos de varias filas en ambos lados.
   showSummaryBelow?: boolean;
 }) {
   const hasActions = Boolean(onRemove || onClear);
@@ -113,7 +114,16 @@ function SmartMatchesTable({
     [amountTotalsMode, matches, bankColumns, systemColumns]
   );
   const showTotals = matches.length > 0 && amountTotals.hasAmountColumns;
-  const matchSummaries = useMemo(() => {
+  const matchingDateColumn = useMemo(
+    () =>
+      bankColumns.find((column) =>
+        /fecha|date/i.test(`${column.fieldKey} ${column.label}`),
+      ) ?? null,
+    [bankColumns],
+  );
+  const dateMatchSummaries = useMemo(() => {
+    if (!matchingDateColumn) return [];
+
     const grouped = new Map<string, SmartMatch[]>();
     for (const match of matches) {
       const group = grouped.get(match.bankRow.rowId) ?? [];
@@ -121,34 +131,66 @@ function SmartMatchesTable({
       grouped.set(match.bankRow.rowId, group);
     }
 
-    return [...grouped.entries()].map(([key, matchGroup]): MatchSummary => {
-      const totals = computeMatchAmountTotals(
-        matchGroup,
+    const summaries = new Map<
+      string,
+      DateMatchSummary & { systemRowIds: Set<string> }
+    >();
+    const countedSystemRowIds = new Set<string>();
+    for (const [, matchGroup] of grouped) {
+      const bankRow = matchGroup[0].bankRow;
+      const raw = bankRow.values[matchingDateColumn.fieldKey];
+      const rawText = raw == null ? "" : String(raw).trim();
+      const normalized = bankRow.normalized[matchingDateColumn.fieldKey];
+      const iso =
+        typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}/.test(normalized)
+          ? normalized.slice(0, 10)
+          : rawText
+            ? toIsoLoose(rawText)
+            : null;
+      const key = (iso ?? rawText) || "without-date";
+      const label = iso ? formatIsoToDdMmYyyy(iso) : rawText || "Sin fecha";
+      const uniqueSystemMatches = matchGroup.filter((match) => {
+        if (countedSystemRowIds.has(match.systemRow.rowId)) return false;
+        countedSystemRowIds.add(match.systemRow.rowId);
+        return true;
+      });
+      const bankTotals = computeMatchAmountTotals(
+        [matchGroup[0]],
         bankColumns,
         systemColumns,
         amountTotalsMode,
       );
-      return {
-        key,
-        bankRow: matchGroup[0].bankRow,
-        systemRows: new Set(matchGroup.map((match) => match.systemRow.rowId)).size,
-        bank: totals.bank,
-        system: totals.system,
-        balanced: totals.balanced,
-      };
-    });
-  }, [amountTotalsMode, bankColumns, matches, systemColumns]);
-  const matchingIdentifierColumns = useMemo(
-    () => {
-      const identifiers = bankColumns.filter((column) =>
-        /referencia|reference|secuencia|sequence/i.test(
-          `${column.fieldKey} ${column.label}`,
-        ),
+      const systemTotals = computeMatchAmountTotals(
+        uniqueSystemMatches,
+        bankColumns,
+        systemColumns,
+        amountTotalsMode,
       );
-      return identifiers.length > 0 ? identifiers.slice(0, 2) : bankColumns.slice(0, 1);
-    },
-    [bankColumns],
-  );
+      const summary = summaries.get(key) ?? {
+        key,
+        label,
+        bankRows: 0,
+        systemRows: 0,
+        bank: 0,
+        system: 0,
+        balanced: false,
+        systemRowIds: new Set<string>(),
+      };
+      summary.bankRows += 1;
+      summary.bank += bankTotals.bank;
+      summary.system += systemTotals.system;
+      for (const match of uniqueSystemMatches) {
+        summary.systemRowIds.add(match.systemRow.rowId);
+      }
+      summary.systemRows = summary.systemRowIds.size;
+      summary.balanced = Math.abs(summary.bank - summary.system) < 0.0001;
+      summaries.set(key, summary);
+    }
+
+    return [...summaries.values()]
+      .sort((left, right) => left.key.localeCompare(right.key))
+      .map(({ systemRowIds: _systemRowIds, ...summary }) => summary);
+  }, [amountTotalsMode, bankColumns, matches, matchingDateColumn, systemColumns]);
   const dateSubtotalBankExtra = useMemo(
     () =>
       dateSubtotalBankExtraColumn
@@ -483,21 +525,22 @@ function SmartMatchesTable({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 bg-emerald-50 px-3 py-2">
             <div>
               <h4 className="text-xs font-extrabold text-emerald-950">
-                Resumen por matching
+                Resumen por fecha
               </h4>
               <p className="text-[11px] font-medium text-emerald-700">
-                Cada fila agrupa una línea bancaria y todas sus líneas SAP asociadas.
+                Suma los movimientos conciliados de cada fecha bancaria y muestra el total general al final.
               </p>
             </div>
             <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-              {matchSummaries.length} {matchSummaries.length === 1 ? "matching" : "matchings"}
+              {dateMatchSummaries.length} {dateMatchSummaries.length === 1 ? "fecha" : "fechas"}
             </span>
           </div>
           <div className="max-h-60 overflow-auto">
             <table className="min-w-full text-[11px]">
               <thead className="sticky top-0 bg-emerald-50 text-left uppercase tracking-wide text-emerald-800">
                 <tr>
-                  <th className="px-3 py-1.5 font-bold">Matching</th>
+                  <th className="px-3 py-1.5 font-bold">Fecha</th>
+                  <th className="px-3 py-1.5 text-right font-bold">Filas banco</th>
                   <th className="px-3 py-1.5 text-right font-bold">Líneas SAP</th>
                   <th className="px-3 py-1.5 text-right font-bold">Banco</th>
                   <th className="px-3 py-1.5 text-right font-bold">SAP</th>
@@ -505,22 +548,13 @@ function SmartMatchesTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-emerald-100 text-slate-700">
-                {matchSummaries.map((summary) => {
+                {dateMatchSummaries.map((summary) => {
                   const difference = Math.abs(summary.bank - summary.system);
                   return (
                     <tr key={summary.key}>
-                      <td className="px-3 py-1.5">
-                        <p className="font-bold text-slate-800">
-                          Fila banco #{summary.bankRow.rowNumber}
-                        </p>
-                        <p className="max-w-56 truncate text-slate-500">
-                          {matchingIdentifierColumns
-                            .map(
-                              (column) =>
-                                `${column.label}: ${formatMatchCell(summary.bankRow, column)}`,
-                            )
-                            .join(" · ")}
-                        </p>
+                      <td className="px-3 py-1.5 font-bold text-slate-800">{summary.label}</td>
+                      <td className="px-3 py-1.5 text-right font-semibold">
+                        {summary.bankRows}
                       </td>
                       <td className="px-3 py-1.5 text-right font-semibold">
                         {summary.systemRows}
@@ -542,6 +576,30 @@ function SmartMatchesTable({
                   );
                 })}
               </tbody>
+              <tfoot className="sticky bottom-0 border-t-2 border-emerald-300 bg-emerald-50 text-emerald-950">
+                <tr>
+                  <td colSpan={3} className="px-3 py-2 font-extrabold">
+                    Total general
+                  </td>
+                  <td className="px-3 py-2 text-right font-extrabold text-amber-800">
+                    {formatAmountPyg(amountTotals.bank)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-extrabold text-sky-800">
+                    {formatAmountPyg(amountTotals.system)}
+                  </td>
+                  <td
+                    className={`px-3 py-2 text-right font-extrabold ${
+                      amountTotals.balanced ? "text-emerald-700" : "text-rose-700"
+                    }`}
+                  >
+                    {amountTotals.balanced
+                      ? "Cuadrado"
+                      : formatAmountPyg(
+                          Math.abs(amountTotals.bank - amountTotals.system),
+                        )}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>

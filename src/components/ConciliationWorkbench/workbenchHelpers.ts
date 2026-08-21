@@ -219,13 +219,13 @@ function sumSapB1SideNetAmounts(
   if (!debitColumn || !creditColumn) return sumSideAmounts(matches, columns, side);
 
   let total = 0;
-  const countedBankRowIds = new Set<string>();
+  // Una conciliación OCHO A puede mostrarse como varios pares para representar
+  // una selección N a N. Cada movimiento real se cuenta una sola vez.
+  const countedRowIds = new Set<string>();
   for (const match of matches) {
     const row = side === "bank" ? match.bankRow : match.systemRow;
-    if (side === "bank") {
-      if (countedBankRowIds.has(row.rowId)) continue;
-      countedBankRowIds.add(row.rowId);
-    }
+    if (countedRowIds.has(row.rowId)) continue;
+    countedRowIds.add(row.rowId);
 
     const debit = matchAmountToNumber(
       row.values[debitColumn.fieldKey],

@@ -1438,6 +1438,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     const bankStatementLines: NonNullable<SapExternalReconciliationRequest["bankStatementLines"]> = []
     const sapMatches: NonNullable<SapExternalReconciliationRequest["matches"]> = []
     const sentBankStatementLineKeys = new Set<string>()
+    const sentJournalEntryLineKeys = new Set<string>()
 
     for (const match of matches) {
       const { systemRow, bankRow } = match
@@ -1493,10 +1494,14 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       }
 
       const lineNumber = rawLineNumber
-      journalEntryLines.push({
-        transactionNumber,
-        lineNumber
-      })
+      const journalEntryLineKey = `${transactionNumber}:${lineNumber}`
+      if (!allowSapB1SystemManyToOne || !sentJournalEntryLineKeys.has(journalEntryLineKey)) {
+        journalEntryLines.push({
+          transactionNumber,
+          lineNumber
+        })
+        sentJournalEntryLineKeys.add(journalEntryLineKey)
+      }
       const bankStatementLineKey = `${accountCode}:${sequence}`
       if (!allowSapB1SystemManyToOne || !sentBankStatementLineKeys.has(bankStatementLineKey)) {
         bankStatementLines.push({
