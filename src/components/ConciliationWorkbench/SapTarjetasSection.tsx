@@ -15,7 +15,7 @@ import type {
 import SapB1QueryTableView from "./SapB1QueryTableView";
 import SmartMatchesTable from "./SmartMatchesTable";
 import { UploadCard } from "./WorkbenchControls";
-import { toIsoLoose } from "../../utils/format";
+import { formatAmountPyg, toIsoLoose } from "../../utils/format";
 import {
   convertSapB1TableToPreviewRows,
   isSameSmartMatch,
@@ -106,6 +106,190 @@ function toCsvDateKey(value: unknown): string | null {
 function formatCsvDateKey(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function findTableColumn(columns: string[], normalizedKey: string): string | undefined {
+  return columns.find((column) => normalizeLookupKey(column) === normalizedKey);
+}
+
+// Para Débito OCHO_A se preserva Fecha de venta como dato original y se expone
+// además como "Fecha" exclusivamente al motor de comparación. Así el matching
+// automático y manual compara venta vs. fecha SAP, sin mostrar las fechas de
+// acreditación que confunden al usuario.
+function buildOchoADebitMatchingBankTable(table: SapB1QueryTable): SapB1QueryTable {
+  const saleDateColumn = findTableColumn(table.columns, "fechadeventa");
+  if (!saleDateColumn) return table;
+
+  const visibleColumns = table.columns.filter((column) => {
+    const key = normalizeLookupKey(column);
+    return key === "fechadeventa" || !key.includes("fecha");
+  });
+  const columns = visibleColumns.includes("Fecha")
+    ? visibleColumns
+    : [...visibleColumns, "Fecha"];
+
+  return {
+    columns,
+    rows: table.rows.map((row) => ({
+      ...row,
+      "Fecha de venta": row[saleDateColumn],
+      Fecha: row[saleDateColumn],
+    })),
+  };
+}
+
+// La tabla superior de Débito muestra Referencia y Fecha de venta al inicio, y
+// omite Fecha/Fecha de crédito del comercio para que haya una sola fecha visible.
+function buildOchoADebitDisplayBankTable(table: SapB1QueryTable): SapB1QueryTable {
+  const referenceColumn = findTableColumn(table.columns, "referencia");
+  const saleDateColumn = findTableColumn(table.columns, "fechadeventa");
+  if (!saleDateColumn) return table;
+
+  const otherColumns = table.columns.filter((column) => {
+    const key = normalizeLookupKey(column);
+    return column !== referenceColumn && column !== saleDateColumn && !key.includes("fecha");
+  });
+  const columns = [referenceColumn, saleDateColumn, ...otherColumns].filter(
+    (column): column is string => Boolean(column),
+  );
+
+  return { ...table, columns };
+}
+
+function parseCardAmount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  const text = String(value ?? "").trim();
+  if (!text || text === "-") return null;
+
+  const cleaned = text
+    .replace(/[A-Za-z$%]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[^\d,.+-]/g, "");
+  const sign = cleaned.startsWith("-") ? "-" : cleaned.startsWith("+") ? "+" : "";
+  const unsigned = cleaned.replace(/^[-+]/, "");
+  if (!unsigned || !/^\d[\d,.]*$/.test(unsigned)) return null;
+
+  const lastDot = unsigned.lastIndexOf(".");
+  const lastComma = unsigned.lastIndexOf(",");
+  let normalized: string;
+
+  if (lastDot >= 0 && lastComma >= 0) {
+    const decimalSeparator = lastDot > lastComma ? "." : ",";
+    const thousandsSeparator = decimalSeparator === "." ? "," : ".";
+    normalized = unsigned
+      .replace(new RegExp(`\\${thousandsSeparator}`, "g"), "")
+      .replace(decimalSeparator, ".");
+  } else if (lastComma >= 0) {
+    const groups = unsigned.split(",");
+    normalized =
+      groups.length > 1 && groups.slice(1).every((group) => group.length === 3)
+        ? groups.join("")
+        : unsigned.replace(",", ".");
+  } else if (lastDot >= 0) {
+    const groups = unsigned.split(".");
+    normalized =
+      groups.length > 1 && groups.slice(1).every((group) => group.length === 3)
+        ? groups.join("")
+        : unsigned;
+  } else {
+    normalized = unsigned;
+  }
+
+  const parsed = Number(`${sign}${normalized}`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function findRowAmount(
+  row: SmartMatch["bankRow"] | SmartMatch["systemRow"],
+): number | null {
+  return parseCardAmount(findRowText(row, ["Importe", "Monto", "Amount"], true));
+}
+
+function resolveCardManualMatchDateKey(
+  row: SmartMatch["bankRow"] | SmartMatch["systemRow"],
+  kind: CardMatchKind,
+  side: "bank" | "system",
+): string | null {
+  const dateKeys = kind === "debit" && side === "bank" ? ["Fecha de venta"] : ["Fecha"];
+  const normalized = findRowText(row, dateKeys, true);
+  const raw = findRowText(row, dateKeys);
+  return toIsoLoose(normalized) ?? toIsoLoose(raw);
+}
+
+function resolveCardDebitSaleDateKey(match: SmartMatch): string {
+  const dateKeys = ["Fecha de venta", "Fecha de Venta"];
+  const normalized = findRowText(match.bankRow, dateKeys, true);
+  const raw = findRowText(match.bankRow, dateKeys);
+  return toIsoLoose(normalized) ?? toIsoLoose(raw) ?? "sin-fecha";
+}
+
+type CardManualPairing = {
+  matches: SmartMatch[];
+  error: string | null;
+};
+
+// El matching manual de OCHO_A acepta varias filas, pero no agrupa importes:
+// cada fila elegida del CSV debe encontrar exactamente una fila SAP con el
+// mismo importe y la misma fecha. Asi se evita que un total correcto esconda
+// lineas individuales incorrectas.
+function buildCardManualPairing(
+  bankRows: SmartMatch["bankRow"][],
+  systemRows: SmartMatch["systemRow"][],
+  kind: CardMatchKind,
+): CardManualPairing {
+  if (bankRows.length !== systemRows.length) {
+    return {
+      matches: [],
+      error: "Selecciona la misma cantidad de filas en CSV y SAP para emparejar línea por línea.",
+    };
+  }
+
+  const availableSystemRows = [...systemRows];
+  const matches: SmartMatch[] = [];
+
+  for (const bankRow of bankRows) {
+    const bankAmount = findRowAmount(bankRow);
+    const bankDate = resolveCardManualMatchDateKey(bankRow, kind, "bank");
+    if (bankAmount === null || !bankDate) {
+      return {
+        matches: [],
+        error: `La fila ${bankRow.rowNumber} del CSV no tiene un importe o fecha válida.`,
+      };
+    }
+
+    const systemIndex = availableSystemRows.findIndex((systemRow) => {
+      const systemAmount = findRowAmount(systemRow);
+      const systemDate = resolveCardManualMatchDateKey(systemRow, kind, "system");
+      return (
+        systemAmount !== null &&
+        systemDate === bankDate &&
+        Math.abs(systemAmount - bankAmount) < 0.01
+      );
+    });
+    if (systemIndex < 0) {
+      return {
+        matches: [],
+        error:
+          `La fila ${bankRow.rowNumber} del CSV no tiene una fila SAP seleccionada ` +
+          "con el mismo importe y fecha.",
+      };
+    }
+
+    const [systemRow] = availableSystemRows.splice(systemIndex, 1);
+    matches.push({
+      systemRow,
+      bankRow,
+      score: 1,
+      column1Match: true,
+      column2Match: true,
+      column3Match: true,
+      matchReason: "manual",
+      dateDifferenceDays: 0,
+    });
+  }
+
+  return { matches, error: null };
 }
 
 // El CSV identifica las tarjetas de credito tanto por el tipo como por la
@@ -223,17 +407,29 @@ export default function SapTarjetasSection({
   const [selectedSystemRowIndex, setSelectedSystemRowIndex] = useState<
     number | null
   >(null);
+  const [selectedBankRowIndices, setSelectedBankRowIndices] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [selectedSystemRowIndices, setSelectedSystemRowIndices] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
   const [showComparison, setShowComparison] = useState(false);
   const [depositAccount, setDepositAccount] = useState("");
   const [depositDate, setDepositDate] = useState(defaultDepositDate);
   const [journalRemarks, setJournalRemarks] = useState(DEFAULT_JOURNAL_REMARKS);
-  const [bankReference, setBankReference] = useState("");
+  const [creditBankReferencesByDate, setCreditBankReferencesByDate] = useState<
+    Record<string, string>
+  >({});
   const [depositErrors, setDepositErrors] = useState<string[]>([]);
   const [csvDateColumn, setCsvDateColumn] = useState("");
   const [csvDateFilter, setCsvDateFilter] = useState("");
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
+  const isOchoACardPaymentPage = Boolean(cardPaymentKind);
+  const isOchoADebitPage = cardPaymentKind === "debit";
+  const isOchoACreditPage = cardPaymentKind === "credit";
+  const usesOchoACsvDepositDate = isOchoADebitPage || isOchoACreditPage;
 
   const csvDateColumns = useMemo(
     () =>
@@ -244,8 +440,9 @@ export default function SapTarjetasSection({
   );
 
   useEffect(() => {
+    const preferredDateKey = cardPaymentKind === "debit" ? "fechadeventa" : "fecha";
     const preferredColumn = csvDateColumns.find(
-      (column) => normalizeLookupKey(column) === "fecha",
+      (column) => normalizeLookupKey(column) === preferredDateKey,
     );
     setCsvDateColumn(preferredColumn ?? csvDateColumns[0] ?? "");
     setCsvDateFilter("");
@@ -280,6 +477,21 @@ export default function SapTarjetasSection({
     return { ...bankTable, rows };
   }, [bankTable, cardPaymentKind, csvDateColumn, csvDateFilter]);
 
+  const bankTableForMatching = useMemo(
+    () =>
+      filteredBankTable && isOchoADebitPage
+        ? buildOchoADebitMatchingBankTable(filteredBankTable)
+        : filteredBankTable,
+    [filteredBankTable, isOchoADebitPage],
+  );
+  const bankTableForDisplay = useMemo(
+    () =>
+      filteredBankTable && isOchoADebitPage
+        ? buildOchoADebitDisplayBankTable(filteredBankTable)
+        : filteredBankTable,
+    [filteredBankTable, isOchoADebitPage],
+  );
+
   const cardKindLabel =
     cardPaymentKind === "credit"
       ? "crédito"
@@ -293,6 +505,9 @@ export default function SapTarjetasSection({
     setShowComparison(false);
     setSelectedBankRowIndex(null);
     setSelectedSystemRowIndex(null);
+    setSelectedBankRowIndices(new Set());
+    setSelectedSystemRowIndices(new Set());
+    setCreditBankReferencesByDate({});
     setDepositErrors([]);
   }, [systemTable, filteredBankTable]);
 
@@ -309,12 +524,12 @@ export default function SapTarjetasSection({
   }, [accountCode]);
 
   const comparisonColumns = useMemo(() => {
-    if (!systemTable || !filteredBankTable) return [];
+    if (!systemTable || !bankTableForMatching) return [];
     return resolveSapB1ComparisonColumns({
-      bank: filteredBankTable,
+      bank: bankTableForMatching,
       system: systemTable,
     });
-  }, [systemTable, filteredBankTable]);
+  }, [systemTable, bankTableForMatching]);
 
   const matchedBankIndices = useMemo(
     () => new Set(smartMatches.map((m) => m.bankRow.rowNumber - 1)),
@@ -345,11 +560,103 @@ export default function SapTarjetasSection({
   );
   const smartMatchBankColumns = useMemo(
     () =>
-      (filteredBankTable?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
-    [filteredBankTable],
+      (bankTableForDisplay?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
+    [bankTableForDisplay],
   );
 
+  const selectedManualBankRows = useMemo(
+    () =>
+      bankTableForMatching
+        ? convertSapB1TableToPreviewRows(bankTableForMatching).filter((_, index) =>
+            selectedBankRowIndices.has(index),
+          )
+        : [],
+    [bankTableForMatching, selectedBankRowIndices],
+  );
+  const selectedManualSystemRows = useMemo(
+    () =>
+      systemTable
+        ? convertSapB1TableToPreviewRows(systemTable).filter((_, index) =>
+            selectedSystemRowIndices.has(index),
+          )
+        : [],
+    [selectedSystemRowIndices, systemTable],
+  );
+  const manualPairing = useMemo(
+    () =>
+      cardPaymentKind &&
+      selectedManualBankRows.length > 0 &&
+      selectedManualSystemRows.length > 0
+        ? buildCardManualPairing(
+            selectedManualBankRows,
+            selectedManualSystemRows,
+            cardPaymentKind,
+          )
+        : null,
+    [
+      cardPaymentKind,
+      selectedManualBankRows,
+      selectedManualSystemRows,
+    ],
+  );
+  const manualSelectionTotals = useMemo(
+    () => ({
+      bank: selectedManualBankRows.reduce(
+        (total, row) => total + (findRowAmount(row) ?? 0),
+        0,
+      ),
+      system: selectedManualSystemRows.reduce(
+        (total, row) => total + (findRowAmount(row) ?? 0),
+        0,
+      ),
+      bankDates: [...new Set(
+        selectedManualBankRows
+          .map((row) =>
+            resolveCardManualMatchDateKey(row, cardPaymentKind ?? "debit", "bank"),
+          )
+          .filter((date): date is string => Boolean(date)),
+      )],
+      systemDates: [...new Set(
+        selectedManualSystemRows
+          .map((row) =>
+            resolveCardManualMatchDateKey(row, cardPaymentKind ?? "debit", "system"),
+          )
+          .filter((date): date is string => Boolean(date)),
+      )],
+    }),
+    [cardPaymentKind, selectedManualBankRows, selectedManualSystemRows],
+  );
+
+  const toggleSelectedBankRow = useCallback((index: number, selected: boolean) => {
+    setSelectedBankRowIndices((current) => {
+      const next = new Set(current);
+      if (selected) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  }, []);
+  const toggleSelectedSystemRow = useCallback((index: number, selected: boolean) => {
+    setSelectedSystemRowIndices((current) => {
+      const next = new Set(current);
+      if (selected) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  }, []);
+
   const handleManualMatch = () => {
+    if (isOchoACardPaymentPage) {
+      if (!manualPairing || manualPairing.error || manualPairing.matches.length === 0) {
+        return;
+      }
+
+      setSmartMatches((prev) => [...prev, ...manualPairing.matches]);
+      setShowComparison(true);
+      setSelectedBankRowIndices(new Set());
+      setSelectedSystemRowIndices(new Set());
+      return;
+    }
+
     if (
       !filteredBankTable ||
       !systemTable ||
@@ -382,13 +689,13 @@ export default function SapTarjetasSection({
   };
 
   const handleCompare = async () => {
-    if (!filteredBankTable || !systemTable) return;
+    if (!bankTableForMatching || !systemTable) return;
     const excludedBankRowIds = smartMatches.map((m) => m.bankRow.rowId);
     const excludedSystemRowIds = smartMatches.map((m) => m.systemRow.rowId);
 
     const result = await runComparison({
       columns: comparisonColumns,
-      bankTable: filteredBankTable,
+      bankTable: bankTableForMatching,
       excludedBankRowIds,
       excludedSystemRowIds,
       // Las dos pantallas exclusivas de OCHO_A (Debito y Credito) requieren
@@ -411,8 +718,12 @@ export default function SapTarjetasSection({
   const handleClearSmartMatches = useCallback(() => {
     setSmartMatches([]);
     setShowComparison(false);
+    setSelectedBankRowIndex(null);
+    setSelectedSystemRowIndex(null);
+    setSelectedBankRowIndices(new Set());
+    setSelectedSystemRowIndices(new Set());
     setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
-    setBankReference("");
+    setCreditBankReferencesByDate({});
     setDepositDate(defaultDepositDate());
     setDepositErrors([]);
   }, []);
@@ -421,6 +732,7 @@ export default function SapTarjetasSection({
     setSmartMatches((current) =>
       current.filter((match) => resolveCardMatchKind(match) !== kind),
     );
+    if (kind === "credit") setCreditBankReferencesByDate({});
     setDepositErrors([]);
   }, []);
 
@@ -432,41 +744,131 @@ export default function SapTarjetasSection({
           resolveCardCreditDateKey(match) === dateKey,
       ),
     );
+    setCreditBankReferencesByDate((current) =>
+      current[dateKey] === undefined ? {} : { [dateKey]: current[dateKey] },
+    );
+    setDepositErrors([]);
+  }, []);
+
+  const handleRemoveCreditDate = useCallback((dateKey: string) => {
+    setSmartMatches((current) =>
+      current.filter(
+        (match) =>
+          resolveCardMatchKind(match) !== "credit" ||
+          resolveCardCreditDateKey(match) !== dateKey,
+      ),
+    );
+    setCreditBankReferencesByDate((current) => {
+      const next = { ...current };
+      delete next[dateKey];
+      return next;
+    });
+    setDepositErrors([]);
+  }, []);
+
+  const handleCreditDateReferenceChange = useCallback((dateKey: string, value: string) => {
+    setCreditBankReferencesByDate((current) => ({ ...current, [dateKey]: value }));
+  }, []);
+
+  const handleKeepOnlyDebitSaleDate = useCallback((dateKey: string) => {
+    setSmartMatches((current) =>
+      current.filter(
+        (match) =>
+          resolveCardMatchKind(match) !== "debit" ||
+          resolveCardDebitSaleDateKey(match) === dateKey,
+      ),
+    );
+    setDepositErrors([]);
+  }, []);
+
+  const handleRemoveDebitSaleDate = useCallback((dateKey: string) => {
+    setSmartMatches((current) =>
+      current.filter(
+        (match) =>
+          resolveCardMatchKind(match) !== "debit" ||
+          resolveCardDebitSaleDateKey(match) !== dateKey,
+      ),
+    );
     setDepositErrors([]);
   }, []);
 
   const handleSendDeposit = async () => {
     setDepositErrors([]);
-    const batches: Array<{ kind: CardMatchKind; matches: SmartMatch[] }> = cardPaymentKind
-      ? [
-          {
-            kind: cardPaymentKind,
-            matches:
-              cardPaymentKind === "credit"
-                ? creditSmartMatches
-                : debitSmartMatches,
-          },
-        ].filter((batch) => batch.matches.length > 0)
-      : [
-          { kind: "debit", matches: debitSmartMatches },
-          { kind: "credit", matches: creditSmartMatches },
-        ].filter((batch) => batch.matches.length > 0);
+    let batches: Array<{
+      kind: CardMatchKind;
+      matches: SmartMatch[];
+      depositDate: string;
+      bankReference?: string;
+    }>;
+
+    if (usesOchoACsvDepositDate) {
+      const kind: CardMatchKind = isOchoACreditPage ? "credit" : "debit";
+      const matches = kind === "credit" ? creditSmartMatches : debitSmartMatches;
+      const dateFieldLabel =
+        kind === "credit" ? "Fecha de crédito del comercio" : "Fecha de venta";
+      const resolveDepositDate =
+        kind === "credit" ? resolveCardCreditDateKey : resolveCardDebitSaleDateKey;
+      const matchesByDepositDate = new Map<string, SmartMatch[]>();
+
+      for (const match of matches) {
+        const csvDate = resolveDepositDate(match);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(csvDate)) {
+          setDepositErrors([
+            `La fila ${match.bankRow.rowNumber} del CSV no tiene ${dateFieldLabel} válida para depositar.`,
+          ]);
+          return;
+        }
+        const current = matchesByDepositDate.get(csvDate) ?? [];
+        current.push(match);
+        matchesByDepositDate.set(csvDate, current);
+      }
+      batches = [...matchesByDepositDate.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([csvDate, matches]) => ({
+          kind,
+          matches,
+          depositDate: csvDate,
+          ...(kind === "credit" && creditBankReferencesByDate[csvDate]?.trim()
+            ? { bankReference: creditBankReferencesByDate[csvDate].trim() }
+            : {}),
+        }));
+    } else {
+      batches = (cardPaymentKind
+        ? [
+            {
+              kind: cardPaymentKind,
+              matches:
+                cardPaymentKind === "credit"
+                  ? creditSmartMatches
+                  : debitSmartMatches,
+            },
+          ]
+        : [
+            { kind: "debit" as const, matches: debitSmartMatches },
+            { kind: "credit" as const, matches: creditSmartMatches },
+          ])
+        .filter((batch) => batch.matches.length > 0)
+        .map((batch) => ({ ...batch, depositDate }));
+    }
     const results: Array<{
       succeededAbsIds: number[];
       failedAbsIds: number[];
       errors: string[];
     }> = [];
 
-    // Se envian en secuencia: un JSON para Debito y otro para Credito. Cada JSON
-    // contiene todos los AbsId de su tipo dentro de CreditLines.
+    // Cada lote conserva todos sus AbsId dentro de CreditLines. OCHO_A genera
+    // un lote por fecha del CSV: venta para Débito y crédito del comercio para
+    // Crédito, para que SAP reciba el DepositDate correcto.
     for (const batch of batches) {
       const result = await sendDeposit(
         batch.matches,
         {
           depositAccount,
-          depositDate,
+          depositDate: batch.depositDate,
           journalRemarks,
-          ...(cardPaymentKind === "credit" ? { bankReference } : {}),
+          ...(batch.kind === "credit" && batch.bankReference
+            ? { bankReference: batch.bankReference }
+            : {}),
         },
         batch.kind,
       );
@@ -485,8 +887,10 @@ export default function SapTarjetasSection({
       setShowComparison(false);
       setSelectedBankRowIndex(null);
       setSelectedSystemRowIndex(null);
+      setSelectedBankRowIndices(new Set());
+      setSelectedSystemRowIndices(new Set());
       setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
-      setBankReference("");
+      setCreditBankReferencesByDate({});
       setDepositDate(defaultDepositDate());
       // Deposito completo OK: se re-ejecuta la busqueda del sistema para traer
       // el estado fresco de SAP y no re-matchear/depositar vouchers ya enviados.
@@ -505,16 +909,18 @@ export default function SapTarjetasSection({
     );
     setSelectedBankRowIndex(null);
     setSelectedSystemRowIndex(null);
+    setSelectedBankRowIndices(new Set());
+    setSelectedSystemRowIndices(new Set());
   };
 
   const canCompare =
-    Boolean(filteredBankTable?.rows.length) &&
+    Boolean(bankTableForMatching?.rows.length) &&
     Boolean(systemTable?.rows.length) &&
     !isComparing;
   const canSendDeposit =
     smartMatches.length > 0 &&
     Boolean(depositAccount.trim()) &&
-    Boolean(depositDate) &&
+    (usesOchoACsvDepositDate || Boolean(depositDate)) &&
     !isSendingDeposit;
 
   return (
@@ -614,9 +1020,19 @@ export default function SapTarjetasSection({
             {filteredBankTable ? (
               <SapB1QueryTableView
                 title={`Tarjetas de ${cardKindLabel}`}
-                table={filteredBankTable}
-                selectedRowIndex={selectedBankRowIndex}
-                onSelectRow={setSelectedBankRowIndex}
+                table={bankTableForDisplay ?? filteredBankTable}
+                selectedRowIndex={
+                  isOchoACardPaymentPage ? undefined : selectedBankRowIndex
+                }
+                selectedRowIndices={
+                  isOchoACardPaymentPage ? selectedBankRowIndices : undefined
+                }
+                onSelectRow={
+                  isOchoACardPaymentPage ? undefined : setSelectedBankRowIndex
+                }
+                onToggleRow={
+                  isOchoACardPaymentPage ? toggleSelectedBankRow : undefined
+                }
                 matchedIndices={matchedBankIndices}
               />
             ) : (
@@ -634,8 +1050,18 @@ export default function SapTarjetasSection({
               <SapB1QueryTableView
                 title="Depositos / tarjetas SAP"
                 table={systemTable}
-                selectedRowIndex={selectedSystemRowIndex}
-                onSelectRow={setSelectedSystemRowIndex}
+                selectedRowIndex={
+                  isOchoACardPaymentPage ? undefined : selectedSystemRowIndex
+                }
+                selectedRowIndices={
+                  isOchoACardPaymentPage ? selectedSystemRowIndices : undefined
+                }
+                onSelectRow={
+                  isOchoACardPaymentPage ? undefined : setSelectedSystemRowIndex
+                }
+                onToggleRow={
+                  isOchoACardPaymentPage ? toggleSelectedSystemRow : undefined
+                }
                 matchedIndices={matchedSystemIndices}
               />
             ) : (
@@ -647,6 +1073,54 @@ export default function SapTarjetasSection({
           </div>
         </div>
 
+        {isOchoACardPaymentPage && filteredBankTable && systemTable ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-600">
+                  Control de selección manual
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Cada fila del CSV debe coincidir con una fila SAP seleccionada por importe y {isOchoADebitPage ? "Fecha de venta" : isOchoACreditPage ? "Fecha de crédito" : "fecha"}.
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  manualPairing?.error
+                    ? "bg-rose-100 text-rose-700"
+                    : manualPairing?.matches.length
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-white text-slate-600"
+                }`}
+              >
+                {manualPairing?.error
+                  ? "Revisar selección"
+                  : manualPairing?.matches.length
+                    ? "Líneas cuadradas"
+                    : "Selecciona filas"}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 text-xs font-semibold sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl bg-white px-3 py-2 text-amber-800 shadow-sm">
+                CSV: {selectedManualBankRows.length} líneas · {formatAmountPyg(manualSelectionTotals.bank)}
+              </div>
+              <div className="rounded-xl bg-white px-3 py-2 text-sky-800 shadow-sm">
+                SAP: {selectedManualSystemRows.length} líneas · {formatAmountPyg(manualSelectionTotals.system)}
+              </div>
+              <div className="rounded-xl bg-white px-3 py-2 text-slate-700 shadow-sm">
+                Diferencia: {formatAmountPyg(manualSelectionTotals.bank - manualSelectionTotals.system)}
+              </div>
+              <div className="rounded-xl bg-white px-3 py-2 text-slate-700 shadow-sm">
+                Fechas: CSV {manualSelectionTotals.bankDates.map(formatCsvDateKey).join(", ") || "-"}
+                {" · "}SAP {manualSelectionTotals.systemDates.map(formatCsvDateKey).join(", ") || "-"}
+              </div>
+            </div>
+            {manualPairing?.error ? (
+              <p className="mt-3 text-xs font-bold text-rose-700">{manualPairing.error}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         {filteredBankTable && systemTable ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <button
@@ -656,6 +1130,8 @@ export default function SapTarjetasSection({
                 setSmartMatches([]);
                 setSelectedBankRowIndex(null);
                 setSelectedSystemRowIndex(null);
+                setSelectedBankRowIndices(new Set());
+                setSelectedSystemRowIndices(new Set());
                 setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
               }}
               disabled={!showComparison && smartMatches.length === 0}
@@ -666,11 +1142,18 @@ export default function SapTarjetasSection({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                title="Match Manual"
+                title={
+                  isOchoACardPaymentPage
+                    ? "Emparejar las filas seleccionadas"
+                    : "Match Manual"
+                }
                 onClick={handleManualMatch}
                 disabled={
-                  selectedBankRowIndex === null ||
-                  selectedSystemRowIndex === null
+                  isOchoACardPaymentPage
+                    ? !manualPairing ||
+                      Boolean(manualPairing.error) ||
+                      manualPairing.matches.length === 0
+                    : selectedBankRowIndex === null || selectedSystemRowIndex === null
                 }
                 className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -701,6 +1184,15 @@ export default function SapTarjetasSection({
               bankColumns={smartMatchBankColumns}
               onRemove={handleRemoveSmartMatch}
               onClear={() => handleClearSmartMatchesByKind("debit")}
+              {...(isOchoADebitPage
+                ? {
+                    dateSubtotalColumn: "Fecha de venta",
+                    dateSubtotalLabel: "Totales por fecha de venta",
+                    dateSubtotalEmptyLabel: "Sin fecha de venta",
+                    onKeepOnlyDate: handleKeepOnlyDebitSaleDate,
+                    onRemoveDate: handleRemoveDebitSaleDate,
+                  }
+                : {})}
             />
             ) : null}
             {!cardPaymentKind || cardPaymentKind === "credit" ? (
@@ -717,7 +1209,18 @@ export default function SapTarjetasSection({
                 dateSubtotalLabel="Totales por fecha de crédito"
                 dateSubtotalBankExtraColumn="Importe neto"
                 dateSubtotalBankExtraLabel="Total Importe Neto"
+                dateSubtotalEmptyLabel="Sin fecha de crédito"
                 onKeepOnlyDate={handleKeepOnlyCreditDate}
+                onRemoveDate={
+                  cardPaymentKind === "credit" ? handleRemoveCreditDate : undefined
+                }
+                dateSubtotalReferences={
+                  isOchoACreditPage ? creditBankReferencesByDate : undefined
+                }
+                onDateSubtotalReferenceChange={
+                  isOchoACreditPage ? handleCreditDateReferenceChange : undefined
+                }
+                dateSubtotalReferenceLabel="Referencia SAP"
               />
             </div>
             ) : null}
@@ -733,7 +1236,9 @@ export default function SapTarjetasSection({
                   <div
                     className={`mt-3 grid gap-3 ${
                       cardPaymentKind === "credit"
-                        ? "md:grid-cols-5"
+                        ? "md:grid-cols-4"
+                        : isOchoADebitPage
+                          ? "md:grid-cols-3"
                         : "md:grid-cols-4"
                     }`}
                   >
@@ -748,19 +1253,36 @@ export default function SapTarjetasSection({
                         {depositAccount || "Selecciona una cuenta bancaria"}
                       </div>
                     </div>
-                    <label className="space-y-1">
-                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Fecha Deposito
-                      </span>
-                      <input
-                        type="date"
-                        value={depositDate}
-                        onChange={(event) => setDepositDate(event.target.value)}
-                        required
-                        className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
-                      />
-                    </label>
-                    <label className="space-y-1 md:col-span-2">
+                    {usesOchoACsvDepositDate ? (
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Fechas Deposito
+                        </span>
+                        <div className="flex h-11 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-bold text-emerald-700">
+                          {isOchoACreditPage
+                            ? "Se toma Fecha de crédito del comercio"
+                            : "Se toma Fecha de venta del CSV"}
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="space-y-1">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Fecha Deposito
+                        </span>
+                        <input
+                          type="date"
+                          value={depositDate}
+                          onChange={(event) => setDepositDate(event.target.value)}
+                          required
+                          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
+                        />
+                      </label>
+                    )}
+                    <label
+                      className={`space-y-1 ${
+                        isOchoADebitPage ? "md:col-span-1" : "md:col-span-2"
+                      }`}
+                    >
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
                         Comentario
                       </span>
@@ -774,21 +1296,6 @@ export default function SapTarjetasSection({
                         className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
                       />
                     </label>
-                    {cardPaymentKind === "credit" ? (
-                      <label className="space-y-1">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                          Referencia
-                        </span>
-                        <input
-                          type="text"
-                          value={bankReference}
-                          onChange={(event) => setBankReference(event.target.value)}
-                          placeholder="Referencia bancaria"
-                          maxLength={100}
-                          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
-                        />
-                      </label>
-                    ) : null}
                   </div>
                 </div>
                 <button

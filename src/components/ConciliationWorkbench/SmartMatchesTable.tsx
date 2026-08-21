@@ -43,7 +43,12 @@ function SmartMatchesTable({
   dateSubtotalLabel = "Totales por fecha",
   dateSubtotalBankExtraColumn,
   dateSubtotalBankExtraLabel = "Total Importe Neto",
+  dateSubtotalEmptyLabel = "Sin fecha",
   onKeepOnlyDate,
+  onRemoveDate,
+  dateSubtotalReferences,
+  onDateSubtotalReferenceChange,
+  dateSubtotalReferenceLabel = "Referencia SAP",
   amountTotalsMode = "raw",
 }: {
   matches: SmartMatch[];
@@ -63,9 +68,17 @@ function SmartMatchesTable({
   // "Importe neto" para mostrar lo que realmente se acredita al comercio.
   dateSubtotalBankExtraColumn?: string;
   dateSubtotalBankExtraLabel?: string;
+  dateSubtotalEmptyLabel?: string;
   // Conserva solamente los matches de la fecha indicada. La tabla de tarjetas
-  // la usa para procesar una fecha de credito a la vez.
+  // la usa para procesar una fecha a la vez.
   onKeepOnlyDate?: (dateKey: string) => void;
+  // Permite descartar una fecha puntual sin eliminar las demás fechas válidas.
+  onRemoveDate?: (dateKey: string) => void;
+  // Crédito OCHO_A puede enviar una referencia bancaria distinta por cada
+  // fecha de depósito. El campo vive junto al resumen para evitar mezclarla.
+  dateSubtotalReferences?: Readonly<Record<string, string>>;
+  onDateSubtotalReferenceChange?: (dateKey: string, value: string) => void;
+  dateSubtotalReferenceLabel?: string;
   // SAP B1 expresa movimientos en Debito/Credito; para ese caso el pie usa
   // importes netos con signo, igual que la validacion manual.
   amountTotalsMode?: MatchAmountTotalsMode;
@@ -107,17 +120,21 @@ function SmartMatchesTable({
     const grouped = new Map<string, DateSubtotal>();
     for (const match of matches) {
       const raw = match.bankRow.values[dateColumn.fieldKey];
+      const rawText = raw == null ? "" : String(raw).trim();
       const normalized = match.bankRow.normalized[dateColumn.fieldKey];
       const iso =
         typeof normalized === "string" && /^\d{4}-\d{2}-\d{2}/.test(normalized)
           ? normalized.slice(0, 10)
-          : raw
-            ? toIsoLoose(raw)
+          : rawText
+            ? toIsoLoose(rawText)
             : null;
-      const key = iso ?? raw ?? "sin-fecha";
+      // Una celda vacia llega como "" desde el CSV. Debe usar la misma clave
+      // canonica que reciben onKeepOnlyDate/onRemoveDate; de lo contrario el
+      // boton "Quitar" no encontraba los matches de "Sin fecha".
+      const key = (iso ?? rawText) || "sin-fecha";
       const label = iso
         ? formatIsoToDdMmYyyy(iso)
-        : raw || "Sin fecha de crédito";
+        : rawText || dateSubtotalEmptyLabel;
       const current = grouped.get(key) ?? {
         key,
         label,
@@ -161,10 +178,14 @@ function SmartMatchesTable({
     bankColumns,
     dateSubtotalBankExtra,
     dateSubtotalColumn,
+    dateSubtotalEmptyLabel,
     matches,
     amountTotalsMode,
     systemColumns,
   ]);
+  const showDateActions =
+    Boolean(onRemoveDate) || Boolean(onKeepOnlyDate && dateSubtotals.length > 1);
+  const showDateReferences = Boolean(onDateSubtotalReferenceChange);
 
   // Formateo precomputado de las celdas (banco/sistema) por fila. formatMatchCell
   // hace regex + parseo; con esto corre solo cuando cambian matches/columnas, no en
@@ -416,8 +437,10 @@ function SmartMatchesTable({
                 {dateSubtotalLabel}
               </h4>
               <p className="text-xs font-medium text-violet-700">
-                {onKeepOnlyDate && dateSubtotals.length > 1
-                  ? "Conserva una fecha para procesarla y quita las demás coincidencias de crédito."
+                {onRemoveDate
+                  ? "Conserva las fechas correctas o quita las que no correspondan antes de procesar."
+                  : onKeepOnlyDate && dateSubtotals.length > 1
+                    ? "Conserva una fecha para procesarla y quita las demás coincidencias de crédito."
                   : "Resumen de las coincidencias por fecha de acreditación."}
               </p>
             </div>
@@ -439,8 +462,11 @@ function SmartMatchesTable({
                   ) : null}
                   <th className="px-4 py-2 text-right font-bold">Total SAP</th>
                   <th className="px-4 py-2 text-right font-bold">Diferencia</th>
-                  {onKeepOnlyDate && dateSubtotals.length > 1 ? (
-                    <th className="px-4 py-2 text-right font-bold">Procesar</th>
+                  {showDateReferences ? (
+                    <th className="px-4 py-2 font-bold">{dateSubtotalReferenceLabel}</th>
+                  ) : null}
+                  {showDateActions ? (
+                    <th className="px-4 py-2 text-right font-bold">Acciones</th>
                   ) : null}
                 </tr>
               </thead>
@@ -470,16 +496,52 @@ function SmartMatchesTable({
                       >
                         {balanced ? "Cuadrado" : formatAmountPyg(difference)}
                       </td>
-                      {onKeepOnlyDate && dateSubtotals.length > 1 ? (
+                      {showDateReferences ? (
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={dateSubtotalReferences?.[subtotal.key] ?? ""}
+                            onChange={(event) =>
+                              onDateSubtotalReferenceChange?.(
+                                subtotal.key,
+                                event.target.value,
+                              )
+                            }
+                            placeholder={
+                              subtotal.key === "sin-fecha"
+                                ? "Requiere fecha"
+                                : "Referencia bancaria"
+                            }
+                            disabled={subtotal.key === "sin-fecha"}
+                            maxLength={100}
+                            className="h-8 min-w-40 rounded-lg border border-violet-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                          />
+                        </td>
+                      ) : null}
+                      {showDateActions ? (
                         <td className="px-4 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => onKeepOnlyDate(subtotal.key)}
-                            title={`Conservar solamente los matches de ${subtotal.label}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 font-bold text-violet-700 transition hover:border-violet-400 hover:bg-violet-100"
-                          >
-                            <FiCheck className="h-3.5 w-3.5" /> Conservar
-                          </button>
+                          <div className="flex justify-end gap-1.5">
+                            {onKeepOnlyDate && dateSubtotals.length > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => onKeepOnlyDate(subtotal.key)}
+                                title={`Conservar solamente los matches de ${subtotal.label}`}
+                                className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 font-bold text-violet-700 transition hover:border-violet-400 hover:bg-violet-100"
+                              >
+                                <FiCheck className="h-3.5 w-3.5" /> Conservar
+                              </button>
+                            ) : null}
+                            {onRemoveDate ? (
+                              <button
+                                type="button"
+                                onClick={() => onRemoveDate(subtotal.key)}
+                                title={`Quitar los matches de ${subtotal.label}`}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-2 py-1 font-bold text-rose-700 transition hover:border-rose-400 hover:bg-rose-50"
+                              >
+                                <FiX className="h-3.5 w-3.5" /> Quitar
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       ) : null}
                     </tr>
