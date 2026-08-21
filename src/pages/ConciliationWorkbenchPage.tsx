@@ -43,11 +43,15 @@ function normalizeSapB1ColumnKey(value: string) {
     .toLowerCase();
 }
 
-function findSapB1AmountColumn(columns: string[], keys: string[]) {
+function findSapB1Column(columns: string[], keys: string[]) {
   const columnsByKey = new Map(
     columns.map((column) => [normalizeSapB1ColumnKey(column), column]),
   );
   return keys.map((key) => columnsByKey.get(key)).find(Boolean) ?? null;
+}
+
+function findSapB1AmountColumn(columns: string[], keys: string[]) {
+  return findSapB1Column(columns, keys);
 }
 
 function getSapB1RowNet(
@@ -91,6 +95,85 @@ function getSapB1RowNet(
     debit ??
     credit;
   return parse(single);
+}
+
+function normalizeSapB1ReferenceValue(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  return normalized || null;
+}
+
+function findBalancedSapB1ReferenceGroupIndices({
+  bankRow,
+  bankColumns,
+  systemRows,
+  systemColumns,
+  unavailableSystemRowIds,
+}: {
+  bankRow: SmartMatch["bankRow"];
+  bankColumns: string[];
+  systemRows: SmartMatch["systemRow"][];
+  systemColumns: string[];
+  unavailableSystemRowIds: ReadonlySet<string>;
+}) {
+  const bankReferenceColumn = findSapB1Column(bankColumns, [
+    "referencia",
+    "reference",
+    "ref",
+    "numeroreferencia",
+  ]);
+  const systemReferenceColumn = findSapB1Column(systemColumns, [
+    "referencia",
+    "reference",
+    "ref",
+    "numeroreferencia",
+  ]);
+  const systemReference2Column = findSapB1Column(systemColumns, [
+    "referencia2",
+    "reference2",
+    "ref2",
+  ]);
+  const bankReference = normalizeSapB1ReferenceValue(
+    bankReferenceColumn
+      ? (bankRow.normalized[bankReferenceColumn] ?? bankRow.values[bankReferenceColumn])
+      : null,
+  );
+  const bankNet = getSapB1RowNet(bankRow, bankColumns, "bank");
+  if (!bankReference || bankNet === null) return [];
+
+  const collectGroup = (column: string | null) => {
+    if (!column) return [];
+    return systemRows.flatMap((row, index) => {
+      if (unavailableSystemRowIds.has(row.rowId)) return [];
+      const systemReference = normalizeSapB1ReferenceValue(
+        row.normalized[column] ?? row.values[column],
+      );
+      return systemReference === bankReference ? [index] : [];
+    });
+  };
+
+  // Referencia 2 tiene prioridad porque es el caso many-to-one de OCHO A. Si
+  // ese grupo no cuadra, se intenta el mismo criterio con Referencia principal.
+  const candidateGroups = [
+    collectGroup(systemReference2Column),
+    collectGroup(systemReferenceColumn),
+  ];
+
+  for (const indices of candidateGroups) {
+    if (indices.length === 0) continue;
+    const amounts = indices.map((index) =>
+      getSapB1RowNet(systemRows[index], systemColumns, "system"),
+    );
+    if (amounts.some((amount) => amount === null)) continue;
+    const systemNet = amounts.reduce((total, amount) => total + (amount ?? 0), 0);
+    if (Math.abs(bankNet - systemNet) < 0.0001) return indices;
+  }
+
+  return [];
 }
 
 type ConciliationWorkbenchPageProps = {
@@ -231,6 +314,15 @@ export default function ConciliationWorkbenchPage({
       return next;
     });
   }, []);
+  const selectSapB1BankRow = useCallback(
+    (rowIndex: number | null) => {
+      setSelectedSapB1BankRowIndex(rowIndex);
+      if (allowSapB1SystemManyToOne) {
+        setSelectedSapB1SystemRowIndices(new Set());
+      }
+    },
+    [allowSapB1SystemManyToOne],
+  );
   const clearSapB1SelectedRows = () => {
     setSelectedSapB1BankRowIndex(null);
     setSelectedSapB1SystemRowIndex(null);
@@ -249,6 +341,53 @@ export default function ConciliationWorkbenchPage({
       selectedSapB1SystemRowIndices,
     ],
   );
+  const balancedSapB1ReferenceGroupIndices = useMemo(() => {
+    if (
+      !allowSapB1SystemManyToOne ||
+      !sapB1QueryPreview ||
+      selectedSapB1BankRowIndex === null
+    ) {
+      return [];
+    }
+
+    const bankRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.bank);
+    const systemRows = convertSapB1TableToPreviewRows(sapB1QueryPreview.system);
+    const bankRow = bankRows[selectedSapB1BankRowIndex];
+    if (!bankRow) return [];
+
+    return findBalancedSapB1ReferenceGroupIndices({
+      bankRow,
+      bankColumns: sapB1QueryPreview.bank.columns,
+      systemRows,
+      systemColumns: sapB1QueryPreview.system.columns,
+      unavailableSystemRowIds: new Set(
+        sapB1SmartMatches.map((match) => match.systemRow.rowId),
+      ),
+    });
+  }, [
+    allowSapB1SystemManyToOne,
+    sapB1QueryPreview,
+    selectedSapB1BankRowIndex,
+    sapB1SmartMatches,
+  ]);
+
+  useEffect(() => {
+    if (
+      !allowSapB1SystemManyToOne ||
+      selectedSapB1BankRowIndex === null ||
+      balancedSapB1ReferenceGroupIndices.length === 0
+    ) {
+      return;
+    }
+
+    setSelectedSapB1SystemRowIndices(
+      new Set(balancedSapB1ReferenceGroupIndices),
+    );
+  }, [
+    allowSapB1SystemManyToOne,
+    balancedSapB1ReferenceGroupIndices,
+    selectedSapB1BankRowIndex,
+  ]);
   const sapB1ManualSelectionSummary = useMemo(() => {
     if (
       !allowSapB1SystemManyToOne ||
@@ -569,7 +708,7 @@ export default function ConciliationWorkbenchPage({
                   title="Query banco"
                   table={sapB1QueryPreview.bank}
                   selectedRowIndex={selectedSapB1BankRowIndex}
-                  onSelectRow={setSelectedSapB1BankRowIndex}
+                  onSelectRow={selectSapB1BankRow}
                   matchedIndices={
                     new Set(
                       sapB1SmartMatches.map((m) => m.bankRow.rowNumber - 1),

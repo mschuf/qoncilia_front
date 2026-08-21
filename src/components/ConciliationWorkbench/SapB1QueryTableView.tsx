@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SapB1QueryTable } from "../../erp/sap";
 import { formatQueryCell } from "./workbenchHelpers";
 
@@ -15,6 +15,8 @@ type TableRowProps = {
   selectionMode: "single" | "multiple";
   onSelectRow?: (index: number | null) => void;
   onToggleRow?: (index: number, selected: boolean) => void;
+  onActivateRow?: (index: number) => void;
+  onMoveSelection?: (index: number, direction: -1 | 1) => void;
 };
 
 type SortState = {
@@ -70,6 +72,8 @@ const TableRow = memo(function TableRow({
   selectionMode,
   onSelectRow,
   onToggleRow,
+  onActivateRow,
+  onMoveSelection,
 }: TableRowProps) {
   return (
     <tr
@@ -82,14 +86,34 @@ const TableRow = memo(function TableRow({
               ? "text-slate-700 cursor-pointer hover:bg-slate-50"
               : "text-slate-700"
       }`}
-      onClick={() => {
+      data-row-index={index}
+      tabIndex={hasSelection && !isMatched ? -1 : undefined}
+      aria-selected={hasSelection ? isSelected : undefined}
+      title={
+        hasSelection
+          ? "Shift + flecha arriba/abajo para agregar o desmarcar filas rapidamente."
+          : undefined
+      }
+      onClick={(event) => {
         if (hasSelection && !isMatched) {
           if (onToggleRow) {
             onToggleRow(index, !isSelected);
           } else {
             onSelectRow?.(isSelected ? null : index);
           }
+          onActivateRow?.(index);
+          event.currentTarget.focus();
         }
+      }}
+      onKeyDown={(event) => {
+        if (!event.shiftKey || !hasSelection || isMatched) return;
+
+        const direction =
+          event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : null;
+        if (direction === null) return;
+
+        event.preventDefault();
+        onMoveSelection?.(index, direction);
       }}
     >
       {hasSelection ? (
@@ -133,6 +157,14 @@ function SapB1QueryTableView({
 }) {
   const columns = useMemo(() => table.columns, [table.columns]);
   const [sort, setSort] = useState<SortState | null>(null);
+  const [keyboardActiveRowIndex, setKeyboardActiveRowIndex] = useState<number | null>(null);
+  const tableContainerRef = useRef<HTMLDivElement | null>(null);
+  const matchedIndicesRef = useRef(matchedIndices);
+  const selectedRowIndicesRef = useRef(selectedRowIndices);
+  const keyboardRangeAnchorRef = useRef<number | null>(null);
+  const keyboardSelectionDirectionRef = useRef<-1 | 1 | null>(null);
+  matchedIndicesRef.current = matchedIndices;
+  selectedRowIndicesRef.current = selectedRowIndices;
   const hasSelection = onSelectRow !== undefined || onToggleRow !== undefined;
   const selectionMode = onToggleRow ? "multiple" : "single";
   const tableWidth = (hasSelection ? SEL_W : 0) + columns.length * COL_W;
@@ -173,6 +205,71 @@ function SapB1QueryTableView({
     }));
   };
 
+  const activateRow = useCallback((rowIndex: number) => {
+    keyboardRangeAnchorRef.current = rowIndex;
+    keyboardSelectionDirectionRef.current = null;
+    setKeyboardActiveRowIndex(rowIndex);
+  }, []);
+
+  const moveSelection = useCallback(
+    (currentRowIndex: number, direction: -1 | 1) => {
+      const currentPosition = sortedRows.findIndex(
+        ({ rowIndex }) => rowIndex === currentRowIndex,
+      );
+      if (currentPosition < 0) return;
+
+      // La navegacion sigue el orden que ve el usuario y omite las filas ya
+      // conciliadas, que no pueden volver a seleccionarse.
+      for (
+        let position = currentPosition + direction;
+        position >= 0 && position < sortedRows.length;
+        position += direction
+      ) {
+        const nextRowIndex = sortedRows[position].rowIndex;
+        if (matchedIndicesRef.current?.has(nextRowIndex)) continue;
+
+        if (onToggleRow) {
+          const anchorRowIndex = keyboardRangeAnchorRef.current ?? currentRowIndex;
+          const previousDirection = keyboardSelectionDirectionRef.current;
+          const isReturningToAnchor =
+            previousDirection !== null &&
+            direction !== previousDirection &&
+            currentRowIndex !== anchorRowIndex &&
+            (selectedRowIndicesRef.current?.has(currentRowIndex) ?? false);
+
+          if (isReturningToAnchor) {
+            // Al invertir la direccion se contrae el rango: se quita la fila
+            // actual y se mueve el foco hacia la anterior del grupo.
+            onToggleRow(currentRowIndex, false);
+          } else {
+            // En la direccion original (o al partir del ancla) se extiende el
+            // rango con la siguiente fila visible no conciliada.
+            keyboardRangeAnchorRef.current = anchorRowIndex;
+            keyboardSelectionDirectionRef.current = direction;
+            onToggleRow(nextRowIndex, true);
+          }
+        } else {
+          onSelectRow?.(nextRowIndex);
+        }
+        setKeyboardActiveRowIndex(nextRowIndex);
+        return;
+      }
+    },
+    [onSelectRow, onToggleRow, sortedRows],
+  );
+
+  useEffect(() => {
+    if (keyboardActiveRowIndex === null) return;
+
+    const row = tableContainerRef.current?.querySelector<HTMLTableRowElement>(
+      `tr[data-row-index="${keyboardActiveRowIndex}"]`,
+    );
+    if (!row) return;
+
+    row.focus({ preventScroll: true });
+    row.scrollIntoView({ block: "nearest" });
+  }, [keyboardActiveRowIndex, sortedRows]);
+
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -182,7 +279,7 @@ function SapB1QueryTableView({
         </span>
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-200">
-        <div className="max-h-[300px] overflow-auto">
+        <div ref={tableContainerRef} className="max-h-[300px] overflow-auto">
           <table className="table-fixed text-xs" style={{ width: tableWidth }}>
             <thead className="sticky top-0 z-10 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
               <tr>
@@ -230,6 +327,8 @@ function SapB1QueryTableView({
                   selectionMode={selectionMode}
                   onSelectRow={onSelectRow}
                   onToggleRow={onToggleRow}
+                  onActivateRow={activateRow}
+                  onMoveSelection={moveSelection}
                 />
               ))}
               {table.rows.length === 0 ? (
