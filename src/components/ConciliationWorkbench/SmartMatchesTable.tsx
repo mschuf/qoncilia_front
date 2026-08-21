@@ -31,6 +31,15 @@ type DateSubtotal = {
   system: number;
 };
 
+type MatchSummary = {
+  key: string;
+  bankRow: SmartMatch["bankRow"];
+  systemRows: number;
+  bank: number;
+  system: number;
+  balanced: boolean;
+};
+
 function SmartMatchesTable({
   matches,
   systemColumns,
@@ -50,6 +59,7 @@ function SmartMatchesTable({
   onDateSubtotalReferenceChange,
   dateSubtotalReferenceLabel = "Referencia SAP",
   amountTotalsMode = "raw",
+  showSummaryBelow = false,
 }: {
   matches: SmartMatch[];
   // Columnas a mostrar de cada lado. Sistema y Banco pueden traer columnas
@@ -82,6 +92,9 @@ function SmartMatchesTable({
   // SAP B1 expresa movimientos en Debito/Credito; para ese caso el pie usa
   // importes netos con signo, igual que la validacion manual.
   amountTotalsMode?: MatchAmountTotalsMode;
+  // Muestra un resumen compacto por matching debajo de la tabla. Se usa en
+  // Conciliacion OCHO A para validar los casos de una fila banco a varias SAP.
+  showSummaryBelow?: boolean;
 }) {
   const hasActions = Boolean(onRemove || onClear);
   // Divisor vertical entre el bloque Banco y el bloque Sistema.
@@ -100,6 +113,42 @@ function SmartMatchesTable({
     [amountTotalsMode, matches, bankColumns, systemColumns]
   );
   const showTotals = matches.length > 0 && amountTotals.hasAmountColumns;
+  const matchSummaries = useMemo(() => {
+    const grouped = new Map<string, SmartMatch[]>();
+    for (const match of matches) {
+      const group = grouped.get(match.bankRow.rowId) ?? [];
+      group.push(match);
+      grouped.set(match.bankRow.rowId, group);
+    }
+
+    return [...grouped.entries()].map(([key, matchGroup]): MatchSummary => {
+      const totals = computeMatchAmountTotals(
+        matchGroup,
+        bankColumns,
+        systemColumns,
+        amountTotalsMode,
+      );
+      return {
+        key,
+        bankRow: matchGroup[0].bankRow,
+        systemRows: new Set(matchGroup.map((match) => match.systemRow.rowId)).size,
+        bank: totals.bank,
+        system: totals.system,
+        balanced: totals.balanced,
+      };
+    });
+  }, [amountTotalsMode, bankColumns, matches, systemColumns]);
+  const matchingIdentifierColumns = useMemo(
+    () => {
+      const identifiers = bankColumns.filter((column) =>
+        /referencia|reference|secuencia|sequence/i.test(
+          `${column.fieldKey} ${column.label}`,
+        ),
+      );
+      return identifiers.length > 0 ? identifiers.slice(0, 2) : bankColumns.slice(0, 1);
+    },
+    [bankColumns],
+  );
   const dateSubtotalBankExtra = useMemo(
     () =>
       dateSubtotalBankExtraColumn
@@ -372,7 +421,7 @@ function SmartMatchesTable({
                 </tr>
               ) : null}
             </tbody>
-            {showTotals ? (
+            {showTotals && !showSummaryBelow ? (
               <tfoot className="sticky bottom-0 z-20">
                 <tr className="border-t-2 border-slate-300 text-[11px] font-bold">
                   {hasActions ? (
@@ -429,6 +478,74 @@ function SmartMatchesTable({
           </table>
         </div>
       </div>
+      {showSummaryBelow && showTotals ? (
+        <div className="mt-3 overflow-hidden rounded-xl border border-emerald-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100 bg-emerald-50 px-3 py-2">
+            <div>
+              <h4 className="text-xs font-extrabold text-emerald-950">
+                Resumen por matching
+              </h4>
+              <p className="text-[11px] font-medium text-emerald-700">
+                Cada fila agrupa una línea bancaria y todas sus líneas SAP asociadas.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+              {matchSummaries.length} {matchSummaries.length === 1 ? "matching" : "matchings"}
+            </span>
+          </div>
+          <div className="max-h-60 overflow-auto">
+            <table className="min-w-full text-[11px]">
+              <thead className="sticky top-0 bg-emerald-50 text-left uppercase tracking-wide text-emerald-800">
+                <tr>
+                  <th className="px-3 py-1.5 font-bold">Matching</th>
+                  <th className="px-3 py-1.5 text-right font-bold">Líneas SAP</th>
+                  <th className="px-3 py-1.5 text-right font-bold">Banco</th>
+                  <th className="px-3 py-1.5 text-right font-bold">SAP</th>
+                  <th className="px-3 py-1.5 text-right font-bold">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-100 text-slate-700">
+                {matchSummaries.map((summary) => {
+                  const difference = Math.abs(summary.bank - summary.system);
+                  return (
+                    <tr key={summary.key}>
+                      <td className="px-3 py-1.5">
+                        <p className="font-bold text-slate-800">
+                          Fila banco #{summary.bankRow.rowNumber}
+                        </p>
+                        <p className="max-w-56 truncate text-slate-500">
+                          {matchingIdentifierColumns
+                            .map(
+                              (column) =>
+                                `${column.label}: ${formatMatchCell(summary.bankRow, column)}`,
+                            )
+                            .join(" · ")}
+                        </p>
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-semibold">
+                        {summary.systemRows}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-semibold text-amber-800">
+                        {formatAmountPyg(summary.bank)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-semibold text-sky-800">
+                        {formatAmountPyg(summary.system)}
+                      </td>
+                      <td
+                        className={`px-3 py-1.5 text-right font-bold ${
+                          summary.balanced ? "text-emerald-700" : "text-rose-700"
+                        }`}
+                      >
+                        {summary.balanced ? "Cuadrado" : formatAmountPyg(difference)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
       {dateSubtotals.length > 0 ? (
         <div className="mt-4 overflow-hidden rounded-2xl border border-violet-200 bg-violet-50/40">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 bg-violet-50 px-4 py-3">

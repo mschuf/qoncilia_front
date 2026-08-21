@@ -905,6 +905,7 @@ export default function ConciliationWorkbenchPage({
                   amountTotalsMode={
                     allowSapB1SystemManyToOne ? "sap-b1-net" : "raw"
                   }
+                  showSummaryBelow={allowSapB1SystemManyToOne}
                   onRemove={handleRemoveSapB1SmartMatch}
                   onClear={() => {
                     setSapB1SmartMatches([]);
