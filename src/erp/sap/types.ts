@@ -100,6 +100,9 @@ export interface SapTarjetasDepositCreditLineInput {
 export interface SapTarjetasDepositRequest {
   companyErpConfigId: number
   depositAccount: string
+  // Cuenta origen de los vouchers de tarjeta (OCRH.CreditAcct). En FG QA se
+  // envía como VoucherAccount y no debe confundirse con DepositAccount.
+  voucherAccount?: string
   // Fecha del deposito (YYYY-MM-DD, obligatoria): cabecera DepositDate.
   depositDate: string
   // Comentario del asiento (JournalRemarks); el backend aplica el default
@@ -113,7 +116,7 @@ export interface SapTarjetasDepositRequest {
   bank?: string
   // Sucursal de la cuenta bancaria (cabecera BankBranch).
   bankBranch?: string
-  // Solo credito de OCHO A: suma de Importe - Importe neto del lote.
+  // Credito de OCHO A y FG: suma de Importe - Importe neto del lote.
   commission?: number
   creditLines: SapTarjetasDepositCreditLineInput[]
 }

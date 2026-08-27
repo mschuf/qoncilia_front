@@ -11,11 +11,14 @@ const AppLayout = lazy(() => import("./layouts/AppLayout"));
 const AdminBankingPage = lazy(() => import("./pages/AdminBankingPage"));
 const BankStatementsPage = lazy(() => import("./pages/BankStatementsPage"));
 const CargaExtractosOchoAPage = lazy(() => import("./pages/CargaExtractosOchoAPage"));
+const CargaExtractosFgPage = lazy(() => import("./pages/CargaExtractosFgPage"));
 const ConciliationWorkbenchPage = lazy(() => import("./pages/ConciliationWorkbenchPage"));
 const ConciliacionBancoPage = lazy(() => import("./pages/ConciliacionBancoPage"));
 const ConciliacionBancoOchoAPage = lazy(() => import("./pages/ConciliacionBancoOchoAPage"));
+const ConciliacionBancoFgPage = lazy(() => import("./pages/ConciliacionBancoFgPage"));
 const PagoTarjetaPage = lazy(() => import("./pages/PagoTarjetaPage"));
 const PagoTarjetaOchoAPage = lazy(() => import("./pages/PagoTarjetaOchoAPage"));
+const PagoTarjetaFgPage = lazy(() => import("./pages/PagoTarjetaFgPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LayoutManagementPage = lazy(() => import("./pages/LayoutManagementPage"));
 const AdminTemplatesPage = lazy(() => import("./pages/AdminTemplatesPage"));
@@ -93,6 +96,14 @@ export default function App() {
               }
             />
             <Route
+              path="fg/cargar-extractos"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.conciliationFg}>
+                  <CargaExtractosFgPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="banks"
               element={
                 <ProtectedRoute
@@ -140,6 +151,14 @@ export default function App() {
               }
             />
             <Route
+              path="fg/conciliacion-banco"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.bankConciliationFg}>
+                  <ConciliacionBancoFgPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="pago-tarjeta"
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPayment}>
@@ -164,6 +183,26 @@ export default function App() {
               element={
                 <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPaymentOchoA}>
                   <PagoTarjetaOchoAPage cardPaymentKind="credit" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="pago-tarjeta-fg"
+              element={<Navigate to="/pago-tarjeta-fg/debito" replace />}
+            />
+            <Route
+              path="pago-tarjeta-fg/debito"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPaymentFg}>
+                  <PagoTarjetaFgPage cardPaymentKind="debit" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="pago-tarjeta-fg/credito"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPaymentFg}>
+                  <PagoTarjetaFgPage cardPaymentKind="credit" />
                 </ProtectedRoute>
               }
             />

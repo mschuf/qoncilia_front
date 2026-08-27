@@ -9,6 +9,7 @@ export default function ConciliacionBancoOchoAPage() {
       conciliationApiBasePath="/conciliation/ocho-a"
       sapApiBasePath="/erp/sap/ocho-a-bank"
       allowSapB1SystemManyToOne
+      workbenchProfile="ocho_a"
     />
   );
 }

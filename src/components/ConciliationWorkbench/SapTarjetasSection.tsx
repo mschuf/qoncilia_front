@@ -12,6 +12,7 @@ import type {
   SapB1QueryTable,
   SapTarjetasCsvParseResult,
 } from "../../erp/sap";
+import type { WorkbenchProfile } from "../../hooks/useConciliationWorkbench";
 import SapB1QueryTableView from "./SapB1QueryTableView";
 import SmartMatchesTable from "./SmartMatchesTable";
 import { UploadCard } from "./WorkbenchControls";
@@ -112,11 +113,11 @@ function findTableColumn(columns: string[], normalizedKey: string): string | und
   return columns.find((column) => normalizeLookupKey(column) === normalizedKey);
 }
 
-// Para Débito OCHO_A se preserva Fecha de venta como dato original y se expone
+// Para las pantallas dedicadas de débito se preserva Fecha de venta como dato original y se expone
 // además como "Fecha" exclusivamente al motor de comparación. Así el matching
 // automático y manual compara venta vs. fecha SAP, sin mostrar las fechas de
 // acreditación que confunden al usuario.
-function buildOchoADebitMatchingBankTable(table: SapB1QueryTable): SapB1QueryTable {
+function buildDedicatedDebitMatchingBankTable(table: SapB1QueryTable): SapB1QueryTable {
   const saleDateColumn = findTableColumn(table.columns, "fechadeventa");
   if (!saleDateColumn) return table;
 
@@ -140,7 +141,7 @@ function buildOchoADebitMatchingBankTable(table: SapB1QueryTable): SapB1QueryTab
 
 // La tabla superior de Débito muestra Referencia y Fecha de venta al inicio, y
 // omite Fecha/Fecha de crédito del comercio para que haya una sola fecha visible.
-function buildOchoADebitDisplayBankTable(table: SapB1QueryTable): SapB1QueryTable {
+function buildDedicatedDebitDisplayBankTable(table: SapB1QueryTable): SapB1QueryTable {
   const referenceColumn = findTableColumn(table.columns, "referencia");
   const saleDateColumn = findTableColumn(table.columns, "fechadeventa");
   if (!saleDateColumn) return table;
@@ -229,7 +230,7 @@ type CardManualPairing = {
   error: string | null;
 };
 
-// El matching manual de OCHO_A acepta varias filas, pero no agrupa importes:
+// El matching manual dedicado acepta varias filas, pero no agrupa importes:
 // cada fila elegida del CSV debe encontrar exactamente una fila SAP con el
 // mismo importe y la misma fecha. Asi se evita que un total correcto esconda
 // lineas individuales incorrectas.
@@ -250,7 +251,11 @@ function buildCardManualPairing(
 
   for (const bankRow of bankRows) {
     const bankAmount = findRowAmount(bankRow);
-    const bankDate = resolveCardManualMatchDateKey(bankRow, kind, "bank");
+    const bankDate = resolveCardManualMatchDateKey(
+      bankRow,
+      kind,
+      "bank",
+    );
     if (bankAmount === null || !bankDate) {
       return {
         matches: [],
@@ -260,7 +265,11 @@ function buildCardManualPairing(
 
     const systemIndex = availableSystemRows.findIndex((systemRow) => {
       const systemAmount = findRowAmount(systemRow);
-      const systemDate = resolveCardManualMatchDateKey(systemRow, kind, "system");
+      const systemDate = resolveCardManualMatchDateKey(
+        systemRow,
+        kind,
+        "system",
+      );
       return (
         systemAmount !== null &&
         systemDate === bankDate &&
@@ -354,6 +363,7 @@ export default function SapTarjetasSection({
   sendDeposit,
   refreshSystemQuery,
   cardPaymentKind,
+  workbenchProfile = "standard",
 }: {
   systemTable: SapB1QueryTable | null;
   bankTable: SapB1QueryTable | null;
@@ -374,6 +384,7 @@ export default function SapTarjetasSection({
     excludedBankRowIds?: string[];
     excludedSystemRowIds?: string[];
     strictReferenceAmountMatch?: boolean;
+    cardPaymentKind?: CardMatchKind;
   }) => Promise<SapB1QueryComparisonResult | null>;
   isSendingDeposit: boolean;
   // Deposito masivo: un deposito por lote (debito o credito). Devuelve los
@@ -385,6 +396,7 @@ export default function SapTarjetasSection({
       depositDate: string;
       journalRemarks: string;
       bankReference?: string;
+      voucherAccount?: string;
     },
     kind: CardMatchKind,
   ) => Promise<
@@ -397,9 +409,10 @@ export default function SapTarjetasSection({
   // Re-ejecuta la consulta del sistema (mismo efecto que el boton Buscar) para
   // refrescar los datos de SAP tras depositar y no volver a depositar repetido.
   refreshSystemQuery: () => Promise<void>;
-  // OCHO A usa una pantalla por tipo. Sin este valor se conserva la pantalla
+  // Los perfiles especializados usan una pantalla por tipo. Sin este valor se conserva la pantalla
   // estandar con debito y credito juntos.
   cardPaymentKind?: CardMatchKind;
+  workbenchProfile?: WorkbenchProfile;
 }) {
   const [selectedBankRowIndex, setSelectedBankRowIndex] = useState<
     number | null
@@ -426,10 +439,15 @@ export default function SapTarjetasSection({
   const [csvDateFilter, setCsvDateFilter] = useState("");
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
-  const isOchoACardPaymentPage = Boolean(cardPaymentKind);
-  const isOchoADebitPage = cardPaymentKind === "debit";
-  const isOchoACreditPage = cardPaymentKind === "credit";
-  const usesOchoACsvDepositDate = isOchoADebitPage || isOchoACreditPage;
+  const isDedicatedCardPaymentPage =
+    workbenchProfile !== "standard" && Boolean(cardPaymentKind);
+  const isDedicatedDebitPage =
+    isDedicatedCardPaymentPage && cardPaymentKind === "debit";
+  const isDedicatedCreditPage =
+    isDedicatedCardPaymentPage && cardPaymentKind === "credit";
+  const isOchoACreditPage =
+    workbenchProfile === "ocho_a" && cardPaymentKind === "credit";
+  const usesCsvDepositDate = isDedicatedDebitPage || isDedicatedCreditPage;
 
   const csvDateColumns = useMemo(
     () =>
@@ -440,7 +458,8 @@ export default function SapTarjetasSection({
   );
 
   useEffect(() => {
-    const preferredDateKey = cardPaymentKind === "debit" ? "fechadeventa" : "fecha";
+    const preferredDateKey =
+      cardPaymentKind === "debit" ? "fechadeventa" : "fecha";
     const preferredColumn = csvDateColumns.find(
       (column) => normalizeLookupKey(column) === preferredDateKey,
     );
@@ -479,17 +498,17 @@ export default function SapTarjetasSection({
 
   const bankTableForMatching = useMemo(
     () =>
-      filteredBankTable && isOchoADebitPage
-        ? buildOchoADebitMatchingBankTable(filteredBankTable)
+      filteredBankTable && isDedicatedDebitPage
+        ? buildDedicatedDebitMatchingBankTable(filteredBankTable)
         : filteredBankTable,
-    [filteredBankTable, isOchoADebitPage],
+    [filteredBankTable, isDedicatedDebitPage],
   );
   const bankTableForDisplay = useMemo(
     () =>
-      filteredBankTable && isOchoADebitPage
-        ? buildOchoADebitDisplayBankTable(filteredBankTable)
+      filteredBankTable && isDedicatedDebitPage
+        ? buildDedicatedDebitDisplayBankTable(filteredBankTable)
         : filteredBankTable,
-    [filteredBankTable, isOchoADebitPage],
+    [filteredBankTable, isDedicatedDebitPage],
   );
 
   const cardKindLabel =
@@ -612,19 +631,31 @@ export default function SapTarjetasSection({
       bankDates: [...new Set(
         selectedManualBankRows
           .map((row) =>
-            resolveCardManualMatchDateKey(row, cardPaymentKind ?? "debit", "bank"),
+            resolveCardManualMatchDateKey(
+              row,
+              cardPaymentKind ?? "debit",
+              "bank",
+            ),
           )
           .filter((date): date is string => Boolean(date)),
       )],
       systemDates: [...new Set(
         selectedManualSystemRows
           .map((row) =>
-            resolveCardManualMatchDateKey(row, cardPaymentKind ?? "debit", "system"),
+            resolveCardManualMatchDateKey(
+              row,
+              cardPaymentKind ?? "debit",
+              "system",
+            ),
           )
           .filter((date): date is string => Boolean(date)),
       )],
     }),
-    [cardPaymentKind, selectedManualBankRows, selectedManualSystemRows],
+    [
+      cardPaymentKind,
+      selectedManualBankRows,
+      selectedManualSystemRows,
+    ],
   );
 
   const toggleSelectedBankRow = useCallback((index: number, selected: boolean) => {
@@ -645,7 +676,7 @@ export default function SapTarjetasSection({
   }, []);
 
   const handleManualMatch = () => {
-    if (isOchoACardPaymentPage) {
+    if (isDedicatedCardPaymentPage) {
       if (!manualPairing || manualPairing.error || manualPairing.matches.length === 0) {
         return;
       }
@@ -698,9 +729,10 @@ export default function SapTarjetasSection({
       bankTable: bankTableForMatching,
       excludedBankRowIds,
       excludedSystemRowIds,
-      // Las dos pantallas exclusivas de OCHO_A (Debito y Credito) requieren
+      // Las pantallas dedicadas de Debito y Credito requieren
       // referencia contenida y el mismo importe antes del matching automatico.
       strictReferenceAmountMatch: Boolean(cardPaymentKind),
+      cardPaymentKind,
     });
     if (!result) return;
 
@@ -799,16 +831,20 @@ export default function SapTarjetasSection({
       matches: SmartMatch[];
       depositDate: string;
       bankReference?: string;
+      voucherAccount?: string;
     }>;
 
-    if (usesOchoACsvDepositDate) {
-      const kind: CardMatchKind = isOchoACreditPage ? "credit" : "debit";
+    if (usesCsvDepositDate) {
+      const kind: CardMatchKind = isDedicatedCreditPage ? "credit" : "debit";
       const matches = kind === "credit" ? creditSmartMatches : debitSmartMatches;
       const dateFieldLabel =
         kind === "credit" ? "Fecha de crédito del comercio" : "Fecha de venta";
       const resolveDepositDate =
         kind === "credit" ? resolveCardCreditDateKey : resolveCardDebitSaleDateKey;
-      const matchesByDepositDate = new Map<string, SmartMatch[]>();
+      const matchesByDepositDate = new Map<
+        string,
+        { depositDate: string; matches: SmartMatch[]; voucherAccount?: string }
+      >();
 
       for (const match of matches) {
         const csvDate = resolveDepositDate(match);
@@ -818,16 +854,29 @@ export default function SapTarjetasSection({
           ]);
           return;
         }
-        const current = matchesByDepositDate.get(csvDate) ?? [];
-        current.push(match);
-        matchesByDepositDate.set(csvDate, current);
+        // Un deposito de credito solo puede reconciliar vouchers de una misma
+        // cuenta origen. FG QA devuelve OCRH.CreditAcct como Cuenta vouchers
+        // SAP; si hay mas de una cuenta en una fecha, se crean lotes separados.
+        const voucherAccount =
+          kind === "credit" && workbenchProfile === "fg"
+            ? findRowText(match.systemRow, ["Cuenta vouchers SAP", "CreditAcct"]) || undefined
+            : undefined;
+        const batchKey = `${csvDate}\u0000${voucherAccount ?? ""}`;
+        const current = matchesByDepositDate.get(batchKey) ?? {
+          depositDate: csvDate,
+          matches: [],
+          voucherAccount,
+        };
+        current.matches.push(match);
+        matchesByDepositDate.set(batchKey, current);
       }
-      batches = [...matchesByDepositDate.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([csvDate, matches]) => ({
+      batches = [...matchesByDepositDate.values()]
+        .sort((left, right) => left.depositDate.localeCompare(right.depositDate))
+        .map(({ depositDate: csvDate, matches, voucherAccount }) => ({
           kind,
           matches,
           depositDate: csvDate,
+          ...(voucherAccount ? { voucherAccount } : {}),
           ...(kind === "credit" && creditBankReferencesByDate[csvDate]?.trim()
             ? { bankReference: creditBankReferencesByDate[csvDate].trim() }
             : {}),
@@ -856,7 +905,7 @@ export default function SapTarjetasSection({
       errors: string[];
     }> = [];
 
-    // Cada lote conserva todos sus AbsId dentro de CreditLines. OCHO_A genera
+    // Cada lote conserva todos sus AbsId dentro de CreditLines. Los perfiles dedicados generan
     // un lote por fecha del CSV: venta para Débito y crédito del comercio para
     // Crédito, para que SAP reciba el DepositDate correcto.
     for (const batch of batches) {
@@ -869,6 +918,7 @@ export default function SapTarjetasSection({
           ...(batch.kind === "credit" && batch.bankReference
             ? { bankReference: batch.bankReference }
             : {}),
+          ...(batch.voucherAccount ? { voucherAccount: batch.voucherAccount } : {}),
         },
         batch.kind,
       );
@@ -920,7 +970,7 @@ export default function SapTarjetasSection({
   const canSendDeposit =
     smartMatches.length > 0 &&
     Boolean(depositAccount.trim()) &&
-    (usesOchoACsvDepositDate || Boolean(depositDate)) &&
+    (usesCsvDepositDate || Boolean(depositDate)) &&
     !isSendingDeposit;
 
   return (
@@ -1022,16 +1072,16 @@ export default function SapTarjetasSection({
                 title={`Tarjetas de ${cardKindLabel}`}
                 table={bankTableForDisplay ?? filteredBankTable}
                 selectedRowIndex={
-                  isOchoACardPaymentPage ? undefined : selectedBankRowIndex
+                  isDedicatedCardPaymentPage ? undefined : selectedBankRowIndex
                 }
                 selectedRowIndices={
-                  isOchoACardPaymentPage ? selectedBankRowIndices : undefined
+                  isDedicatedCardPaymentPage ? selectedBankRowIndices : undefined
                 }
                 onSelectRow={
-                  isOchoACardPaymentPage ? undefined : setSelectedBankRowIndex
+                  isDedicatedCardPaymentPage ? undefined : setSelectedBankRowIndex
                 }
                 onToggleRow={
-                  isOchoACardPaymentPage ? toggleSelectedBankRow : undefined
+                  isDedicatedCardPaymentPage ? toggleSelectedBankRow : undefined
                 }
                 matchedIndices={matchedBankIndices}
               />
@@ -1051,16 +1101,16 @@ export default function SapTarjetasSection({
                 title="Depositos / tarjetas SAP"
                 table={systemTable}
                 selectedRowIndex={
-                  isOchoACardPaymentPage ? undefined : selectedSystemRowIndex
+                  isDedicatedCardPaymentPage ? undefined : selectedSystemRowIndex
                 }
                 selectedRowIndices={
-                  isOchoACardPaymentPage ? selectedSystemRowIndices : undefined
+                  isDedicatedCardPaymentPage ? selectedSystemRowIndices : undefined
                 }
                 onSelectRow={
-                  isOchoACardPaymentPage ? undefined : setSelectedSystemRowIndex
+                  isDedicatedCardPaymentPage ? undefined : setSelectedSystemRowIndex
                 }
                 onToggleRow={
-                  isOchoACardPaymentPage ? toggleSelectedSystemRow : undefined
+                  isDedicatedCardPaymentPage ? toggleSelectedSystemRow : undefined
                 }
                 matchedIndices={matchedSystemIndices}
               />
@@ -1073,7 +1123,7 @@ export default function SapTarjetasSection({
           </div>
         </div>
 
-        {isOchoACardPaymentPage && filteredBankTable && systemTable ? (
+        {isDedicatedCardPaymentPage && filteredBankTable && systemTable ? (
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -1081,7 +1131,7 @@ export default function SapTarjetasSection({
                   Control de selección manual
                 </p>
                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                  Cada fila del CSV debe coincidir con una fila SAP seleccionada por importe y {isOchoADebitPage ? "Fecha de venta" : isOchoACreditPage ? "Fecha de crédito" : "fecha"}.
+                  Cada fila del CSV debe coincidir con una fila SAP seleccionada por importe y {isDedicatedDebitPage ? "Fecha de venta" : isDedicatedCreditPage ? "Fecha de crédito" : "fecha"}.
                 </p>
               </div>
               <span
@@ -1143,13 +1193,13 @@ export default function SapTarjetasSection({
               <button
                 type="button"
                 title={
-                  isOchoACardPaymentPage
+                  isDedicatedCardPaymentPage
                     ? "Emparejar las filas seleccionadas"
                     : "Match Manual"
                 }
                 onClick={handleManualMatch}
                 disabled={
-                  isOchoACardPaymentPage
+                  isDedicatedCardPaymentPage
                     ? !manualPairing ||
                       Boolean(manualPairing.error) ||
                       manualPairing.matches.length === 0
@@ -1184,7 +1234,7 @@ export default function SapTarjetasSection({
               bankColumns={smartMatchBankColumns}
               onRemove={handleRemoveSmartMatch}
               onClear={() => handleClearSmartMatchesByKind("debit")}
-              {...(isOchoADebitPage
+              {...(isDedicatedDebitPage
                 ? {
                     dateSubtotalColumn: "Fecha de venta",
                     dateSubtotalLabel: "Totales por fecha de venta",
@@ -1237,7 +1287,7 @@ export default function SapTarjetasSection({
                     className={`mt-3 grid gap-3 ${
                       cardPaymentKind === "credit"
                         ? "md:grid-cols-4"
-                        : isOchoADebitPage
+                        : isDedicatedDebitPage
                           ? "md:grid-cols-3"
                         : "md:grid-cols-4"
                     }`}
@@ -1253,13 +1303,13 @@ export default function SapTarjetasSection({
                         {depositAccount || "Selecciona una cuenta bancaria"}
                       </div>
                     </div>
-                    {usesOchoACsvDepositDate ? (
+                    {usesCsvDepositDate ? (
                       <div className="space-y-1">
                         <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Fechas Deposito
                         </span>
                         <div className="flex h-11 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-bold text-emerald-700">
-                          {isOchoACreditPage
+                          {isDedicatedCreditPage
                             ? "Se toma Fecha de crédito del comercio"
                             : "Se toma Fecha de venta del CSV"}
                         </div>
@@ -1280,7 +1330,7 @@ export default function SapTarjetasSection({
                     )}
                     <label
                       className={`space-y-1 ${
-                        isOchoADebitPage ? "md:col-span-1" : "md:col-span-2"
+                        isDedicatedDebitPage ? "md:col-span-1" : "md:col-span-2"
                       }`}
                     >
                       <span className="text-xs font-bold uppercase tracking-wide text-slate-500">

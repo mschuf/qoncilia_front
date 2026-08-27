@@ -143,6 +143,12 @@ export default function Navbar() {
       show: hasModule(APP_MODULE_VALUES.conciliationOchoA),
     },
     {
+      to: "/fg/cargar-extractos",
+      icon: <FiDatabase className="h-4 w-4" />,
+      label: "Cargar Extractos",
+      show: hasModule(APP_MODULE_VALUES.conciliationFg),
+    },
+    {
       to: "/conciliacion-banco",
       icon: <FiActivity className="h-4 w-4" />,
       label: "Conciliacion de banco",
@@ -153,6 +159,12 @@ export default function Navbar() {
       icon: <FiActivity className="h-4 w-4" />,
       label: "Conciliacion de banco",
       show: hasModule(APP_MODULE_VALUES.bankConciliationOchoA),
+    },
+    {
+      to: "/fg/conciliacion-banco",
+      icon: <FiActivity className="h-4 w-4" />,
+      label: "Conciliacion de banco",
+      show: hasModule(APP_MODULE_VALUES.bankConciliationFg),
     },
   ];
 
@@ -191,6 +203,26 @@ export default function Navbar() {
           icon: <FiCreditCard className="h-4 w-4" />,
           label: "Pagos Crédito",
           show: hasModule(APP_MODULE_VALUES.cardPaymentOchoA),
+        },
+      ],
+    },
+    {
+      key: "pagos-tarjetas-fg",
+      icon: <FiCreditCard className="h-4 w-4" />,
+      label: "Pagos Tarjetas",
+      show: hasModule(APP_MODULE_VALUES.cardPaymentFg),
+      children: [
+        {
+          to: "/pago-tarjeta-fg/debito",
+          icon: <FiCreditCard className="h-4 w-4" />,
+          label: "Pagos Débito",
+          show: hasModule(APP_MODULE_VALUES.cardPaymentFg),
+        },
+        {
+          to: "/pago-tarjeta-fg/credito",
+          icon: <FiCreditCard className="h-4 w-4" />,
+          label: "Pagos Crédito",
+          show: hasModule(APP_MODULE_VALUES.cardPaymentFg),
         },
       ],
     },

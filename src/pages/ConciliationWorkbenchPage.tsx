@@ -30,6 +30,7 @@ import {
   type SmartMatch,
 } from "../components/ConciliationWorkbench/workbenchHelpers";
 import useConciliationWorkbench from "../hooks/useConciliationWorkbench";
+import type { WorkbenchProfile } from "../hooks/useConciliationWorkbench";
 import { isAdminRole, isSuperAdminRole, ROLE_VALUES } from "../utils/role";
 
 export type ConciliationWorkbenchMode = "banco" | "tarjetas";
@@ -189,6 +190,7 @@ type ConciliationWorkbenchPageProps = {
   // OCHO A permite conciliar una fila del banco contra varias lineas del
   // sistema. El resto de empresas conserva el matching uno a uno.
   allowSapB1SystemManyToOne?: boolean;
+  workbenchProfile?: WorkbenchProfile;
 };
 
 export default function ConciliationWorkbenchPage({
@@ -197,6 +199,7 @@ export default function ConciliationWorkbenchPage({
   conciliationApiBasePath,
   cardPaymentKind,
   allowSapB1SystemManyToOne = false,
+  workbenchProfile = "standard",
 }: ConciliationWorkbenchPageProps) {
   const {
     role,
@@ -272,6 +275,7 @@ export default function ConciliationWorkbenchPage({
     sapApiBasePath,
     conciliationApiBasePath,
     allowSapB1SystemManyToOne,
+    workbenchProfile,
   });
 
   const bankLabel =
@@ -1058,6 +1062,7 @@ export default function ConciliationWorkbenchPage({
           sendDeposit={sendSapTarjetasDepositToErp}
           refreshSystemQuery={runCardSystemQuery}
           cardPaymentKind={cardPaymentKind}
+          workbenchProfile={workbenchProfile}
         />
       ) : mode ? (
         <section className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">

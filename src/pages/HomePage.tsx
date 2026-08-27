@@ -33,14 +33,22 @@ export default function HomePage() {
   const hasOchoABankConciliation = hasModule(
     APP_MODULE_VALUES.bankConciliationOchoA,
   );
-  const bankStatementsPath = hasOchoAConciliation
+  const hasFgConciliation = hasModule(APP_MODULE_VALUES.conciliationFg);
+  const hasFgBankConciliation = hasModule(APP_MODULE_VALUES.bankConciliationFg);
+  const bankStatementsPath = hasFgConciliation
+    ? "/fg/cargar-extractos"
+    : hasOchoAConciliation
     ? "/ocho-a/cargar-extractos"
     : "/bank-statements";
-  const bankConciliationPath = hasOchoABankConciliation
+  const bankConciliationPath = hasFgBankConciliation
+    ? "/fg/conciliacion-banco"
+    : hasOchoABankConciliation
     ? "/ocho-a/conciliacion-banco"
     : "/conciliacion-banco";
   const canAccessBankConciliation =
-    hasModule(APP_MODULE_VALUES.bankConciliation) || hasOchoABankConciliation;
+    hasModule(APP_MODULE_VALUES.bankConciliation) ||
+    hasOchoABankConciliation ||
+    hasFgBankConciliation;
 
   useEffect(() => {
     apiClient

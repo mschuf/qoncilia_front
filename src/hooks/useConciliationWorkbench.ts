@@ -256,6 +256,7 @@ export function summarizeRow(row: PreviewRow | undefined, mappings: LayoutMappin
 }
 
 export type WorkbenchErpCodeFilter = "SAP_B1" | "SAP_TARJETAS"
+export type WorkbenchProfile = "standard" | "ocho_a" | "fg"
 
 export type UseConciliationWorkbenchOptions = {
   // Limita las configs ERP disponibles a un code (paginas dedicadas
@@ -264,12 +265,15 @@ export type UseConciliationWorkbenchOptions = {
   // Los modulos especializados pueden usar un backend SAP propio sin afectar
   // las rutas del workbench estandar.
   sapApiBasePath?: string
-  // API de extractos/catalagos. OCHO A usa su propia fachada para que sus
+  // API de extractos/catalogos. Los perfiles especializados usan su propia fachada para que sus
   // personalizaciones no modifiquen el flujo de las demas empresas.
   conciliationApiBasePath?: string
-  // Una fila bancaria de OCHO A puede conciliarse contra varias lineas del
+  // Una fila bancaria de un perfil especializado puede conciliarse contra varias lineas del
   // sistema; al enviar, la linea bancaria debe ir una sola vez a SAP.
   allowSapB1SystemManyToOne?: boolean
+  // Perfil explicito de comportamiento. Evita inferir reglas contables o de
+  // payload a partir del texto de la URL del endpoint.
+  workbenchProfile?: WorkbenchProfile
 }
 
 export default function useConciliationWorkbench(options?: UseConciliationWorkbenchOptions) {
@@ -278,6 +282,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
   const conciliationApiBasePath =
     options?.conciliationApiBasePath?.replace(/\/+$/, "") || "/conciliation"
   const allowSapB1SystemManyToOne = options?.allowSapB1SystemManyToOne === true
+  const workbenchProfile = options?.workbenchProfile ?? "standard"
   const { role, user } = useAuth()
   // Conciliar en SAP: admin/superadmin o gestor de cobranzas (igual que el backend).
   const canReconcileErp = isAdminRole(role) || role === ROLE_VALUES.gestorCobranza
@@ -853,7 +858,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
           columns,
           excludedBankRowIds,
           excludedSystemRowIds,
-          // Solo OCHO_A Banco permite referencias contenidas (por ejemplo,
+          // Los perfiles bancarios con many-to-one permiten referencias contenidas (por ejemplo,
           // 63218011 en banco y 632180111 en Referencia2). El importe neto
           // exacto continua siendo obligatorio en el backend.
           ...(allowSapB1SystemManyToOne ? { referenceMatchMode: "like" as const } : {})
@@ -954,13 +959,15 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     bankTable,
     excludedBankRowIds = [],
     excludedSystemRowIds = [],
-    strictReferenceAmountMatch = false
+    strictReferenceAmountMatch = false,
+    cardPaymentKind
   }: {
     columns: string[]
     bankTable?: SapB1QueryTable
     excludedBankRowIds?: string[]
     excludedSystemRowIds?: string[]
     strictReferenceAmountMatch?: boolean
+    cardPaymentKind?: "debit" | "credit"
   }): Promise<SapB1QueryComparisonResult | null> => {
     if (!selectedErpConfigId || !isSapTarjetasMode) {
       toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
@@ -998,10 +1005,18 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
           // SAP_TARJETAS: match de referencia por "like" (contencion) para tolerar
           // el padding de ceros del Cod. autorizacion vs VoucherNum del sistema.
           referenceMatchMode: "like",
-          // Debito y Credito OCHO_A exigen que referencia e importe sean ambos
+          // Debito y Credito de perfiles especializados exigen que referencia e importe sean ambos
           // gates obligatorios del matching automatico.
-          ...(sapApiBasePath === "/erp/sap/ocho-a" && strictReferenceAmountMatch
+          ...(workbenchProfile !== "standard" && strictReferenceAmountMatch
             ? { strictReferenceAmountMatch: true }
+            : {}),
+          // El respaldo Nro. transaccion + Fecha de venta se habilita solamente
+          // en la pantalla de Credito de la empresa QA de FG. El backend vuelve
+          // a validar empresa y tipo antes de aplicar esa regla.
+          ...(workbenchProfile === "fg" &&
+          user?.companyCode?.trim().toUpperCase() === "FG_TARJETA_QA" &&
+          cardPaymentKind === "credit"
+            ? { cardPaymentKind }
             : {})
         },
         { showBackdrop: false, timeoutMs: 45000 }
@@ -1025,6 +1040,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       depositDate: string
       journalRemarks: string
       bankReference?: string
+      voucherAccount?: string
     },
     kind: "debit" | "credit"
   ): Promise<
@@ -1059,6 +1075,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     const depositDate = options.depositDate.trim()
     const journalRemarks = options.journalRemarks.trim()
     const bankReference = options.bankReference?.trim()
+    const voucherAccount = options.voucherAccount?.trim()
     if (!depositAccount) {
       toast.error(
         "Falta la Cuenta Deposito: selecciona una cuenta bancaria con Cuenta Mayor configurada."
@@ -1086,9 +1103,23 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       }
     }
 
-    const isOchoACreditDeposit = sapApiBasePath === "/erp/sap/ocho-a" && kind === "credit"
+    const isCreditDepositWithCommission =
+      (workbenchProfile === "ocho_a" || workbenchProfile === "fg") && kind === "credit"
+    const isFgQaCreditDeposit =
+      workbenchProfile === "fg" &&
+      user?.companyCode?.trim().toUpperCase() === "FG_TARJETA_QA" &&
+      kind === "credit"
+    // BankReference es un campo propio del deposito de credito de OCHO A.
+    // FG conserva su payload actual, aunque tambien calcule comision.
+    const isOchoACreditDeposit = workbenchProfile === "ocho_a" && kind === "credit"
+    if (isFgQaCreditDeposit && !voucherAccount) {
+      toast.error(
+        "No se encontro la Cuenta vouchers SAP de las filas seleccionadas. Ejecuta nuevamente la consulta del sistema."
+      )
+      return null
+    }
     let commission: number | undefined
-    if (isOchoACreditDeposit) {
+    if (isCreditDepositWithCommission) {
       let calculatedCommission = 0
       for (const match of uniqueMatches) {
         const amount = parseRowNumber(match.bankRow, ["Importe"])
@@ -1111,6 +1142,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       depositDate,
       // Si el usuario lo dejo vacio, el backend aplica "COMPRA P.O.S BANCARD".
       journalRemarks: journalRemarks || undefined,
+      ...(voucherAccount ? { voucherAccount } : {}),
       // Solo credito de OCHO A: referencia bancaria editable para SAP.
       ...(isOchoACreditDeposit && bankReference
         ? { bankReference }
@@ -1124,7 +1156,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       creditLines
     }
     const depositEndpoint =
-      sapApiBasePath === "/erp/sap/ocho-a"
+      workbenchProfile !== "standard"
         ? `${sapApiBasePath}/credit-cards/deposits/${kind}`
         : `${sapApiBasePath}/credit-cards/deposits`
     const kindLabel = kind === "credit" ? "crédito" : "débito"

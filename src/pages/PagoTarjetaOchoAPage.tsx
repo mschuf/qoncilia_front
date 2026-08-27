@@ -15,6 +15,7 @@ export default function PagoTarjetaOchoAPage({
       mode="tarjetas"
       sapApiBasePath="/erp/sap/ocho-a"
       cardPaymentKind={cardPaymentKind}
+      workbenchProfile="ocho_a"
     />
   );
 }
