@@ -12,6 +12,7 @@ export type LayoutDataType = "text" | "number" | "amount" | "date";
 // null = autodeteccion.
 export type AmountMode =
   | "debit_credit"
+  | "debit_credit_abs"
   | "signed"
   | "single_credit"
   | "single_debit";
@@ -19,6 +20,7 @@ export type AmountMode =
 export const AMOUNT_MODE_OPTIONS: Array<{ value: AmountMode | ""; label: string }> = [
   { value: "", label: "Auto (detectar)" },
   { value: "debit_credit", label: "Debito / Credito separados" },
+  { value: "debit_credit_abs", label: "Debito / Credito separados (valor absoluto)" },
   { value: "signed", label: "Importe con signo (+ credito / - debito)" },
   { value: "single_credit", label: "Solo credito" },
   { value: "single_debit", label: "Solo debito" },
