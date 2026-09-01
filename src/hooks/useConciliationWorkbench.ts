@@ -1010,12 +1010,13 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
           ...(workbenchProfile !== "standard" && strictReferenceAmountMatch
             ? { strictReferenceAmountMatch: true }
             : {}),
-          // El respaldo Nro. transaccion + Fecha de venta se habilita solamente
-          // en la pantalla de Credito de la empresa QA de FG. El backend vuelve
-          // a validar empresa y tipo antes de aplicar esa regla.
-          ...(workbenchProfile === "fg" &&
-          user?.companyCode?.trim().toUpperCase() === "FG_TARJETA_QA" &&
-          cardPaymentKind === "credit"
+          // Las fachadas especializadas validan empresa y tipo antes de aplicar
+          // reglas propias de crédito: FG QA usa su respaldo de transacción y
+          // OCHO_A exige Fecha SAP = Fecha de venta del CSV.
+          ...((workbenchProfile === "fg" &&
+            user?.companyCode?.trim().toUpperCase() === "FG_TARJETA_QA" &&
+            cardPaymentKind === "credit") ||
+            (workbenchProfile === "ocho_a" && cardPaymentKind === "credit")
             ? { cardPaymentKind }
             : {})
         },

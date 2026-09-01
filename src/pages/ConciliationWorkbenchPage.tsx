@@ -758,7 +758,7 @@ export default function ConciliationWorkbenchPage({
                   onToggleRow={
                     allowSapB1SystemManyToOne ? toggleSapB1BankRow : undefined
                   }
-                  matchedIndices={
+                  hiddenRowIndices={
                     new Set(
                       sapB1SmartMatches.map((m) => m.bankRow.rowNumber - 1),
                     )
@@ -787,7 +787,7 @@ export default function ConciliationWorkbenchPage({
                       ? toggleSapB1SystemRow
                       : undefined
                   }
-                  matchedIndices={
+                  hiddenRowIndices={
                     new Set(
                       sapB1SmartMatches.map((m) => m.systemRow.rowNumber - 1),
                     )
@@ -1233,12 +1233,12 @@ export default function ConciliationWorkbenchPage({
               <div className="grid gap-6 lg:grid-cols-2">
                 <DataTable
                   title={bankLabel}
-                  rows={preview.bankRows}
+                  rows={unmatchedBankRows}
                   mappings={selectedLayout.mappings}
                 />
                 <DataTable
                   title={systemLabel}
-                  rows={preview.systemRows}
+                  rows={unmatchedSystemRows}
                   mappings={selectedLayout.mappings}
                 />
               </div>

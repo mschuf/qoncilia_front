@@ -10,7 +10,6 @@ type TableRowProps = {
   cells: string[];
   index: number;
   isSelected: boolean;
-  isMatched: boolean;
   hasSelection: boolean;
   selectionMode: "single" | "multiple";
   onSelectRow?: (index: number | null) => void;
@@ -67,7 +66,6 @@ const TableRow = memo(function TableRow({
   cells,
   index,
   isSelected,
-  isMatched,
   hasSelection,
   selectionMode,
   onSelectRow,
@@ -78,16 +76,14 @@ const TableRow = memo(function TableRow({
   return (
     <tr
       className={`border-t border-slate-100 ${
-        isMatched
-          ? "bg-slate-50 opacity-50 cursor-not-allowed"
-          : isSelected
-            ? "bg-brand-50"
-            : hasSelection
-              ? "text-slate-700 cursor-pointer hover:bg-slate-50"
-              : "text-slate-700"
+        isSelected
+          ? "bg-brand-50"
+          : hasSelection
+            ? "text-slate-700 cursor-pointer hover:bg-slate-50"
+            : "text-slate-700"
       }`}
       data-row-index={index}
-      tabIndex={hasSelection && !isMatched ? -1 : undefined}
+      tabIndex={hasSelection ? -1 : undefined}
       aria-selected={hasSelection ? isSelected : undefined}
       title={
         hasSelection
@@ -95,7 +91,7 @@ const TableRow = memo(function TableRow({
           : undefined
       }
       onClick={(event) => {
-        if (hasSelection && !isMatched) {
+        if (hasSelection) {
           if (onToggleRow) {
             onToggleRow(index, !isSelected);
           } else {
@@ -106,7 +102,7 @@ const TableRow = memo(function TableRow({
         }
       }}
       onKeyDown={(event) => {
-        if (!event.shiftKey || !hasSelection || isMatched) return;
+        if (!event.shiftKey || !hasSelection) return;
 
         const direction =
           event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : null;
@@ -121,7 +117,6 @@ const TableRow = memo(function TableRow({
           <input
             type={selectionMode === "multiple" ? "checkbox" : "radio"}
             checked={isSelected}
-            disabled={isMatched}
             readOnly
             className="cursor-pointer"
           />
@@ -145,7 +140,7 @@ function SapB1QueryTableView({
   selectedRowIndices,
   onSelectRow,
   onToggleRow,
-  matchedIndices,
+  hiddenRowIndices,
 }: {
   title: string;
   table: SapB1QueryTable;
@@ -153,17 +148,15 @@ function SapB1QueryTableView({
   selectedRowIndices?: ReadonlySet<number>;
   onSelectRow?: (index: number | null) => void;
   onToggleRow?: (index: number, selected: boolean) => void;
-  matchedIndices?: Set<number>;
+  hiddenRowIndices?: ReadonlySet<number>;
 }) {
   const columns = useMemo(() => table.columns, [table.columns]);
   const [sort, setSort] = useState<SortState | null>(null);
   const [keyboardActiveRowIndex, setKeyboardActiveRowIndex] = useState<number | null>(null);
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
-  const matchedIndicesRef = useRef(matchedIndices);
   const selectedRowIndicesRef = useRef(selectedRowIndices);
   const keyboardRangeAnchorRef = useRef<number | null>(null);
   const keyboardSelectionDirectionRef = useRef<-1 | 1 | null>(null);
-  matchedIndicesRef.current = matchedIndices;
   selectedRowIndicesRef.current = selectedRowIndices;
   const hasSelection = onSelectRow !== undefined || onToggleRow !== undefined;
   const selectionMode = onToggleRow ? "multiple" : "single";
@@ -195,6 +188,16 @@ function SapB1QueryTableView({
     });
   }, [formattedRows, sort]);
 
+  // Las filas que ya forman parte de Resultados del matching no se muestran en
+  // las tablas origen. Conservamos rowIndex para que, al quitar un match, la
+  // fila reaparezca en su posicion original y las selecciones sigan apuntando
+  // al registro correcto aun cuando haya ordenamiento activo.
+  const visibleRows = useMemo(
+    () =>
+      sortedRows.filter(({ rowIndex }) => !hiddenRowIndices?.has(rowIndex)),
+    [hiddenRowIndices, sortedRows],
+  );
+
   const toggleSort = (column: string) => {
     setSort((current) => ({
       column,
@@ -213,7 +216,7 @@ function SapB1QueryTableView({
 
   const moveSelection = useCallback(
     (currentRowIndex: number, direction: -1 | 1) => {
-      const currentPosition = sortedRows.findIndex(
+      const currentPosition = visibleRows.findIndex(
         ({ rowIndex }) => rowIndex === currentRowIndex,
       );
       if (currentPosition < 0) return;
@@ -222,11 +225,10 @@ function SapB1QueryTableView({
       // conciliadas, que no pueden volver a seleccionarse.
       for (
         let position = currentPosition + direction;
-        position >= 0 && position < sortedRows.length;
+        position >= 0 && position < visibleRows.length;
         position += direction
       ) {
-        const nextRowIndex = sortedRows[position].rowIndex;
-        if (matchedIndicesRef.current?.has(nextRowIndex)) continue;
+        const nextRowIndex = visibleRows[position].rowIndex;
 
         if (onToggleRow) {
           const anchorRowIndex = keyboardRangeAnchorRef.current ?? currentRowIndex;
@@ -255,7 +257,7 @@ function SapB1QueryTableView({
         return;
       }
     },
-    [onSelectRow, onToggleRow, sortedRows],
+    [onSelectRow, onToggleRow, visibleRows],
   );
 
   useEffect(() => {
@@ -268,14 +270,14 @@ function SapB1QueryTableView({
 
     row.focus({ preventScroll: true });
     row.scrollIntoView({ block: "nearest" });
-  }, [keyboardActiveRowIndex, sortedRows]);
+  }, [keyboardActiveRowIndex, visibleRows]);
 
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h4 className="text-sm font-extrabold text-slate-900">{title}</h4>
         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-          {table.rows.length} filas
+          {visibleRows.length} filas
         </span>
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -314,7 +316,7 @@ function SapB1QueryTableView({
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map(({ cells, rowIndex }) => (
+              {visibleRows.map(({ cells, rowIndex }) => (
                 <TableRow
                   key={rowIndex}
                   cells={cells}
@@ -322,7 +324,6 @@ function SapB1QueryTableView({
                   isSelected={
                     selectedRowIndices?.has(rowIndex) ?? selectedRowIndex === rowIndex
                   }
-                  isMatched={matchedIndices?.has(rowIndex) ?? false}
                   hasSelection={hasSelection}
                   selectionMode={selectionMode}
                   onSelectRow={onSelectRow}
@@ -331,7 +332,7 @@ function SapB1QueryTableView({
                   onMoveSelection={moveSelection}
                 />
               ))}
-              {table.rows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                 <tr>
                   <td
                     colSpan={Math.max(
@@ -340,7 +341,7 @@ function SapB1QueryTableView({
                     )}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
-                    La consulta no devolvio filas.
+                    No quedan filas disponibles.
                   </td>
                 </tr>
               ) : null}

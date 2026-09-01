@@ -139,6 +139,27 @@ function buildDedicatedDebitMatchingBankTable(table: SapB1QueryTable): SapB1Quer
   };
 }
 
+// En crédito de OCHO_A la Fecha de crédito del comercio sigue siendo el dato
+// de liquidación/depósito, pero la comparación contra OCRH debe usar la Fecha
+// de venta. Se conserva la fecha de crédito en su columna propia y se expone
+// Fecha de venta como "Fecha" solo al motor de matching.
+function buildDedicatedOchoACreditMatchingBankTable(
+  table: SapB1QueryTable,
+): SapB1QueryTable {
+  const saleDateColumn = findTableColumn(table.columns, "fechadeventa");
+  if (!saleDateColumn) return table;
+
+  return {
+    columns: table.columns.includes("Fecha")
+      ? table.columns
+      : [...table.columns, "Fecha"],
+    rows: table.rows.map((row) => ({
+      ...row,
+      Fecha: row[saleDateColumn],
+    })),
+  };
+}
+
 // La tabla superior de Débito muestra Referencia y Fecha de venta al inicio, y
 // omite Fecha/Fecha de crédito del comercio para que haya una sola fecha visible.
 function buildDedicatedDebitDisplayBankTable(table: SapB1QueryTable): SapB1QueryTable {
@@ -153,6 +174,38 @@ function buildDedicatedDebitDisplayBankTable(table: SapB1QueryTable): SapB1Query
   const columns = [referenceColumn, saleDateColumn, ...otherColumns].filter(
     (column): column is string => Boolean(column),
   );
+
+  return { ...table, columns };
+}
+
+// Crédito OCHO_A: la fecha usada para comparar (venta) queda junto a la fecha
+// histórica de comercio; la columna explícita de crédito se deja al final para
+// que siga disponible para los resúmenes y el DepositDate sin confundir el
+// control manual.
+function buildDedicatedOchoACreditDisplayBankTable(
+  table: SapB1QueryTable,
+): SapB1QueryTable {
+  const referenceColumn = findTableColumn(table.columns, "referencia");
+  const commerceDateColumn = findTableColumn(table.columns, "fecha");
+  const saleDateColumn = findTableColumn(table.columns, "fechadeventa");
+  const creditDateColumn = findTableColumn(
+    table.columns,
+    "fechadecreditodelcomercio",
+  );
+  if (!saleDateColumn) return table;
+
+  const leadingColumns = [
+    referenceColumn,
+    commerceDateColumn,
+    saleDateColumn,
+  ].filter((column): column is string => Boolean(column));
+  const columns = [
+    ...leadingColumns,
+    ...table.columns.filter(
+      (column) => !leadingColumns.includes(column) && column !== creditDateColumn,
+    ),
+    ...(creditDateColumn ? [creditDateColumn] : []),
+  ];
 
   return { ...table, columns };
 }
@@ -211,8 +264,12 @@ function resolveCardManualMatchDateKey(
   row: SmartMatch["bankRow"] | SmartMatch["systemRow"],
   kind: CardMatchKind,
   side: "bank" | "system",
+  useSaleDateForCredit = false,
 ): string | null {
-  const dateKeys = kind === "debit" && side === "bank" ? ["Fecha de venta"] : ["Fecha"];
+  const dateKeys =
+    side === "bank" && (kind === "debit" || useSaleDateForCredit)
+      ? ["Fecha de venta"]
+      : ["Fecha"];
   const normalized = findRowText(row, dateKeys, true);
   const raw = findRowText(row, dateKeys);
   return toIsoLoose(normalized) ?? toIsoLoose(raw);
@@ -238,6 +295,7 @@ function buildCardManualPairing(
   bankRows: SmartMatch["bankRow"][],
   systemRows: SmartMatch["systemRow"][],
   kind: CardMatchKind,
+  useSaleDateForCredit = false,
 ): CardManualPairing {
   if (bankRows.length !== systemRows.length) {
     return {
@@ -255,6 +313,7 @@ function buildCardManualPairing(
       bankRow,
       kind,
       "bank",
+      useSaleDateForCredit,
     );
     if (bankAmount === null || !bankDate) {
       return {
@@ -269,6 +328,7 @@ function buildCardManualPairing(
         systemRow,
         kind,
         "system",
+        useSaleDateForCredit,
       );
       return (
         systemAmount !== null &&
@@ -459,13 +519,15 @@ export default function SapTarjetasSection({
 
   useEffect(() => {
     const preferredDateKey =
-      cardPaymentKind === "debit" ? "fechadeventa" : "fecha";
+      cardPaymentKind === "debit" || isOchoACreditPage
+        ? "fechadeventa"
+        : "fecha";
     const preferredColumn = csvDateColumns.find(
       (column) => normalizeLookupKey(column) === preferredDateKey,
     );
     setCsvDateColumn(preferredColumn ?? csvDateColumns[0] ?? "");
     setCsvDateFilter("");
-  }, [bankTable, cardPaymentKind, csvDateColumns]);
+  }, [bankTable, cardPaymentKind, csvDateColumns, isOchoACreditPage]);
 
   const csvDates = useMemo(() => {
     if (!bankTable || !csvDateColumn) return [];
@@ -500,15 +562,19 @@ export default function SapTarjetasSection({
     () =>
       filteredBankTable && isDedicatedDebitPage
         ? buildDedicatedDebitMatchingBankTable(filteredBankTable)
+        : filteredBankTable && isOchoACreditPage
+          ? buildDedicatedOchoACreditMatchingBankTable(filteredBankTable)
         : filteredBankTable,
-    [filteredBankTable, isDedicatedDebitPage],
+    [filteredBankTable, isDedicatedDebitPage, isOchoACreditPage],
   );
   const bankTableForDisplay = useMemo(
     () =>
       filteredBankTable && isDedicatedDebitPage
         ? buildDedicatedDebitDisplayBankTable(filteredBankTable)
+        : filteredBankTable && isOchoACreditPage
+          ? buildDedicatedOchoACreditDisplayBankTable(filteredBankTable)
         : filteredBankTable,
-    [filteredBankTable, isDedicatedDebitPage],
+    [filteredBankTable, isDedicatedDebitPage, isOchoACreditPage],
   );
 
   const cardKindLabel =
@@ -610,10 +676,12 @@ export default function SapTarjetasSection({
             selectedManualBankRows,
             selectedManualSystemRows,
             cardPaymentKind,
+            isOchoACreditPage,
           )
         : null,
     [
       cardPaymentKind,
+      isOchoACreditPage,
       selectedManualBankRows,
       selectedManualSystemRows,
     ],
@@ -635,6 +703,7 @@ export default function SapTarjetasSection({
               row,
               cardPaymentKind ?? "debit",
               "bank",
+              isOchoACreditPage,
             ),
           )
           .filter((date): date is string => Boolean(date)),
@@ -646,6 +715,7 @@ export default function SapTarjetasSection({
               row,
               cardPaymentKind ?? "debit",
               "system",
+              isOchoACreditPage,
             ),
           )
           .filter((date): date is string => Boolean(date)),
@@ -653,6 +723,7 @@ export default function SapTarjetasSection({
     }),
     [
       cardPaymentKind,
+      isOchoACreditPage,
       selectedManualBankRows,
       selectedManualSystemRows,
     ],
@@ -1083,7 +1154,7 @@ export default function SapTarjetasSection({
                 onToggleRow={
                   isDedicatedCardPaymentPage ? toggleSelectedBankRow : undefined
                 }
-                matchedIndices={matchedBankIndices}
+                hiddenRowIndices={matchedBankIndices}
               />
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
@@ -1112,7 +1183,7 @@ export default function SapTarjetasSection({
                 onToggleRow={
                   isDedicatedCardPaymentPage ? toggleSelectedSystemRow : undefined
                 }
-                matchedIndices={matchedSystemIndices}
+                hiddenRowIndices={matchedSystemIndices}
               />
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
@@ -1131,7 +1202,7 @@ export default function SapTarjetasSection({
                   Control de selección manual
                 </p>
                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                  Cada fila del CSV debe coincidir con una fila SAP seleccionada por importe y {isDedicatedDebitPage ? "Fecha de venta" : isDedicatedCreditPage ? "Fecha de crédito" : "fecha"}.
+                  Cada fila del CSV debe coincidir con una fila SAP seleccionada por importe y {isDedicatedDebitPage || isOchoACreditPage ? "Fecha de venta" : isDedicatedCreditPage ? "Fecha de crédito" : "fecha"}.
                 </p>
               </div>
               <span
