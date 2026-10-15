@@ -1,5 +1,6 @@
 export { getStoredSapConfigId, storeSapConfigId } from "./sapSessionStorage"
 export type {
+  IrvineDinelcoPresentationGroup,
   SapExternalReconciliationAccountType,
   SapExternalReconciliationBankStatementLineInput,
   SapExternalReconciliationJournalEntryLineInput,

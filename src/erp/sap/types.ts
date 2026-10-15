@@ -97,6 +97,8 @@ export interface SapTarjetasDepositCreditLineInput {
   absId: number
 }
 
+export type IrvineDinelcoPresentationGroup = "SPI" | "OTHER"
+
 export interface SapTarjetasDepositRequest {
   companyErpConfigId: number
   depositAccount: string
@@ -110,6 +112,10 @@ export interface SapTarjetasDepositRequest {
   journalRemarks?: string
   // Solo credito de OCHO A: referencia bancaria editable (BankReference).
   bankReference?: string
+  dinelcoBranch?: string
+  dinelcoPresentationGroup?: IrvineDinelcoPresentationGroup
+  dinelcoGrossAmount?: number
+  dinelcoNetAmount?: number
   // "Cuenta Pago ERP" de la cuenta bancaria (cabecera BankAccountNum).
   bankAccountNum?: string
   // Descripcion del banco (cabecera Bank).

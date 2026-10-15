@@ -191,6 +191,7 @@ type ConciliationWorkbenchPageProps = {
   // sistema. El resto de empresas conserva el matching uno a uno.
   allowSapB1SystemManyToOne?: boolean;
   workbenchProfile?: WorkbenchProfile;
+  cardPaymentTitleOverride?: string;
 };
 
 export default function ConciliationWorkbenchPage({
@@ -200,6 +201,7 @@ export default function ConciliationWorkbenchPage({
   cardPaymentKind,
   allowSapB1SystemManyToOne = false,
   workbenchProfile = "standard",
+  cardPaymentTitleOverride,
 }: ConciliationWorkbenchPageProps) {
   const {
     role,
@@ -283,12 +285,14 @@ export default function ConciliationWorkbenchPage({
   const systemLabel =
     preview?.layout.systemLabel ?? selectedLayout?.systemLabel ?? "Sistema";
   const erpStatus = resolveErpStatus(erpSession);
-  const cardPaymentTitle =
+  const cardPaymentTitle = cardPaymentTitleOverride ?? (
     cardPaymentKind === "debit"
       ? "Pagos Débito"
       : cardPaymentKind === "credit"
         ? "Pagos Crédito"
-        : "Pago de tarjeta";
+        : workbenchProfile === "irvine_dinelco"
+          ? "Tarjeta Dinelco"
+          : "Pago de tarjeta");
   const [isErpPanelOpen, setIsErpPanelOpen] = useState(false);
   const [isErpLoginModalOpen, setIsErpLoginModalOpen] = useState(false);
   const [smartMatches, setSmartMatches] = useState<SmartMatch[]>([]);
@@ -1049,6 +1053,8 @@ export default function ConciliationWorkbenchPage({
         <SapTarjetasSection
           systemTable={cardSystemQuery?.system ?? null}
           bankTable={cardCsvResult?.bank ?? null}
+          searchDateFrom={cardSystemQuery?.dateFrom ?? null}
+          searchDateTo={cardSystemQuery?.dateTo ?? null}
           csvSummary={cardCsvResult}
           cardFile={cardFile}
           onCardFileChange={onCardFileChange}

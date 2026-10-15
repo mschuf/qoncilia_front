@@ -6,12 +6,21 @@ import {
   FiRefreshCw,
   FiSend,
   FiUploadCloud,
+  FiX,
 } from "react-icons/fi";
 import type {
+  IrvineDinelcoPresentationGroup,
   SapB1QueryComparisonResult,
   SapB1QueryTable,
   SapTarjetasCsvParseResult,
 } from "../../erp/sap";
+import {
+  buildIrvineDinelcoDepositBatches,
+  buildIrvineDinelcoMatchingBankTable,
+  filterIrvineDinelcoAccreditations,
+  irvineDinelcoPresentationLabel,
+  resolveIrvineDinelcoMatch,
+} from "../../erp/sap/irvine-dinelco-deposits";
 import type { WorkbenchProfile } from "../../hooks/useConciliationWorkbench";
 import SapB1QueryTableView from "./SapB1QueryTableView";
 import SmartMatchesTable from "./SmartMatchesTable";
@@ -210,6 +219,14 @@ function buildDedicatedOchoACreditDisplayBankTable(
   return { ...table, columns };
 }
 
+function buildIrvineDinelcoDisplayBankTable(table: SapB1QueryTable): SapB1QueryTable {
+  // Fecha e Importe son alias internos del matching; mostrar las columnas del Excel.
+  return {
+    ...table,
+    columns: table.columns.filter((column) => !["fecha", "importe"].includes(normalizeLookupKey(column))),
+  };
+}
+
 function parseCardAmount(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
 
@@ -258,6 +275,19 @@ function findRowAmount(
   row: SmartMatch["bankRow"] | SmartMatch["systemRow"],
 ): number | null {
   return parseCardAmount(findRowText(row, ["Importe", "Monto", "Amount"], true));
+}
+
+function resolveIrvineDinelcoRowMatch(
+  bankRow: SmartMatch["bankRow"], systemRow: SmartMatch["systemRow"],
+) {
+  return resolveIrvineDinelcoMatch({
+    bankReference: findRowText(bankRow, ["Referencia"]),
+    sapReference: findRowText(systemRow, ["Referencia"]),
+    bankSaleDate: toIsoLoose(findRowText(bankRow, ["Fecha Venta"])),
+    sapDate: toIsoLoose(findRowText(systemRow, ["Fecha"])),
+    bankAmount: parseCardAmount(findRowText(bankRow, ["Monto"])),
+    sapAmount: findRowAmount(systemRow),
+  });
 }
 
 function resolveCardManualMatchDateKey(
@@ -410,6 +440,8 @@ function defaultDepositDate(): string {
 export default function SapTarjetasSection({
   systemTable,
   bankTable,
+  searchDateFrom,
+  searchDateTo,
   csvSummary,
   cardFile,
   onCardFileChange,
@@ -427,6 +459,8 @@ export default function SapTarjetasSection({
 }: {
   systemTable: SapB1QueryTable | null;
   bankTable: SapB1QueryTable | null;
+  searchDateFrom: string | null;
+  searchDateTo: string | null;
   csvSummary: Pick<
     SapTarjetasCsvParseResult,
     "fileName" | "totalRows" | "includedRows"
@@ -456,6 +490,8 @@ export default function SapTarjetasSection({
       depositDate: string;
       journalRemarks: string;
       bankReference?: string;
+      dinelcoBranch?: string;
+      dinelcoPresentationGroup?: IrvineDinelcoPresentationGroup;
       voucherAccount?: string;
     },
     kind: CardMatchKind,
@@ -490,23 +526,31 @@ export default function SapTarjetasSection({
   const [showComparison, setShowComparison] = useState(false);
   const [depositAccount, setDepositAccount] = useState("");
   const [depositDate, setDepositDate] = useState(defaultDepositDate);
-  const [journalRemarks, setJournalRemarks] = useState(DEFAULT_JOURNAL_REMARKS);
+  const [journalRemarks, setJournalRemarks] = useState(
+    workbenchProfile === "irvine_dinelco" ? "COMPRA P.O.S DINELCO" : DEFAULT_JOURNAL_REMARKS,
+  );
+  const [dinelcoReferences, setDinelcoReferences] = useState<Record<string, string>>({});
+  const [excludedDinelcoBatchKeys, setExcludedDinelcoBatchKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [creditBankReferencesByDate, setCreditBankReferencesByDate] = useState<
     Record<string, string>
   >({});
   const [depositErrors, setDepositErrors] = useState<string[]>([]);
+  const [dinelcoManualError, setDinelcoManualError] = useState<string | null>(null);
   const [csvDateColumn, setCsvDateColumn] = useState("");
   const [csvDateFilter, setCsvDateFilter] = useState("");
   const matchesRef = useRef<HTMLDivElement | null>(null);
   const [scrollSignal, setScrollSignal] = useState(0);
   const isDedicatedCardPaymentPage =
-    workbenchProfile !== "standard" && Boolean(cardPaymentKind);
+    workbenchProfile !== "standard" && workbenchProfile !== "irvine_dinelco" && Boolean(cardPaymentKind);
   const isDedicatedDebitPage =
     isDedicatedCardPaymentPage && cardPaymentKind === "debit";
   const isDedicatedCreditPage =
     isDedicatedCardPaymentPage && cardPaymentKind === "credit";
   const isOchoACreditPage =
     workbenchProfile === "ocho_a" && cardPaymentKind === "credit";
+  const isIrvineDinelco = workbenchProfile === "irvine_dinelco";
   const usesCsvDepositDate = isDedicatedDebitPage || isDedicatedCreditPage;
 
   const csvDateColumns = useMemo(
@@ -519,62 +563,76 @@ export default function SapTarjetasSection({
 
   useEffect(() => {
     const preferredDateKey =
-      cardPaymentKind === "debit" || isOchoACreditPage
-        ? "fechadeventa"
-        : "fecha";
+      isIrvineDinelco
+        ? "fechaacreditacion"
+        : cardPaymentKind === "debit" || isOchoACreditPage
+          ? "fechadeventa"
+          : "fecha";
     const preferredColumn = csvDateColumns.find(
       (column) => normalizeLookupKey(column) === preferredDateKey,
     );
-    setCsvDateColumn(preferredColumn ?? csvDateColumns[0] ?? "");
+    const nextColumn = isIrvineDinelco
+      ? preferredColumn ?? ""
+      : preferredColumn ?? csvDateColumns[0] ?? "";
+    setCsvDateColumn(nextColumn);
     setCsvDateFilter("");
-  }, [bankTable, cardPaymentKind, csvDateColumns, isOchoACreditPage]);
+  }, [bankTable, cardPaymentKind, csvDateColumns, isIrvineDinelco, isOchoACreditPage, searchDateFrom, searchDateTo]);
 
   const csvDates = useMemo(() => {
     if (!bankTable || !csvDateColumn) return [];
 
     return [...new Set(
-      bankTable.rows
+      (isIrvineDinelco
+        ? filterIrvineDinelcoAccreditations(bankTable, searchDateFrom, searchDateTo).rows
+        : bankTable.rows)
         .filter(
           (row) =>
-            !cardPaymentKind ||
-            resolveCardTableRowKind(row) === cardPaymentKind,
+            isIrvineDinelco || !cardPaymentKind || resolveCardTableRowKind(row) === cardPaymentKind,
         )
         .map((row) => toCsvDateKey(row[csvDateColumn]))
         .filter((date): date is string => Boolean(date)),
     )].sort((left, right) => right.localeCompare(left));
-  }, [bankTable, cardPaymentKind, csvDateColumn]);
+  }, [bankTable, cardPaymentKind, csvDateColumn, isIrvineDinelco, searchDateFrom, searchDateTo]);
 
   const filteredBankTable = useMemo(() => {
     if (!bankTable) return null;
+    if (isIrvineDinelco) {
+      return filterIrvineDinelcoAccreditations(bankTable, searchDateFrom, searchDateTo, csvDateFilter);
+    }
 
     const rows = bankTable.rows.filter((row) => {
       if (cardPaymentKind && resolveCardTableRowKind(row) !== cardPaymentKind) {
         return false;
       }
 
-      return !csvDateFilter || toCsvDateKey(row[csvDateColumn]) === csvDateFilter;
+      const rowDate = toCsvDateKey(row[csvDateColumn]);
+      return !csvDateFilter || rowDate === csvDateFilter;
     });
 
     return { ...bankTable, rows };
-  }, [bankTable, cardPaymentKind, csvDateColumn, csvDateFilter]);
+  }, [bankTable, cardPaymentKind, csvDateColumn, csvDateFilter, isIrvineDinelco, searchDateFrom, searchDateTo]);
 
   const bankTableForMatching = useMemo(
     () =>
-      filteredBankTable && isDedicatedDebitPage
+      filteredBankTable && isIrvineDinelco
+        ? buildIrvineDinelcoMatchingBankTable(filteredBankTable)
+        : filteredBankTable && isDedicatedDebitPage
         ? buildDedicatedDebitMatchingBankTable(filteredBankTable)
         : filteredBankTable && isOchoACreditPage
           ? buildDedicatedOchoACreditMatchingBankTable(filteredBankTable)
         : filteredBankTable,
-    [filteredBankTable, isDedicatedDebitPage, isOchoACreditPage],
+    [filteredBankTable, isIrvineDinelco, isDedicatedDebitPage, isOchoACreditPage],
   );
   const bankTableForDisplay = useMemo(
     () =>
-      filteredBankTable && isDedicatedDebitPage
+      filteredBankTable && isIrvineDinelco
+        ? buildIrvineDinelcoDisplayBankTable(filteredBankTable)
+        : filteredBankTable && isDedicatedDebitPage
         ? buildDedicatedDebitDisplayBankTable(filteredBankTable)
         : filteredBankTable && isOchoACreditPage
           ? buildDedicatedOchoACreditDisplayBankTable(filteredBankTable)
         : filteredBankTable,
-    [filteredBankTable, isDedicatedDebitPage, isOchoACreditPage],
+    [filteredBankTable, isDedicatedDebitPage, isIrvineDinelco, isOchoACreditPage],
   );
 
   const cardKindLabel =
@@ -593,8 +651,14 @@ export default function SapTarjetasSection({
     setSelectedBankRowIndices(new Set());
     setSelectedSystemRowIndices(new Set());
     setCreditBankReferencesByDate({});
+    setDinelcoReferences({});
+    setExcludedDinelcoBatchKeys(new Set());
     setDepositErrors([]);
   }, [systemTable, filteredBankTable]);
+
+  useEffect(() => {
+    setDinelcoManualError(null);
+  }, [selectedBankRowIndex, selectedSystemRowIndex, systemTable, filteredBankTable]);
 
   // Scroll a la tabla de resultados al comparar.
   useEffect(() => {
@@ -610,11 +674,20 @@ export default function SapTarjetasSection({
 
   const comparisonColumns = useMemo(() => {
     if (!systemTable || !bankTableForMatching) return [];
+    if (isIrvineDinelco) {
+      // Monto queda visible en el Excel, pero el cruce usa los alias de OCRH.
+      // Fecha = Fecha Venta; Importe = Monto bruto del voucher.
+      const keys = ["Referencia", "Fecha", "Importe"];
+      return keys.every((key) =>
+        bankTableForMatching.columns.includes(key) && systemTable.columns.includes(key))
+        ? keys
+        : [];
+    }
     return resolveSapB1ComparisonColumns({
       bank: bankTableForMatching,
       system: systemTable,
     });
-  }, [systemTable, bankTableForMatching]);
+  }, [systemTable, bankTableForMatching, isIrvineDinelco]);
 
   const matchedBankIndices = useMemo(
     () => new Set(smartMatches.map((m) => m.bankRow.rowNumber - 1)),
@@ -632,6 +705,21 @@ export default function SapTarjetasSection({
     () => smartMatches.filter((match) => resolveCardMatchKind(match) === "debit"),
     [smartMatches],
   );
+  const allDinelcoBatches = useMemo(
+    () => isIrvineDinelco ? buildIrvineDinelcoDepositBatches(smartMatches, filteredBankTable) : [],
+    [isIrvineDinelco, smartMatches, filteredBankTable],
+  );
+  const dinelcoBatches = useMemo(
+    () => allDinelcoBatches.filter((batch) => !excludedDinelcoBatchKeys.has(batch.key)),
+    [allDinelcoBatches, excludedDinelcoBatchKeys],
+  );
+  const restoreDinelcoBatchesForMatches = useCallback((matches: SmartMatch[]) => {
+    const restoredKeys = new Set(buildIrvineDinelcoDepositBatches(matches).map((batch) => batch.key));
+    setExcludedDinelcoBatchKeys((current) =>
+      new Set([...current].filter((key) => !restoredKeys.has(key))),
+    );
+    setDepositErrors([]);
+  }, []);
 
   // Columnas para la tabla de resultados, memoizadas: si se recrean en cada render
   // rompen el memo de SmartMatchesTable y su formateo precomputado.
@@ -645,8 +733,10 @@ export default function SapTarjetasSection({
   );
   const smartMatchBankColumns = useMemo(
     () =>
-      (bankTableForDisplay?.columns ?? []).map((col) => ({ fieldKey: col, label: col })),
-    [bankTableForDisplay],
+      (bankTableForDisplay?.columns ?? [])
+        .filter((col) => !isIrvineDinelco || normalizeLookupKey(col) !== "monto")
+        .map((col) => ({ fieldKey: col, label: col })),
+    [bankTableForDisplay, isIrvineDinelco],
   );
 
   const selectedManualBankRows = useMemo(
@@ -772,19 +862,25 @@ export default function SapTarjetasSection({
     const bankRow = bankRows[selectedBankRowIndex];
     const systemRow = systemRows[selectedSystemRowIndex];
     if (!bankRow || !systemRow) return;
+    const dinelcoMatch = isIrvineDinelco ? resolveIrvineDinelcoRowMatch(bankRow, systemRow) : null;
+    if (dinelcoMatch && !dinelcoMatch.matched) {
+      setDinelcoManualError("Dinelco: el Monto bruto debe coincidir con SAP y, si la referencia difiere, Fecha Venta debe ser igual a Fecha SAP.");
+      return;
+    }
 
     const manualMatch: SmartMatch = {
       systemRow,
       bankRow,
       score: 1,
-      column1Match: true,
-      column2Match: true,
-      column3Match: true,
+      column1Match: dinelcoMatch?.referenceMatched ?? true,
+      column2Match: dinelcoMatch?.dateMatched ?? true,
+      column3Match: dinelcoMatch?.amountMatched ?? true,
       matchReason: "manual",
-      dateDifferenceDays: null,
+      dateDifferenceDays: dinelcoMatch?.dateMatched ? 0 : null,
     };
 
     setSmartMatches((prev) => [...prev, manualMatch]);
+    if (isIrvineDinelco) restoreDinelcoBatchesForMatches([manualMatch]);
     setShowComparison(true);
     setSelectedBankRowIndex(null);
     setSelectedSystemRowIndex(null);
@@ -802,14 +898,16 @@ export default function SapTarjetasSection({
       excludedSystemRowIds,
       // Las pantallas dedicadas de Debito y Credito requieren
       // referencia contenida y el mismo importe antes del matching automatico.
-      strictReferenceAmountMatch: Boolean(cardPaymentKind),
+      strictReferenceAmountMatch: Boolean(cardPaymentKind) || isIrvineDinelco,
       cardPaymentKind,
     });
     if (!result) return;
 
     setSmartMatches((prev) => [...prev, ...result.matches]);
+    if (isIrvineDinelco) restoreDinelcoBatchesForMatches(result.matches);
     setShowComparison(true);
     setScrollSignal((n) => n + 1);
+    return result;
   };
 
   const handleRemoveSmartMatch = useCallback((target: SmartMatch) => {
@@ -825,11 +923,13 @@ export default function SapTarjetasSection({
     setSelectedSystemRowIndex(null);
     setSelectedBankRowIndices(new Set());
     setSelectedSystemRowIndices(new Set());
-    setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
+    setJournalRemarks(isIrvineDinelco ? "COMPRA P.O.S DINELCO" : DEFAULT_JOURNAL_REMARKS);
     setCreditBankReferencesByDate({});
+    setDinelcoReferences({});
+    setExcludedDinelcoBatchKeys(new Set());
     setDepositDate(defaultDepositDate());
     setDepositErrors([]);
-  }, []);
+  }, [isIrvineDinelco]);
 
   const handleClearSmartMatchesByKind = useCallback((kind: CardMatchKind) => {
     setSmartMatches((current) =>
@@ -895,6 +995,27 @@ export default function SapTarjetasSection({
     setDepositErrors([]);
   }, []);
 
+  const handleRemoveDinelcoBatch = useCallback((batchKey: string) => {
+    const batch = allDinelcoBatches.find((item) => item.key === batchKey);
+    if (!batch) return;
+    const removedBankRowIds = new Set(batch.matches.map((match) => match.bankRow.rowId));
+    setSmartMatches((current) =>
+      current.filter((match) => !removedBankRowIds.has(match.bankRow.rowId)),
+    );
+    setExcludedDinelcoBatchKeys((current) => new Set([...current, batchKey]));
+    setSelectedBankRowIndex(null);
+    setSelectedSystemRowIndex(null);
+    setDinelcoManualError(null);
+    setDepositErrors([]);
+  }, [allDinelcoBatches]);
+
+  const handleRestoreDinelcoBatches = async () => {
+    const result = await handleCompare();
+    if (!result) return;
+    setExcludedDinelcoBatchKeys(new Set());
+    setDepositErrors([]);
+  };
+
   const handleSendDeposit = async () => {
     setDepositErrors([]);
     let batches: Array<{
@@ -902,10 +1023,51 @@ export default function SapTarjetasSection({
       matches: SmartMatch[];
       depositDate: string;
       bankReference?: string;
+      dinelcoBranch?: string;
+      dinelcoPresentationGroup?: IrvineDinelcoPresentationGroup;
       voucherAccount?: string;
     }>;
 
-    if (usesCsvDepositDate) {
+    if (isIrvineDinelco) {
+      if (dinelcoBatches.length === 0) {
+        setDepositErrors(["Selecciona al menos un depósito Dinelco para enviar."]);
+        return;
+      }
+      const pendingBatches = dinelcoBatches.filter((batch) =>
+        batch.pendingReferences.length > 0 || batch.matches.length !== batch.operationCount);
+      if (pendingBatches.length > 0) {
+        setDepositErrors(pendingBatches.map((batch) =>
+          `${formatCsvDateKey(batch.date)} · ${batch.branch} · ${irvineDinelcoPresentationLabel(batch.presentationGroup)}: faltan coincidencias SAP para ${batch.pendingReferences.join(", ") || "algunas operaciones"}.`));
+        return;
+      }
+      const absIds = new Set<string>();
+      for (const match of dinelcoBatches.flatMap((batch) => batch.matches)) {
+        const absId = findRowText(match.systemRow, ["AbsId"]);
+        if (!absId || absIds.has(absId) || !resolveIrvineDinelcoRowMatch(match.bankRow, match.systemRow).matched) {
+          setDepositErrors(["Dinelco: cada operación debe coincidir una sola vez con SAP por Monto bruto y por referencia o Fecha Venta exacta."]);
+          return;
+        }
+        absIds.add(absId);
+      }
+      if (dinelcoBatches.some((batch) =>
+        !/^\d{4}-\d{2}-\d{2}$/.test(batch.date) || !batch.branch ||
+        !Number.isFinite(batch.amount) || batch.amount <= 0 ||
+        batch.grossAmount < batch.amount ||
+        !dinelcoReferences[batch.key]?.trim()
+      )) {
+        setDepositErrors(["Revisa la fecha, sucursal, monto y referencia de cada lote Dinelco."]);
+        return;
+      }
+      // Como Ocho A, el backend usa DepositAccount también como VoucherAccount.
+      batches = dinelcoBatches.map((batch) => ({
+        kind: "debit" as const,
+        matches: batch.matches,
+        depositDate: batch.date,
+        bankReference: dinelcoReferences[batch.key].trim(),
+        dinelcoBranch: batch.branch,
+        dinelcoPresentationGroup: batch.presentationGroup,
+      }));
+    } else if (usesCsvDepositDate) {
       const kind: CardMatchKind = isDedicatedCreditPage ? "credit" : "debit";
       const matches = kind === "credit" ? creditSmartMatches : debitSmartMatches;
       const dateFieldLabel =
@@ -989,11 +1151,25 @@ export default function SapTarjetasSection({
           ...(batch.kind === "credit" && batch.bankReference
             ? { bankReference: batch.bankReference }
             : {}),
+          ...(isIrvineDinelco ? {
+            bankReference: batch.bankReference,
+            dinelcoBranch: batch.dinelcoBranch,
+            dinelcoPresentationGroup: batch.dinelcoPresentationGroup,
+          } : {}),
           ...(batch.voucherAccount ? { voucherAccount: batch.voucherAccount } : {}),
         },
         batch.kind,
       );
-      if (!result) return;
+      if (!result) {
+        if (isIrvineDinelco) {
+          // Una respuesta indeterminada obliga a consultar SAP antes de reintentar.
+          setSmartMatches([]);
+          setShowComparison(false);
+          setDepositErrors(["Consulta nuevamente SAP y vuelve a comparar antes de reintentar el depósito Dinelco."]);
+          await refreshSystemQuery();
+        }
+        return;
+      }
       results.push(result);
     }
 
@@ -1010,8 +1186,10 @@ export default function SapTarjetasSection({
       setSelectedSystemRowIndex(null);
       setSelectedBankRowIndices(new Set());
       setSelectedSystemRowIndices(new Set());
-      setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
+      setJournalRemarks(isIrvineDinelco ? "COMPRA P.O.S DINELCO" : DEFAULT_JOURNAL_REMARKS);
       setCreditBankReferencesByDate({});
+      setDinelcoReferences({});
+      setExcludedDinelcoBatchKeys(new Set());
       setDepositDate(defaultDepositDate());
       // Deposito completo OK: se re-ejecuta la busqueda del sistema para traer
       // el estado fresco de SAP y no re-matchear/depositar vouchers ya enviados.
@@ -1037,11 +1215,16 @@ export default function SapTarjetasSection({
   const canCompare =
     Boolean(bankTableForMatching?.rows.length) &&
     Boolean(systemTable?.rows.length) &&
+    (!isIrvineDinelco || (!isRunningSystemQuery && !isParsingCsv && !isSendingDeposit)) &&
     !isComparing;
   const canSendDeposit =
     smartMatches.length > 0 &&
     Boolean(depositAccount.trim()) &&
-    (usesCsvDepositDate || Boolean(depositDate)) &&
+    (usesCsvDepositDate || isIrvineDinelco || Boolean(depositDate)) &&
+    (!isIrvineDinelco || (dinelcoBatches.length > 0 && dinelcoBatches.every((batch) =>
+      Boolean(dinelcoReferences[batch.key]?.trim()) && batch.pendingReferences.length === 0 &&
+      batch.matches.length === batch.operationCount))) &&
+    (!isIrvineDinelco || (!isRunningSystemQuery && !isParsingCsv && !isComparing)) &&
     !isSendingDeposit;
 
   return (
@@ -1053,7 +1236,7 @@ export default function SapTarjetasSection({
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                CSV de la procesadora
+                {isIrvineDinelco ? "Excel Dinelco" : "CSV de la procesadora"}
               </p>
               {accountCode ? (
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-emerald-700">
@@ -1062,7 +1245,7 @@ export default function SapTarjetasSection({
               ) : null}
               {csvSummary ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                  {csvSummary.includedRows}/{csvSummary.totalRows} operaciones de tarjetas
+                  {csvSummary.includedRows}/{csvSummary.totalRows} operaciones {isIrvineDinelco ? "acreditadas con monto neto positivo" : "de tarjetas"}
                 </span>
               ) : null}
               {isParsingCsv ? (
@@ -1074,27 +1257,29 @@ export default function SapTarjetasSection({
           </div>
           <div className="w-full shrink-0 sm:w-72">
             <UploadCard
-              title="CSV de tarjetas"
+              title={isIrvineDinelco ? "Excel Dinelco" : "CSV de tarjetas"}
               file={cardFile}
               onChange={onCardFileChange}
               onClear={onClearCardFile}
-              accept=".csv,.txt,.xls,.xlsx"
+              accept={isIrvineDinelco ? ".xls,.xlsx" : ".csv,.txt,.xls,.xlsx"}
               compact
             />
           </div>
         </div>
 
-        {cardPaymentKind && bankTable ? (
+        {(cardPaymentKind || isIrvineDinelco) && bankTable ? (
           <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-brand-100 bg-brand-50/40 p-3">
             <div className="mr-auto">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-brand-700">
-                Pagos {cardKindLabel}
+                {isIrvineDinelco ? "Acreditaciones Dinelco" : `Pagos ${cardKindLabel}`}
               </p>
               <p className="mt-1 text-xs font-semibold text-slate-600">
-                El filtro limita las filas del CSV que se enviaran al matching.
+                {isIrvineDinelco
+                  ? "La búsqueda filtra por acreditación; la comparación con SAP usa Fecha Venta e incluye débito y crédito."
+                  : "El filtro limita las filas del CSV que se enviaran al matching."}
               </p>
             </div>
-            {csvDateColumns.length > 1 ? (
+            {!isIrvineDinelco && csvDateColumns.length > 1 ? (
               <label className="space-y-1">
                 <span className="text-xs font-bold text-slate-600">Columna de fecha</span>
                 <select
@@ -1115,13 +1300,15 @@ export default function SapTarjetasSection({
             ) : null}
             {csvDateColumns.length > 0 ? (
               <label className="space-y-1">
-                <span className="text-xs font-bold text-slate-600">Fecha a procesar</span>
+                <span className="text-xs font-bold text-slate-600">{isIrvineDinelco ? "Fecha Acreditación" : "Fecha a procesar"}</span>
                 <select
                   value={csvDateFilter}
                   onChange={(event) => setCsvDateFilter(event.target.value)}
                   className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
                 >
-                  <option value="">Todas las fechas</option>
+                  {isIrvineDinelco
+                    ? <option value="">Todas las fechas del rango</option>
+                    : <option value="">Todas las fechas</option>}
                   {csvDates.map((date) => (
                     <option key={date} value={date}>
                       {formatCsvDateKey(date)}
@@ -1140,7 +1327,7 @@ export default function SapTarjetasSection({
           <div>
             {filteredBankTable ? (
               <SapB1QueryTableView
-                title={`Tarjetas de ${cardKindLabel}`}
+                title={isIrvineDinelco ? "Operaciones Dinelco" : `Tarjetas de ${cardKindLabel}`}
                 table={bankTableForDisplay ?? filteredBankTable}
                 selectedRowIndex={
                   isDedicatedCardPaymentPage ? undefined : selectedBankRowIndex
@@ -1158,7 +1345,7 @@ export default function SapTarjetasSection({
               />
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                Sube el CSV para ver las tarjetas.
+                {isIrvineDinelco ? "Sube el Excel Dinelco para ver las tarjetas." : "Sube el CSV para ver las tarjetas."}
               </div>
             )}
           </div>
@@ -1253,7 +1440,7 @@ export default function SapTarjetasSection({
                 setSelectedSystemRowIndex(null);
                 setSelectedBankRowIndices(new Set());
                 setSelectedSystemRowIndices(new Set());
-                setJournalRemarks(DEFAULT_JOURNAL_REMARKS);
+                setJournalRemarks(isIrvineDinelco ? "COMPRA P.O.S DINELCO" : DEFAULT_JOURNAL_REMARKS);
               }}
               disabled={!showComparison && smartMatches.length === 0}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1266,7 +1453,9 @@ export default function SapTarjetasSection({
                 title={
                   isDedicatedCardPaymentPage
                     ? "Emparejar las filas seleccionadas"
-                    : "Match Manual"
+                    : isIrvineDinelco
+                      ? "Emparejar las filas seleccionadas por referencia o Fecha Venta y Monto bruto"
+                      : "Match Manual"
                 }
                 onClick={handleManualMatch}
                 disabled={
@@ -1291,12 +1480,26 @@ export default function SapTarjetasSection({
             </div>
           </div>
         ) : null}
+        {isIrvineDinelco && dinelcoManualError ? (
+          <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">{dinelcoManualError}</p>
+        ) : null}
       </section>
 
       {showComparison && filteredBankTable && systemTable ? (
         <>
           <div ref={matchesRef} className="scroll-mt-20">
-            {!cardPaymentKind || cardPaymentKind === "debit" ? (
+            {isIrvineDinelco ? (
+              <SmartMatchesTable
+                title="Resultados del matching Dinelco"
+                exportFileName="resultados-matching-dinelco"
+                matches={smartMatches}
+                systemColumns={smartMatchSystemColumns}
+                bankColumns={smartMatchBankColumns}
+                onRemove={handleRemoveSmartMatch}
+                onClear={handleClearSmartMatches}
+              />
+            ) : null}
+            {!isIrvineDinelco && (!cardPaymentKind || cardPaymentKind === "debit") ? (
             <SmartMatchesTable
               title="Resultados del matching Débito"
               exportFileName="resultados-matching-debito"
@@ -1316,7 +1519,7 @@ export default function SapTarjetasSection({
                 : {})}
             />
             ) : null}
-            {!cardPaymentKind || cardPaymentKind === "credit" ? (
+            {!isIrvineDinelco && (!cardPaymentKind || cardPaymentKind === "credit") ? (
             <div className={cardPaymentKind ? "" : "mt-5"}>
               <SmartMatchesTable
                 title="Resultados del matching Crédito"
@@ -1347,7 +1550,7 @@ export default function SapTarjetasSection({
             ) : null}
           </div>
 
-          {smartMatches.length > 0 ? (
+          {smartMatches.length > 0 || (isIrvineDinelco && excludedDinelcoBatchKeys.size > 0) ? (
             <section className="rounded-3xl border border-slate-200 bg-white p-5">
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                 <div>
@@ -1374,13 +1577,15 @@ export default function SapTarjetasSection({
                         {depositAccount || "Selecciona una cuenta bancaria"}
                       </div>
                     </div>
-                    {usesCsvDepositDate ? (
+                    {usesCsvDepositDate || isIrvineDinelco ? (
                       <div className="space-y-1">
                         <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Fechas Deposito
                         </span>
                         <div className="flex h-11 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-bold text-emerald-700">
-                          {isDedicatedCreditPage
+                          {isIrvineDinelco
+                            ? "Por acreditación y sucursal: SPI separado de las otras prestaciones"
+                            : isDedicatedCreditPage
                             ? "Se toma Fecha de crédito del comercio"
                             : "Se toma Fecha de venta del CSV"}
                         </div>
@@ -1399,6 +1604,65 @@ export default function SapTarjetasSection({
                         />
                       </label>
                     )}
+                    {isIrvineDinelco ? (
+                      <div className="space-y-2 md:col-span-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                            Referencia por depósito
+                          </span>
+                          {excludedDinelcoBatchKeys.size > 0 ? (
+                            <button
+                              type="button"
+                              onClick={handleRestoreDinelcoBatches}
+                              disabled={!canCompare || isSendingDeposit}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <FiRefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                              Restaurar depósitos quitados ({excludedDinelcoBatchKeys.size})
+                            </button>
+                          ) : null}
+                        </div>
+                        {dinelcoBatches.length === 0 ? (
+                          <p className="text-sm text-slate-500">No quedan depósitos seleccionados para enviar.</p>
+                        ) : null}
+                        {dinelcoBatches.map((batch) => (
+                          <div key={batch.key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-xl border border-slate-200 p-3 text-sm md:grid-cols-[minmax(0,1fr)_auto_12rem_auto] md:items-center">
+                            <span className="font-semibold text-slate-700">
+                              {formatCsvDateKey(batch.date)} · {batch.branch} ({batch.branchCode}) · {irvineDinelcoPresentationLabel(batch.presentationGroup)} · {batch.operationCount} operaciones
+                              {batch.pendingReferences.length > 0 ? (
+                                <small className="mt-1 block font-semibold text-amber-700">
+                                  Sin coincidencia SAP: {batch.pendingReferences.join(", ")}
+                                </small>
+                              ) : null}
+                            </span>
+                            <span className="col-start-1 text-right font-bold text-slate-900 md:col-start-auto">
+                              Neto {formatAmountPyg(batch.amount)}
+                              <small className="block text-xs font-medium text-slate-500">
+                                Bruto {formatAmountPyg(batch.grossAmount)} · Comisión {formatAmountPyg(batch.grossAmount - batch.amount)}
+                              </small>
+                            </span>
+                            <input
+                              aria-label={`Referencia ${formatCsvDateKey(batch.date)} ${batch.branch} ${irvineDinelcoPresentationLabel(batch.presentationGroup)}`}
+                              value={dinelcoReferences[batch.key] ?? ""}
+                              onChange={(event) => setDinelcoReferences((current) => ({ ...current, [batch.key]: event.target.value }))}
+                              placeholder="Referencia SAP"
+                              maxLength={100}
+                              className="col-start-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-100 md:col-start-auto"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDinelcoBatch(batch.key)}
+                              disabled={isSendingDeposit || isComparing}
+                              aria-label={`Quitar depósito ${formatCsvDateKey(batch.date)} ${batch.branch} ${irvineDinelcoPresentationLabel(batch.presentationGroup)}`}
+                              title="Quitar este depósito y devolver sus filas a Excel y SAP para comparar"
+                              className="col-start-2 row-start-1 inline-flex h-9 w-9 items-center justify-center self-start rounded-lg text-slate-500 transition hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-50 md:col-start-auto md:row-start-auto md:self-center"
+                            >
+                              <FiX className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     <label
                       className={`space-y-1 ${
                         isDedicatedDebitPage ? "md:col-span-1" : "md:col-span-2"
@@ -1412,7 +1676,7 @@ export default function SapTarjetasSection({
                         onChange={(event) =>
                           setJournalRemarks(event.target.value)
                         }
-                        placeholder={DEFAULT_JOURNAL_REMARKS}
+                        placeholder={isIrvineDinelco ? "COMPRA P.O.S DINELCO" : DEFAULT_JOURNAL_REMARKS}
                         maxLength={200}
                         className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-300 focus:ring-2 focus:ring-brand-100"
                       />

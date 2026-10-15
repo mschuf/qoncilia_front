@@ -167,6 +167,14 @@ export default function App() {
               }
             />
             <Route
+              path="pago-tarjeta-dinelco"
+              element={
+                <ProtectedRoute requiredModule={APP_MODULE_VALUES.cardPayment}>
+                  <PagoTarjetaPage processor="dinelco" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="pago-tarjeta-8a"
               element={<Navigate to="/pago-tarjeta-8a/debito" replace />}
             />

@@ -180,12 +180,23 @@ export default function Navbar() {
       show: visibleConciliationLinks.length > 0,
       children: visibleConciliationLinks,
     },
-    {
-      to: "/pago-tarjeta",
-      icon: <FiCreditCard className="h-4 w-4" />,
-      label: "Pago de tarjeta",
-      show: hasModule(APP_MODULE_VALUES.cardPayment),
-    },
+    ...(user?.companyCode?.trim().toUpperCase() === "IRVINE"
+      ? [{
+          key: "tarjeta-irvine",
+          icon: <FiCreditCard className="h-4 w-4" />,
+          label: "Tarjeta",
+          show: hasModule(APP_MODULE_VALUES.cardPayment),
+          children: [
+            { to: "/pago-tarjeta", icon: <FiCreditCard className="h-4 w-4" />, label: "Tarjeta Bancard", show: true },
+            { to: "/pago-tarjeta-dinelco", icon: <FiCreditCard className="h-4 w-4" />, label: "Tarjeta Dinelco", show: true },
+          ],
+        }]
+      : [{
+          to: "/pago-tarjeta",
+          icon: <FiCreditCard className="h-4 w-4" />,
+          label: "Pago de tarjeta",
+          show: hasModule(APP_MODULE_VALUES.cardPayment),
+        }]),
     {
       key: "pagos-tarjetas-8a",
       icon: <FiCreditCard className="h-4 w-4" />,

@@ -8,6 +8,7 @@ import { useDebounce } from "./useDebounce"
 import {
   getStoredSapConfigId,
   storeSapConfigId,
+  type IrvineDinelcoPresentationGroup,
   type SapB1QueryComparisonResult,
   type SapB1QueryTable,
   type SapB1QueryPreviewResult,
@@ -19,6 +20,10 @@ import {
   type SapTarjetasDepositRequest,
   type SapTarjetasSystemQueryResult,
 } from "../erp/sap"
+import {
+  irvineDinelcoSaleDateRange,
+  resolveIrvineDinelcoPresentationGroup
+} from "../erp/sap/irvine-dinelco-deposits"
 import type { AuthUser } from "../types/auth"
 import type {
   BankStatementSummary,
@@ -256,7 +261,7 @@ export function summarizeRow(row: PreviewRow | undefined, mappings: LayoutMappin
 }
 
 export type WorkbenchErpCodeFilter = "SAP_B1" | "SAP_TARJETAS"
-export type WorkbenchProfile = "standard" | "ocho_a" | "fg"
+export type WorkbenchProfile = "standard" | "ocho_a" | "fg" | "irvine_dinelco"
 
 export type UseConciliationWorkbenchOptions = {
   // Limita las configs ERP disponibles a un code (paginas dedicadas
@@ -876,26 +881,39 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
   }
 
   // === SAP_TARJETAS ========================================================
-  const runCardSystemQuery = async () => {
+  const runCardSystemQuery = async (queryOptions?: {
+    bankTable?: SapB1QueryTable
+    dateFrom?: string
+    dateTo?: string
+  }) => {
     if (!selectedErpConfigId || !isSapTarjetasMode) {
       toast.error("Selecciona una configuracion ERP SAP_TARJETAS activa.")
       return
     }
 
-    if (!dateFrom || !dateTo) {
+    const searchDateFrom = queryOptions?.dateFrom ?? dateFrom
+    const searchDateTo = queryOptions?.dateTo ?? dateTo
+    if (!searchDateFrom || !searchDateTo) {
       toast.error("Selecciona Fecha Desde y Fecha Hasta.")
       return
     }
 
     try {
       setIsRunningCardSystemQuery(true)
+      const dinelcoBank = queryOptions?.bankTable ?? cardCsvResult?.bank
+      const saleDates = workbenchProfile === "irvine_dinelco" && dinelcoBank
+        ? irvineDinelcoSaleDateRange(dinelcoBank, searchDateFrom, searchDateTo)
+        : {}
       const response = await apiClient.post<SapTarjetasSystemQueryResult>(
-        `${sapApiBasePath}/credit-cards/system-query`,
+        workbenchProfile === "irvine_dinelco"
+          ? `${sapApiBasePath}/credit-cards/dinelco/system-query`
+          : `${sapApiBasePath}/credit-cards/system-query`,
         {
           companyErpConfigId: selectedErpConfigId,
           companyBankAccountId: selectedCompanyBankAccountId || undefined,
-          dateFrom,
-          dateTo
+          dateFrom: searchDateFrom,
+          dateTo: searchDateTo,
+          ...saleDates
         },
         { timeoutMs: 45000 }
       )
@@ -903,6 +921,7 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       clearPreview()
       toast.success("Consulta del sistema ejecutada.")
     } catch (error) {
+      if (workbenchProfile === "irvine_dinelco") setCardSystemQuery(null)
       toast.error(
         error instanceof Error ? error.message : "No se pudo ejecutar la consulta del sistema."
       )
@@ -923,16 +942,27 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       formData.append("companyErpConfigId", String(selectedErpConfigId))
       formData.append("file", file)
       const response = await apiClient.post<SapTarjetasCsvParseResult>(
-        `${sapApiBasePath}/credit-cards/parse-csv`,
+        workbenchProfile === "irvine_dinelco"
+          ? `${sapApiBasePath}/credit-cards/dinelco/parse`
+          : `${sapApiBasePath}/credit-cards/parse-csv`,
         formData,
         { showBackdrop: false, timeoutMs: 45000 }
       )
       setCardCsvResult(response)
-      toast.success(`CSV cargado: ${response.includedRows} registros.`)
+      if (workbenchProfile === "irvine_dinelco" && cardSystemQuery) {
+        // Si SAP se consulto antes de subir el Excel, incluir ahora las ventas
+        // de las operaciones acreditadas en esa busqueda.
+        await runCardSystemQuery({
+          bankTable: response.bank,
+          dateFrom: cardSystemQuery.dateFrom,
+          dateTo: cardSystemQuery.dateTo
+        })
+      }
+      toast.success(`${workbenchProfile === "irvine_dinelco" ? "Excel Dinelco" : "CSV"} cargado: ${response.includedRows} registros.`)
     } catch (error) {
       setCardCsvResult(null)
       toast.error(
-        error instanceof Error ? error.message : "No se pudo procesar el CSV de tarjetas."
+        error instanceof Error ? error.message : `No se pudo procesar el ${workbenchProfile === "irvine_dinelco" ? "Excel Dinelco" : "CSV de tarjetas"}.`
       )
     } finally {
       setIsParsingCardCsv(false)
@@ -980,11 +1010,16 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     }
 
     if (!cardCsvResult) {
-      toast.error("Primero carga el CSV de la procesadora.")
+      toast.error(workbenchProfile === "irvine_dinelco" ? "Primero carga el Excel Dinelco." : "Primero carga el CSV de la procesadora.")
       return null
     }
 
     const bank = bankTable ?? cardCsvResult.bank
+    if (workbenchProfile === "irvine_dinelco" &&
+      (!bank.columns.includes("Fecha Venta") || bank.rows.some((row) => !row["Fecha Venta"]))) {
+      toast.error("Vuelve a cargar el Excel Dinelco para comparar con SAP por Fecha Venta.")
+      return null
+    }
 
     if (columns.length === 0) {
       toast.error("No hay columnas disponibles para comparar.")
@@ -994,7 +1029,9 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     try {
       setIsComparing(true)
       const response = await apiClient.post<SapB1QueryComparisonResult>(
-        `${sapApiBasePath}/query-preview/compare`,
+        workbenchProfile === "irvine_dinelco"
+          ? `${sapApiBasePath}/credit-cards/dinelco/compare`
+          : `${sapApiBasePath}/query-preview/compare`,
         {
           companyErpConfigId: selectedErpConfigId,
           bank,
@@ -1041,6 +1078,8 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       depositDate: string
       journalRemarks: string
       bankReference?: string
+      dinelcoBranch?: string
+      dinelcoPresentationGroup?: IrvineDinelcoPresentationGroup
       voucherAccount?: string
     },
     kind: "debit" | "credit"
@@ -1113,6 +1152,12 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
     // BankReference es un campo propio del deposito de credito de OCHO A.
     // FG conserva su payload actual, aunque tambien calcule comision.
     const isOchoACreditDeposit = workbenchProfile === "ocho_a" && kind === "credit"
+    const isDinelcoDeposit = workbenchProfile === "irvine_dinelco"
+    if (isDinelcoDeposit && (!bankReference || !options.dinelcoBranch?.trim() ||
+      (options.dinelcoPresentationGroup !== "SPI" && options.dinelcoPresentationGroup !== "OTHER"))) {
+      toast.error("Completa la referencia y verifica la sucursal y la prestacion del deposito Dinelco.")
+      return null
+    }
     if (isFgQaCreditDeposit && !voucherAccount) {
       toast.error(
         "No se encontro la Cuenta vouchers SAP de las filas seleccionadas. Ejecuta nuevamente la consulta del sistema."
@@ -1120,6 +1165,8 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       return null
     }
     let commission: number | undefined
+    let dinelcoGrossAmount: number | undefined
+    let dinelcoNetAmount: number | undefined
     if (isCreditDepositWithCommission) {
       let calculatedCommission = 0
       for (const match of uniqueMatches) {
@@ -1135,6 +1182,31 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       }
       commission = Number(calculatedCommission.toFixed(6))
     }
+    if (isDinelcoDeposit) {
+      let gross = 0
+      let net = 0
+      for (const match of uniqueMatches) {
+        const presentation = findRowValue(match.bankRow, ["Prestación", "Presentación"])
+        if (!String(presentation ?? "").trim() ||
+          resolveIrvineDinelcoPresentationGroup(presentation) !== options.dinelcoPresentationGroup) {
+          toast.error("Dinelco: TRANSFERENCIA SPI debe depositarse separado. Vuelve a cargar el Excel y comparar.")
+          return null
+        }
+        const rowGross = parseRowNumber(match.bankRow, ["Monto"])
+        const rowNet = parseRowNumber(match.bankRow, ["Monto Neto"])
+        const sapGross = parseRowNumber(match.systemRow, ["Importe"])
+        if (rowGross === undefined || rowNet === undefined || sapGross === undefined ||
+          rowNet <= 0 || rowGross < rowNet || rowGross !== sapGross) {
+          toast.error("Dinelco: Monto debe coincidir con SAP y Monto Neto debe ser positivo y no superar Monto.")
+          return null
+        }
+        gross += rowGross
+        net += rowNet
+      }
+      dinelcoGrossAmount = Number(gross.toFixed(6))
+      dinelcoNetAmount = Number(net.toFixed(6))
+      commission = Number((gross - net).toFixed(6))
+    }
 
     const request: SapTarjetasDepositRequest = {
       companyErpConfigId: selectedErpConfigId,
@@ -1145,9 +1217,12 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       journalRemarks: journalRemarks || undefined,
       ...(voucherAccount ? { voucherAccount } : {}),
       // Solo credito de OCHO A: referencia bancaria editable para SAP.
-      ...(isOchoACreditDeposit && bankReference
+      ...((isOchoACreditDeposit || isDinelcoDeposit) && bankReference
         ? { bankReference }
         : {}),
+      ...(isDinelcoDeposit ? { dinelcoBranch: options.dinelcoBranch?.trim() } : {}),
+      ...(isDinelcoDeposit ? { dinelcoPresentationGroup: options.dinelcoPresentationGroup } : {}),
+      ...(isDinelcoDeposit ? { dinelcoGrossAmount, dinelcoNetAmount } : {}),
       // Datos de la cuenta bancaria seleccionada en la busqueda: Cuenta Pago
       // ERP, descripcion del banco y sucursal de la cuenta.
       bankAccountNum: cardSystemQuery.paymentAccountCode ?? undefined,
@@ -1157,10 +1232,12 @@ export default function useConciliationWorkbench(options?: UseConciliationWorkbe
       creditLines
     }
     const depositEndpoint =
-      workbenchProfile !== "standard"
+      isDinelcoDeposit
+        ? `${sapApiBasePath}/credit-cards/dinelco/deposits`
+        : workbenchProfile !== "standard"
         ? `${sapApiBasePath}/credit-cards/deposits/${kind}`
         : `${sapApiBasePath}/credit-cards/deposits`
-    const kindLabel = kind === "credit" ? "crédito" : "débito"
+    const kindLabel = isDinelcoDeposit ? "Dinelco" : kind === "credit" ? "crédito" : "débito"
 
     try {
       setIsSendingExternalReconciliation(true)
